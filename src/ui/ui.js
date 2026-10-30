@@ -392,8 +392,8 @@ export class UI {
     title.id = 'title-screen';
     title.innerHTML = `
       <div class="menu-inner">
-        <div class="menu-sigil">✦</div>
-        <h1 class="menu-title">Ostrze Świtu</h1>
+        <div class="menu-sigil"><img class="rune-icon" src="./icon-128.png" alt="" /></div>
+        <h1 class="menu-title">Runy Przeznaczenia</h1>
         <div class="menu-tagline">RPG · Wilcza Dolina · Mgliste Wrota</div>
         <div class="menu-buttons">
           <button class="primary" data-menu="new">Nowa wyprawa</button>
@@ -976,7 +976,7 @@ export class UI {
   }
 
   showAbout() {
-    qs('#info-title').textContent = 'Ostrze Świtu';
+    qs('#info-title').textContent = 'Runy Przeznaczenia';
     qs('#info-sub').textContent = 'RPG 3D w przeglądarce';
     qs('#info-body').innerHTML = `
       <p class="panel-note" style="font-size:13px;line-height:1.9">
@@ -1008,7 +1008,7 @@ export class UI {
   // =======================================================================
   showTitle() {
     this.titleScreen.classList.remove('hidden');
-    const hasSave = !!localStorage.getItem('ostrze-switu-save');
+    const hasSave = !!localStorage.getItem('runy-przeznaczenia-save') || !!localStorage.getItem('ostrze-switu-save');
     const btn = qs('#btn-continue');
     btn.disabled = !hasSave;
     qs('#title-foot').innerHTML = hasSave

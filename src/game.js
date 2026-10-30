@@ -17,7 +17,9 @@ import { AudioSystem } from './systems/audio.js';
 import { NPCS } from './data/dialogue.js';
 import { ITEMS, RECIPES } from './data/items.js';
 
-const SAVE_KEY = 'ostrze-switu-save';
+const SAVE_KEY = 'runy-przeznaczenia-save';
+// Klucz z pierwszej wersji gry — migracja starych zapisów.
+const LEGACY_SAVE_KEY = 'ostrze-switu-save';
 
 export class Game {
   constructor(canvas, options = {}) {
@@ -962,7 +964,7 @@ export class Game {
   }
 
   loadGame() {
-    const raw = localStorage.getItem(SAVE_KEY);
+    const raw = localStorage.getItem(SAVE_KEY) ?? localStorage.getItem(LEGACY_SAVE_KEY);
     if (!raw) {
       this.startNew();
       return;

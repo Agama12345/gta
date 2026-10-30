@@ -541,3 +541,22 @@ kbd {
 .craft-list .sub { display: inline-flex; align-items: center; gap: 3px; flex-wrap: wrap; }
 .craft-list .sub .ico-svg { margin-right: 1px; }
 .attr-glyph { font-family: var(--font-display); font-size: 14px; letter-spacing: 0; }
+
+/* ---------- ikona gry (run) ---------- */
+.loading-sigil img.rune-icon {
+  width: 84px;
+  height: 84px;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0 18px rgba(168, 92, 240, 0.55));
+  animation: runePulse 3.4s ease-in-out infinite;
+}
+.menu-sigil img.rune-icon {
+  width: 96px;
+  height: 96px;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0 22px rgba(168, 92, 240, 0.5));
+}
+@keyframes runePulse {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 14px rgba(168, 92, 240, 0.45)); }
+  50% { transform: scale(1.06); filter: drop-shadow(0 0 26px rgba(186, 122, 255, 0.7)); }
+}

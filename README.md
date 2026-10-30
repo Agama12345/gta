@@ -1,4 +1,4 @@
-# Ostrze Świtu — trójwymiarowa gra RPG w przeglądarce
+# Runy Przeznaczenia — trójwymiarowa gra RPG w przeglądarce
 
 > Wilcza Dolina umiera powoli. Mgła podnosi się od północy, a pod Mglistymi Wrotami
 > coś nosi twarz strażnika, który zamknął je trzydzieści lat temu.
@@ -12,11 +12,31 @@ zewnętrznych assetów ani serwera gry. Wystarczy otworzyć stronę.
 
 **Stack:** JavaScript (ES2022) + Three.js + Vite. Bez frameworków UI (czysty DOM/CSS).
 
-## Uruchomienie
+## Pobranie i uruchomienie na komputerze
+
+Gra jest rozpowszechniana przez launcher **Arcane Spire** (folder `launcher/`)
+— biblioteka gier z automatycznymi aktualizacjami z GitHuba, w stylu Steama.
+
+**Najszybciej — jedno polecenie** (Windows PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/Agama12345/gta/arena/68dc2b6a-gta/launcher/install.ps1 | iex
+```
+
+Instaluje launcher, tworzy skrót na pulpicie i uruchamia bibliotekę.
+
+**Albo ręcznie:** pobierz repozytorium jako ZIP → rozpakuj → wejdź w `launcher\`
+→ kliknij dwa razy `ArcaneSpire.bat`.
+
+Po każdej zmianie kodu w repozytorium launcher wykrywa nowy commit i sam
+pobiera świeżą paczkę gry przed uruchomieniem. Szczegóły: [`launcher/README.md`](launcher/README.md).
+
+## Uruchomienie (wersja dla programistów)
 
 ```bash
 npm install
 npm run dev        # -> http://localhost:5173
+npm run release    # paczka do releases/runy-przeznaczenia (dla launchera)
 ```
 
 Wersja produkcyjna:
@@ -161,7 +181,8 @@ src/
 * Gra wymaga WebGL 2 (każda współczesna przeglądarka).
 * Czcionki tytułowe pobierane są z Google Fonts; bez internetu UI korzysta
   z czcionek systemowych i nadal jest w pełni czytelne.
-* Zapis gry trzymany jest w `localStorage` pod kluczem `ostrze-switu-save`.
+* Zapis gry trzymany jest w `localStorage` pod kluczem `runy-przeznaczenia-save`
+  (starsze zapisy `ostrze-switu-save` są migrowane automatycznie).
 
 ---
 

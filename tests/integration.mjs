@@ -212,7 +212,7 @@ check('odpoczynek przesuwa czas', game.dayNight.hour > 5 && game.dayNight.hour <
 
 console.log('▸ zapis i wczytanie');
 game.saveGame();
-check('zapis istnieje', !!localStorage.getItem('ostrze-switu-save'));
+check('zapis istnieje', !!localStorage.getItem('runy-przeznaczenia-save'));
 const levelBefore = p.level;
 const questsBefore = [...game.quests.completed];
 game.player.pos.set(10, 2, 10);
