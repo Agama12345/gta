@@ -1,16 +1,44 @@
 # Arcane Spire 1.1 — launcher gier (Windows)
 
-Gotowy plik `.exe` do pobrania, bez instalowania .NET i bez budowania czegokolwiek:
+## Pobierz
 
-**https://github.com/Agama12345/gta/releases/download/launcher-latest/ArcaneSpire.exe**
+**Zalecane — paczka ZIP (exe + skrypty pomocy):**
+https://github.com/Agama12345/gta/releases/download/launcher-latest/ArcaneSpire.zip
 
-- system: Windows 10 (1903+) / Windows 11 — .NET Framework 4.8 jest wbudowany,
-- rozmiar: ~145 kB, jeden plik, bez zależności,
-- link `launcher-latest` jest **stały** — zawsze prowadzi do najnowszego builda.
+**Sam plik exe:**
+https://github.com/Agama12345/gta/releases/download/launcher-latest/ArcaneSpire.exe
+(albo kopia w repozytorium: `downloads/ArcaneSpire.exe`)
 
-Pierwsze uruchomienie: Ustawienia → **„Zainstaluj launcher w systemie”** (kopiuje plik do
-`%LOCALAPPDATA%\ArcaneSpire\app`, robi skróty na pulpicie i w menu Start, dodaje autostart
-— dzięki temu samoaktualizacja ma zapisywalny katalog).
+Windows 10 (1903+) / Windows 11 — .NET Framework 4.8 jest częścią systemu. Rozmiar ~150 kB.
+
+### Jak uruchomić
+
+1. **Rozpakuj ZIP** (nie uruchamiaj pliku prosto z archiwum).
+2. Kliknij dwa razy `uruchom.cmd` — odblokowuje plik (SmartScreen), uruchamia launcher,
+   a jeśli okno nie wstanie w 20 sekund, pokazuje ostatnie kroki startu.
+3. Możesz też uruchomić `ArcaneSpire.exe` bezpośrednio.
+
+### Gdy launcher nie startuje
+
+Kliknij `diagnostyka.cmd`. Na pulpicie powstanie **`diagnostyka.txt`** z:
+wersją .NET Framework, informacjami o pliku, wynikiem autotestu, ostatnimi wpisami
+`start.log` i `launcher.log` oraz błędami z dziennika zdarzeń Windows.
+
+Ręcznie:
+
+```cmd
+ArcaneSpire.exe --selftest    :: sprawdzenia bez sieci i bez okna głównego
+ArcaneSpire.exe --safe        :: tryb awaryjny: bez sprawdzania aktualizacji
+```
+
+Logi: `%LOCALAPPDATA%\ArcaneSpire\start.log` (krok po kroku start)
+i `%LOCALAPPDATA%\ArcaneSpire\launcher.log`.
+
+### Gdy nic nie pomaga
+
+Wersja skryptowa (PowerShell 5.1, bez .exe):
+[`ArcaneSpire-launcher.zip`](https://github.com/Agama12345/gta/raw/arena/68dc2b6a-gta/downloads/ArcaneSpire-launcher.zip)
+→ rozpakuj → `ArcaneSpire.bat`.
 
 ## Co jest w środku
 
