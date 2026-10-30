@@ -586,9 +586,9 @@ export class TerrainManager {
   }
 
   lodForDistance(d) {
-    if (d < 260) return 50; // 5 m
-    if (d < 560) return 25; // 10 m
-    return 12; // 20 m
+    if (d < 300) return 32; // 7,8 m (siatka wysokości ma 8 m, więcej nie da)
+    if (d < 620) return 16; // 15,6 m
+    return 8; // 31 m
   }
 
   ensureChunk(chunk, res) {
@@ -615,7 +615,7 @@ export class TerrainManager {
     for (const chunk of this.chunks.values()) {
       if (chunk.centerX < -WORLD_RADIUS || chunk.centerZ < -WORLD_RADIUS) continue;
       const d = Math.hypot(chunk.centerX - pos.x, chunk.centerZ - pos.z);
-      this.ensureChunk(chunk, d < 340 ? 50 : 12);
+      this.ensureChunk(chunk, d < 340 ? 32 : 8);
     }
   }
 
@@ -848,12 +848,30 @@ export function createWater() {
     Math.sin(x * 0.055 + t * 0.85) * 0.19 +
     Math.cos(z * 0.071 + t * 0.62) * 0.15 +
     Math.sin((x + z) * 0.021 + t * 1.31) * 0.24;
+  // pochodne cząstkowe — normalna liczona wprost, bez przemiatania trójkątów
+  const waveSlope = (x, z, t) => [
+    Math.cos(x * 0.055 + t * 0.85) * 0.19 * 0.055 +
+      Math.cos((x + z) * 0.021 + t * 1.31) * 0.24 * 0.021,
+    -Math.sin(z * 0.071 + t * 0.62) * 0.15 * 0.071 +
+      Math.cos((x + z) * 0.021 + t * 1.31) * 0.24 * 0.021,
+  ];
 
+  const nrm = seaGeo.attributes.normal;
+  const refreshNormals = (t) => {
+    for (let i = 0; i < pos.count; i++) {
+      const [dx, dz] = waveSlope(base[i * 3], base[i * 3 + 2], t);
+      const len = Math.hypot(dx, 1, dz) || 1;
+      nrm.array[i * 3] = -dx / len;
+      nrm.array[i * 3 + 1] = 1 / len;
+      nrm.array[i * 3 + 2] = -dz / len;
+    }
+    nrm.needsUpdate = true;
+  };
   for (let i = 0; i < pos.count; i++) {
     pos.array[i * 3 + 1] = wave(base[i * 3], base[i * 3 + 2], 0);
   }
   pos.needsUpdate = true;
-  seaGeo.computeVertexNormals();
+  refreshNormals(0);
 
   let t = 0;
   let frame = 0;
@@ -870,7 +888,7 @@ export function createWater() {
         arr[i * 3 + 1] = wave(base[i * 3], base[i * 3 + 2], t);
       }
       pos.needsUpdate = true;
-      if (frame % 3 === 0) seaGeo.computeVertexNormals();
+      if (frame % 2 === 0) refreshNormals(t);
 
       foamMat.opacity = 0.4 + Math.sin(t * 0.9) * 0.1 + Math.sin(t * 2.3) * 0.04;
       const lift = Math.sin(t * 0.9) * 0.03;
