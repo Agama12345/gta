@@ -14,7 +14,8 @@
     "release": "node tools/release.mjs",
     "icons": "python3 tools/make_icons.py",
     "launcher": "powershell -NoProfile -ExecutionPolicy Bypass -File launcher/ArcaneSpire.ps1",
-    "launcher-pack": "python3 tools/pack_launcher.py"
+    "launcher-pack": "python3 tools/pack_launcher.py",
+    "downloads": "python3 tools/pack_downloads.py"
   },
   "dependencies": {
     "three": "^0.169.0"

@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OreRush — kop, zbieraj, uciekaj</title>
+<style>
+  :root {
+    --gold: #C9A227;
+    --gold-light: #E8C252;
+    --dark: #14110c;
+    --panel: #201a12;
+    --line: #3a2f1e;
+    --red: #C24A3A;
+    --green: #7EC678;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--dark); }
+  body {
+    font-family: "Segoe UI", system-ui, sans-serif;
+    color: #EDE3CF;
+    display: flex; align-items: center; justify-content: center;
+    user-select: none;
+  }
+  #game { position: relative; width: 960px; height: 600px; max-width: 100vw; max-height: 100vh; }
+  canvas { display: block; width: 100%; height: 100%; background: #0d0b08; border-radius: 10px; }
+  .hud {
+    position: absolute; top: 14px; left: 16px; right: 16px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    pointer-events: none; font-variant-numeric: tabular-nums;
+  }
+  .hud .left, .hud .right { display: flex; gap: 18px; align-items: center; }
+  .stat { background: rgba(20,17,12,.78); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; }
+  .stat b { display: block; font-size: 11px; letter-spacing: .12em; color: #a2906f; text-transform: uppercase; }
+  .stat span { font-size: 20px; font-weight: 700; color: var(--gold-light); }
+  .bar { width: 210px; height: 10px; border-radius: 6px; background: rgba(20,17,12,.85); border: 1px solid var(--line); overflow: hidden; }
+  .bar > i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #7EC678, #C9A227); transition: width .12s linear; }
+  .overlay {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 18px; text-align: center;
+    background: radial-gradient(circle at 50% 40%, rgba(60,44,16,.92), rgba(9,8,6,.96));
+    border-radius: 10px; padding: 40px;
+  }
+  .overlay.hidden { display: none; }
+  h1 { margin: 0; font-size: 54px; letter-spacing: .06em; color: var(--gold-light); text-shadow: 0 6px 30px rgba(201,162,39,.35); }
+  h1 small { display: block; font-size: 14px; letter-spacing: .32em; color: #a2906f; margin-top: 8px; font-weight: 500; }
+  p.lead { margin: 0; max-width: 620px; color: #c9bb9f; line-height: 1.55; font-size: 15px; }
+  .keys { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  kbd {
+    background: #2a2317; border: 1px solid #4a3c25; border-bottom-width: 3px;
+    border-radius: 6px; padding: 6px 10px; font-size: 13px; font-family: inherit; color: #e8dcc2;
+  }
+  button {
+    font: inherit; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+    padding: 14px 38px; border-radius: 9px; cursor: pointer; color: #1a1409;
+    background: linear-gradient(180deg, #E8C252, #B98F1C); border: 1px solid #F0D686;
+    box-shadow: 0 8px 26px rgba(201,162,39,.3);
+  }
+  button:hover { filter: brightness(1.08); }
+  button:active { transform: translateY(1px); }
+  .row { display: flex; gap: 12px; }
+  button.ghost {
+    background: transparent; color: #c9bb9f; border: 1px solid var(--line); box-shadow: none;
+  }
+  .stats-grid { display: flex; gap: 26px; margin: 6px 0 2px; }
+  .stats-grid div { text-align: center; }
+  .stats-grid b { display: block; font-size: 30px; color: var(--gold-light); }
+  .stats-grid span { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: #8d7d5f; }
+  .hint { position: absolute; bottom: 14px; left: 0; right: 0; text-align: center; font-size: 12px; color: #7d6e53; }
+  .flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; border-radius: 10px; }
+</style>
+</head>
+<body>
+<div id="game">
+  <canvas id="cv" width="960" height="600"></canvas>
+
+  <div class="hud">
+    <div class="left">
+      <div class="stat"><b>Ruda</b><span id="hud-ore">0</span></div>
+      <div class="stat"><b>Wynik</b><span id="hud-score">0</span></div>
+      <div class="stat"><b>Poziom</b><span id="hud-level">1</span></div>
+    </div>
+    <div class="right">
+      <div class="bar"><i id="hud-lamp"></i></div>
+    </div>
+  </div>
+
+  <div class="overlay" id="screen-menu">
+    <h1>ORERUSH<small>KOP · ZBIERAJ · UCIEKAJ</small></h1>
+    <p class="lead">Wjeżdżasz do kopalni z jedną lampą i pustym wózkiem. Zbieraj rudę, unikaj spadających
+      kamieni i chodź szybciej, niż gaśnie światło. Każdy poziom to krótsza lampa i więcej pułapek.</p>
+    <div class="keys">
+      <kbd>W A S D / strzałki — ruch</kbd>
+      <kbd>Spacja — zamach kilofem</kbd>
+      <kbd>Shift — sprint (zużywa lampę)</kbd>
+      <kbd>P — pauza</kbd>
+    </div>
+    <button id="btn-start">ZACZNIJ ZJAZD</button>
+    <p class="lead" style="font-size:12px;color:#8d7d5f">Rekord: <span id="menu-best">0</span> punktów</p>
+  </div>
+
+  <div class="overlay hidden" id="screen-pause">
+    <h1 style="font-size:40px">PAUZA</h1>
+    <div class="row">
+      <button id="btn-resume">WRÓĆ DO GRY</button>
+      <button class="ghost" id="btn-quit">WYJDŹ DO MENU</button>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="screen-over">
+    <h1 id="over-title">ZASYPANY</h1>
+    <div class="stats-grid">
+      <div><b id="over-score">0</b><span>punkty</span></div>
+      <div><b id="over-ore">0</b><span>ruda</span></div>
+      <div><b id="over-level">1</b><span>poziom</span></div>
+    </div>
+    <p class="lead" id="over-note">Lampa zgasła. Kopalnia nie czeka.</p>
+    <div class="row">
+      <button id="btn-again">JESZCZE RAZ</button>
+      <button class="ghost" id="btn-menu">MENU</button>
+    </div>
+  </div>
+
+  <div class="flash" id="flash"></div>
+  <div class="hint" id="hint">W A S D — ruch · Spacja — kilof · Shift — sprint</div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+
+  const el = {
+    ore: document.getElementById('hud-ore'),
+    score: document.getElementById('hud-score'),
+    level: document.getElementById('hud-level'),
+    lamp: document.getElementById('hud-lamp'),
+    menu: document.getElementById('screen-menu'),
+    pause: document.getElementById('screen-pause'),
+    over: document.getElementById('screen-over'),
+    best: document.getElementById('menu-best'),
+    overTitle: document.getElementById('over-title'),
+    overScore: document.getElementById('over-score'),
+    overOre: document.getElementById('over-ore'),
+    overLevel: document.getElementById('over-level'),
+    overNote: document.getElementById('over-note'),
+    flash: document.getElementById('flash'),
+    hint: document.getElementById('hint')
+  };
+
+  const STORAGE_KEY = 'orerush.best';
+  let best = 0;
+  try { best = parseInt(localStorage.getItem(STORAGE_KEY) || '0', 10) || 0; } catch (e) { best = 0; }
+  el.best.textContent = best;
+
+  const keys = Object.create(null);
+  window.addEventListener('keydown', (e) => {
+    const k = e.key.toLowerCase();
+    keys[k] = true;
+    if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)) e.preventDefault();
+    if (k === 'p' && (state === 'run' || state === 'pause')) togglePause();
+    if (k === 'escape' && state === 'run') togglePause();
+  });
+  window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
+  window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+
+  // ------------------------------------------------------------- świat
+  const CAVE = { x: 40, y: 70, w: W - 80, h: H - 130 };
+  const LEVELS = [
+    { lamp: 46, rocks: 3, shards: 16, speed: 1.0, name: 'Szyb A' },
+    { lamp: 40, rocks: 5, shards: 20, speed: 1.12, name: 'Szyb B' },
+    { lamp: 34, rocks: 7, shards: 24, speed: 1.22, name: 'Szyb C' },
+    { lamp: 29, rocks: 9, shards: 28, speed: 1.32, name: 'Szyb D' },
+    { lamp: 24, rocks: 11, shards: 32, speed: 1.42, name: 'Głęboki szyb' }
+  ];
+
+  let state = 'menu'; // menu | run | pause | over
+  let player, ores, rocks, particles, level, lamp, oreCount, score, elapsed, shake, combo, comboTimer, spawnTimer;
+
+  function levelConfig() {
+    const index = Math.min(level - 1, LEVELS.length - 1);
+    return LEVELS[index];
+  }
+
+  function resetGame() {
+    level = 1; oreCount = 0; score = 0; elapsed = 0; shake = 0; combo = 0; comboTimer = 0; spawnTimer = 0;
+    player = {
+      x: CAVE.x + 70, y: CAVE.y + CAVE.h / 2,
+      vx: 0, vy: 0, r: 13, swing: 0, facing: 0, stamina: 1, hurt: 0
+    };
+    ores = []; rocks = []; particles = [];
+    startLevel(1);
+    updateHud();
+  }
+
+  function startLevel(n) {
+    level = n;
+    const cfg = levelConfig();
+    lamp = cfg.lamp;
+    ores = [];
+    rocks = [];
+    for (let i = 0; i < cfg.shards; i++) {
+      const p = randomSpot(60);
+      ores.push({ x: p.x, y: p.y, r: 9, value: 1 + Math.floor(n / 2), bob: Math.random() * Math.PI * 2, taken: false });
+    }
+    updateHud();
+  }
+
+  function randomSpot(margin) {
+    return {
+      x: CAVE.x + margin + Math.random() * (CAVE.w - margin * 2),
+      y: CAVE.y + margin + Math.random() * (CAVE.h - margin * 2)
+    };
+  }
+
+  function updateHud() {
+    el.ore.textContent = oreCount;
+    el.score.textContent = score;
+    el.level.textContent = level;
+    const pct = Math.max(0, Math.min(1, lamp / (levelConfig().lamp || 1)));
+    el.lamp.style.width = (pct * 100).toFixed(1) + '%';
+    el.lamp.style.background = pct > 0.5
+      ? 'linear-gradient(90deg,#7EC678,#C9A227)'
+      : pct > 0.25
+        ? 'linear-gradient(90deg,#C9A227,#E07A3C)'
+        : 'linear-gradient(90deg,#C24A3A,#E07A3C)';
+  }
+
+  function flash(strength) {
+    el.flash.style.transition = 'none';
+    el.flash.style.opacity = String(Math.min(0.75, strength));
+    requestAnimationFrame(() => {
+      el.flash.style.transition = 'opacity .35s ease-out';
+      el.flash.style.opacity = '0';
+    });
+  }
+
+  function show(screen) {
+    el.menu.classList.toggle('hidden', screen !== 'menu');
+    el.pause.classList.toggle('hidden', screen !== 'pause');
+    el.over.classList.toggle('hidden', screen !== 'over');
+    el.hint.style.display = screen === 'run' ? 'block' : 'none';
+  }
+
+  function startGame() {
+    resetGame();
+    state = 'run';
+    show('run');
+  }
+
+  function togglePause() {
+    if (state === 'run') { state = 'pause'; show('pause'); }
+    else if (state === 'pause') { state = 'run'; show('run'); }
+  }
+
+  function endGame(reason) {
+    state = 'over';
+    if (score > best) {
+      best = score;
+      try { localStorage.setItem(STORAGE_KEY, String(best)); } catch (e) {}
+      el.best.textContent = best;
+    }
+    el.overTitle.textContent = reason === 'lamp' ? 'LAMPA ZGASŁA' : 'ZASYPANY';
+    el.overScore.textContent = score;
+    el.overOre.textContent = oreCount;
+    el.overLevel.textContent = level;
+    el.overNote.textContent = reason === 'lamp'
+      ? 'Ciemność przyszła szybciej niż wózek. Weź więcej lamp na następny zjazd.'
+      : 'Kamień spadł prosto na kask. Kopalnia nie wybacza pośpiechu.';
+    show('over');
+  }
+
+  document.getElementById('btn-start').addEventListener('click', startGame);
+  document.getElementById('btn-again').addEventListener('click', startGame);
+  document.getElementById('btn-resume').addEventListener('click', togglePause);
+  document.getElementById('btn-quit').addEventListener('click', () => { state = 'menu'; show('menu'); });
+  document.getElementById('btn-menu').addEventListener('click', () => { state = 'menu'; show('menu'); });
+
+  // ----------------------------------------------------------- fizyka
+  const PLAYER_SPEED = 236;
+  const SPRINT_MULT = 1.65;
+
+  function update(dt) {
+    elapsed += dt;
+    const cfg = levelConfig();
+    const sprinting = (keys['shift'] || keys['shiftleft']) && player.stamina > 0.02;
+    const speed = PLAYER_SPEED * cfg.speed * (sprinting ? SPRINT_MULT : 1);
+
+    let ax = 0, ay = 0;
+    if (keys['a'] || keys['arrowleft']) ax -= 1;
+    if (keys['d'] || keys['arrowright']) ax += 1;
+    if (keys['w'] || keys['arrowup']) ay -= 1;
+    if (keys['s'] || keys['arrowdown']) ay += 1;
+    const len = Math.hypot(ax, ay) || 1;
+    ax /= len; ay /= len;
+
+    player.vx += ax * speed * dt * 9;
+    player.vy += ay * speed * dt * 9;
+    player.vx *= 0.86;
+    player.vy *= 0.86;
+    const maxSpeed = speed;
+    const vlen = Math.hypot(player.vx, player.vy);
+    if (vlen > maxSpeed) { player.vx = player.vx / vlen * maxSpeed; player.vy = player.vy / vlen * maxSpeed; }
+    player.x += player.vx * dt;
+    player.y += player.vy * dt;
+
+    // ściany kopalni
+    player.x = Math.max(CAVE.x + player.r, Math.min(CAVE.x + CAVE.w - player.r, player.x));
+    player.y = Math.max(CAVE.y + player.r, Math.min(CAVE.y + CAVE.h - player.r, player.y));
+    if (Math.abs(player.vx) > 8) player.facing = player.vx > 0 ? 1 : -1;
+
+    // lampa: czas + sprint
+    lamp -= dt * (sprinting ? 2.1 : 1) * (1 + (level - 1) * 0.07);
+    player.stamina = Math.max(0, Math.min(1, player.stamina + (sprinting ? -dt * 0.55 : dt * 0.34)));
+    if (lamp <= 0) { lamp = 0; endGame('lamp'); return; }
+
+    // kilof
+    player.swing = Math.max(0, player.swing - dt * 4.2);
+    if ((keys[' '] || keys['spacebar']) && player.swing <= 0.01) player.swing = 1;
+
+    // ruda
+    for (const ore of ores) {
+      if (ore.taken) continue;
+      ore.bob += dt * 3;
+      const d = Math.hypot(ore.x - player.x, ore.y - player.y);
+      if (d < player.r + ore.r + (player.swing > 0.25 ? 34 : 0)) {
+        ore.taken = true;
+        combo = comboTimer > 0 ? Math.min(9, combo + 1) : 1;
+        comboTimer = 1.6;
+        const gain = ore.value * (1 + combo * 0.35);
+        score += Math.round(gain * 10);
+        oreCount += ore.value;
+        lamp = Math.min(cfg.lamp, lamp + 1.6);
+        burst(ore.x, ore.y, '#E8C252', 12);
+        updateHud();
+      }
+    }
+    comboTimer = Math.max(0, comboTimer - dt);
+
+    // kamienie
+    spawnTimer += dt;
+    const spawnEvery = Math.max(0.55, 1.9 - level * 0.16);
+    if (spawnTimer > spawnEvery && rocks.length < cfg.rocks + 6) {
+      spawnTimer = 0;
+      const spot = randomSpot(40);
+      // nie spadaj na gracza
+      if (Math.hypot(spot.x - player.x, spot.y - player.y) > 150) {
+        rocks.push({ x: spot.x, y: spot.y, r: 11 + Math.random() * 7, vy: 0, landed: false, wobble: 0 });
+      }
+    }
+
+    for (const rock of rocks) {
+      if (!rock.landed) {
+        rock.vy += 460 * dt;
+        rock.y += rock.vy * dt;
+        let hitFloor = rock.y > CAVE.y + CAVE.h - rock.r;
+        // zderzenie z graczem
+        if (!hitFloor && Math.hypot(rock.x - player.x, rock.y - player.y) < rock.r + player.r) {
+          endGame('rock');
+          burst(player.x, player.y, '#C24A3A', 26);
+          return;
+        }
+        for (const ore of ores) {
+          if (ore.taken) continue;
+          if (Math.hypot(rock.x - ore.x, rock.y - ore.y) < rock.r + ore.r) ore.taken = true;
+        }
+        if (hitFloor) {
+          rock.landed = true;
+          shake = Math.max(shake, 5);
+          burst(rock.x, rock.y, '#6b5a3c', 8);
+        }
+      }
+    }
+    rocks = rocks.filter(r => r.landed ? (r.wobble += dt) < 4.5 : true);
+
+    // cząstki
+    for (const p of particles) {
+      p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 260 * dt; p.life -= dt;
+    }
+    particles = particles.filter(p => p.life > 0);
+
+    shake = Math.max(0, shake - dt * 22);
+
+    // poziom skończony?
+    const left = ores.filter(o => !o.taken).length;
+    if (left === 0) {
+      score += 120 * level;
+      level += 1;
+      startLevel(level);
+      flash(0.35);
+      el.overNote.textContent = '';
+    }
+    updateHud();
+  }
+
+  function burst(x, y, color, count) {
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 40 + Math.random() * 190;
+      particles.push({
+        x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - 60,
+        life: 0.4 + Math.random() * 0.5, color, size: 1.5 + Math.random() * 2.5
+      });
+    }
+  }
+
+  // ---------------------------------------------------------- rysowanie
+  function draw() {
+    ctx.save();
+    if (shake > 0.2) {
+      ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+    }
+
+    // tło kopalni
+    const bg = ctx.createRadialGradient(W / 2, H / 2, 80, W / 2, H / 2, W * 0.72);
+    bg.addColorStop(0, '#241d13');
+    bg.addColorStop(1, '#0b0906');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // skała wokół jaskini
+    ctx.fillStyle = '#151109';
+    ctx.fillRect(0, 0, W, H);
+
+    // jaskinia
+    ctx.save();
+    ctx.beginPath();
+    roundRect(ctx, CAVE.x, CAVE.y, CAVE.w, CAVE.h, 26);
+    ctx.clip();
+    const caveGradient = ctx.createLinearGradient(CAVE.x, CAVE.y, CAVE.x, CAVE.y + CAVE.h);
+    caveGradient.addColorStop(0, '#2c2417');
+    caveGradient.addColorStop(1, '#1a150d');
+    ctx.fillStyle = caveGradient;
+    ctx.fillRect(CAVE.x, CAVE.y, CAVE.w, CAVE.h);
+
+    // warstwy skalne
+    ctx.strokeStyle = 'rgba(120,96,54,.13)';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 14; i++) {
+      ctx.beginPath();
+      let y = CAVE.y + ((i * 61 + elapsed * 6) % CAVE.h);
+      ctx.moveTo(CAVE.x, y);
+      for (let x = CAVE.x; x < CAVE.x + CAVE.w; x += 40) {
+        ctx.lineTo(x, y + Math.sin((x + i * 30) * 0.02) * 6);
+      }
+      ctx.stroke();
+    }
+
+    // światło lampy
+    const lampPct = Math.max(0.08, lamp / levelConfig().lamp);
+    const lightRadius = 150 + 260 * lampPct;
+    const light = ctx.createRadialGradient(player.x, player.y, 20, player.x, player.y, lightRadius);
+    light.addColorStop(0, 'rgba(255,226,150,' + (0.32 + lampPct * 0.3).toFixed(3) + ')');
+    light.addColorStop(0.55, 'rgba(255,196,90,.10)');
+    light.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = light;
+    ctx.fillRect(CAVE.x, CAVE.y, CAVE.w, CAVE.h);
+
+    // ciemność poza kręgiem światła
+    const vignette = ctx.createRadialGradient(player.x, player.y, lightRadius * 0.55, player.x, player.y, Math.max(W, H) * 0.72);
+    vignette.addColorStop(0, 'rgba(0,0,0,0)');
+    vignette.addColorStop(0.7, 'rgba(0,0,0,' + (0.55 + (1 - lampPct) * 0.3).toFixed(3) + ')');
+    vignette.addColorStop(1, 'rgba(0,0,0,.93)');
+    ctx.fillStyle = vignette;
+    ctx.fillRect(CAVE.x, CAVE.y, CAVE.w, CAVE.h);
+
+    // ruda
+    for (const ore of ores) {
+      if (ore.taken) continue;
+      const bob = Math.sin(ore.bob) * 2.4;
+      const glow = ctx.createRadialGradient(ore.x, ore.y + bob, 1, ore.x, ore.y + bob, 22);
+      glow.addColorStop(0, 'rgba(232,194,82,.75)');
+      glow.addColorStop(1, 'rgba(232,194,82,0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(ore.x, ore.y + bob, 22, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#E8C252';
+      ctx.beginPath();
+      ctx.moveTo(ore.x, ore.y - 9 + bob);
+      ctx.lineTo(ore.x + 8, ore.y + bob);
+      ctx.lineTo(ore.x + 3, ore.y + 8 + bob);
+      ctx.lineTo(ore.x - 6, ore.y + 7 + bob);
+      ctx.lineTo(ore.x - 8, ore.y + bob);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(90,68,18,.85)';
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+    }
+
+    // kamienie
+    for (const rock of rocks) {
+      ctx.save();
+      ctx.globalAlpha = rock.landed ? Math.max(0, 1 - rock.wobble / 4.5) : 1;
+      ctx.fillStyle = '#6f6047';
+      ctx.beginPath();
+      ctx.arc(rock.x, rock.y, rock.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(0,0,0,.35)';
+      ctx.beginPath();
+      ctx.arc(rock.x + rock.r * 0.3, rock.y + rock.r * 0.25, rock.r * 0.55, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      if (!rock.landed) {
+        ctx.strokeStyle = 'rgba(220,190,120,.10)';
+        ctx.beginPath();
+        ctx.moveTo(rock.x, CAVE.y);
+        ctx.lineTo(rock.x, rock.y - rock.r);
+        ctx.stroke();
+      }
+    }
+
+    // gracz
+    drawPlayer();
+
+    // cząstki
+    for (const p of particles) {
+      ctx.globalAlpha = Math.max(0, Math.min(1, p.life * 2));
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x, p.y, p.size, p.size);
+    }
+    ctx.globalAlpha = 1;
+
+    ctx.restore(); // clip
+
+    // obramowanie jaskini
+    ctx.strokeStyle = '#4a3a22';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    roundRect(ctx, CAVE.x, CAVE.y, CAVE.w, CAVE.h, 26);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function drawPlayer() {
+    const swingAngle = player.swing * 1.2;
+    ctx.save();
+    ctx.translate(player.x, player.y);
+
+    // cień
+    ctx.fillStyle = 'rgba(0,0,0,.45)';
+    ctx.beginPath();
+    ctx.ellipse(0, player.r * 0.85, player.r * 0.95, player.r * 0.42, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // kilof
+    ctx.save();
+    ctx.rotate(-0.7 + swingAngle * 2.6);
+    ctx.strokeStyle = '#8a7452';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, -26);
+    ctx.stroke();
+    ctx.strokeStyle = '#c8c2b4';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(-9, -26);
+    ctx.quadraticCurveTo(0, -33, 9, -26);
+    ctx.stroke();
+    ctx.restore();
+
+    // ciało
+    const bodyGradient = ctx.createLinearGradient(0, -player.r, 0, player.r);
+    bodyGradient.addColorStop(0, '#E6D9BE');
+    bodyGradient.addColorStop(1, '#B49E76');
+    ctx.fillStyle = bodyGradient;
+    ctx.beginPath();
+    ctx.arc(0, 0, player.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#2a2116';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // kask
+    ctx.fillStyle = '#C9A227';
+    ctx.beginPath();
+    ctx.arc(0, -player.r * 0.35, player.r * 0.78, Math.PI, 0);
+    ctx.fill();
+    ctx.fillStyle = '#fff8dc';
+    ctx.beginPath();
+    ctx.arc(player.facing * player.r * 0.45, -player.r * 0.5, 2.6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // lampka na kasku
+    const lampGlow = ctx.createRadialGradient(0, -player.r, 0, 0, -player.r, 26);
+    lampGlow.addColorStop(0, 'rgba(255,240,180,.85)');
+    lampGlow.addColorStop(1, 'rgba(255,240,180,0)');
+    ctx.fillStyle = lampGlow;
+    ctx.beginPath();
+    ctx.arc(0, -player.r, 26, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  function roundRect(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r);
+    c.closePath();
+  }
+
+  // -------------------------------------------------------------- pętla
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    if (state === 'run') update(dt);
+    else if (state === 'menu') {
+      elapsed += dt * 0.4;
+      if (!player) {
+        player = { x: W / 2, y: H / 2, vx: 0, vy: 0, r: 13, swing: 0, facing: 1, stamina: 1, hurt: 0 };
+        ores = []; rocks = []; particles = []; lamp = 40; oreCount = 0; score = 0; level = 1; shake = 0;
+      }
+    }
+    draw();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // pierwszy ekran
+  resetGame();
+  state = 'menu';
+  show('menu');
+})();
+</script>
+</body>
+</html>

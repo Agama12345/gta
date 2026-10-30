@@ -84,16 +84,19 @@ export class Player {
   _buildModel() {
     const built = makeHumanoid({
       skin: '#dcb08a',
-      tunic: '#5d7358',
-      pants: '#4a443c',
-      boots: '#332c26',
-      hair: '#523521',
-      cloak: '#3f5a4c',
-      bulk: 1.02,
+      tunic: '#4f6350',
+      pants: '#463f36',
+      boots: '#2b241f',
+      hair: '#4a3020',
+      cloak: '#384f44',
+      bulk: 1.04,
       scar: true,
+      armor: '#7c8577',
     });
     this.model = built.group;
     this.parts = built.parts;
+
+    this._buildGear();
 
     const sword = makeSword({ blade: '#d9e2e8', guard: '#b08a3e', grip: '#3a2a1c' });
     sword.position.set(0, -0.72, 0.06);
@@ -136,6 +139,112 @@ export class Player {
     this.shadowBlob.rotation.x = -Math.PI / 2;
     this.shadowBlob.position.y = 0.04;
     this.group.add(this.shadowBlob);
+  }
+
+  /** Doposażenie modelu: naramienniki, karwasze, runa na piersi, hełm i peleryna z segmentów. */
+  _buildGear() {
+    const { body, arms, legs, head, torso } = this.parts;
+
+    const steel = new THREE.MeshStandardMaterial({ color: '#8d968c', roughness: 0.42, metalness: 0.72 });
+    const steelDark = new THREE.MeshStandardMaterial({ color: '#5f675f', roughness: 0.5, metalness: 0.65 });
+    const leather = new THREE.MeshStandardMaterial({ color: '#4a3524', roughness: 0.9 });
+    const runeMat = new THREE.MeshStandardMaterial({
+      color: '#3a2a52',
+      roughness: 0.35,
+      metalness: 0.4,
+      emissive: '#a86bf0',
+      emissiveIntensity: 0.9,
+    });
+    const capeMat = new THREE.MeshStandardMaterial({
+      color: '#33503f',
+      roughness: 0.95,
+      side: THREE.DoubleSide,
+    });
+    const capeMatInner = new THREE.MeshStandardMaterial({
+      color: '#28402f',
+      roughness: 0.98,
+      side: THREE.DoubleSide,
+    });
+
+    // naramienniki (rosną wraz z ramieniem, więc nie rozjeżdżają się w animacji)
+    for (const arm of arms) {
+      const pad = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.62), steel);
+      pad.position.set(0, 0.02, 0);
+      pad.scale.set(1.15, 0.85, 1.15);
+      pad.castShadow = true;
+      arm.add(pad);
+
+      const bracer = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.075, 0.2, 7), steelDark);
+      bracer.position.set(0, -0.62, 0);
+      bracer.castShadow = true;
+      arm.add(bracer);
+    }
+
+    // napierśnik z runą światła
+    const chest = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.42, 0.1), steel);
+    chest.position.set(0, 1.2, 0.19);
+    chest.castShadow = true;
+    body.add(chest);
+
+    const rune = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.017, 6, 12), runeMat);
+    rune.position.set(0, 1.22, 0.25);
+    rune.castShadow = false;
+    body.add(rune);
+    this.runeMesh = rune;
+
+    const strap = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.68, 0.06), leather);
+    strap.position.set(-0.12, 1.16, 0.19);
+    strap.rotation.z = 0.5;
+    body.add(strap);
+
+    // nagolenice
+    for (const leg of legs) {
+      const greave = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.09, 0.26, 7), steelDark);
+      greave.position.set(0, -0.42, 0.01);
+      greave.castShadow = true;
+      leg.add(greave);
+    }
+
+    // hełm: skórzany kaptur z obręczą
+    const hood = new THREE.Mesh(
+      new THREE.SphereGeometry(0.235, 9, 7, 0, Math.PI * 2, 0, Math.PI * 0.72),
+      new THREE.MeshStandardMaterial({ color: '#3d4a41', roughness: 0.95 })
+    );
+    hood.position.set(0, 0.045, -0.01);
+    hood.castShadow = true;
+    head.add(hood);
+
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.022, 6, 14), steel);
+    rim.rotation.x = Math.PI / 2;
+    rim.position.set(0, 0.03, 0);
+    head.add(rim);
+
+    // peleryna: 4 segmenty, każdy sterowany osobno (wiatr + bieg)
+    const cape = new THREE.Group();
+    cape.position.set(0, 1.42, -0.17);
+    body.add(cape);
+    const segments = [];
+    let parent = cape;
+    for (let i = 0; i < 4; i++) {
+      const width = 0.5 - i * 0.055;
+      const seg = new THREE.Group();
+      seg.position.y = i === 0 ? 0 : -0.24;
+      const panel = new THREE.Mesh(new THREE.BoxGeometry(width, 0.26, 0.025), i === 0 ? capeMat : capeMatInner);
+      panel.position.y = -0.12;
+      panel.castShadow = true;
+      seg.add(panel);
+      parent.add(seg);
+      parent = seg;
+      segments.push(seg);
+    }
+    this.cape = { root: cape, segments };
+    if (this.parts.cloak) this.parts.cloak.visible = false;
+
+    // stary, prosty miecz i tarcza zostają — ale dostają lepsze materiały
+    const bladeMat = new THREE.MeshStandardMaterial({ color: '#dbe4ea', roughness: 0.22, metalness: 0.92 });
+    const guardMat = new THREE.MeshStandardMaterial({ color: '#c99a44', roughness: 0.35, metalness: 0.85 });
+    this._bladeMaterial = bladeMat;
+    this._guardMaterial = guardMat;
   }
 
   // ---------------- statystyki ----------------
@@ -482,6 +591,25 @@ export class Player {
 
     // animacje i atak
     this._animate(dt, moving, speed);
+
+    // pył spod stóp na twardym gruncie
+    const horizontal = Math.hypot(this.vel.x, this.vel.z);
+    if (moving && horizontal > 1.2) {
+      this.dustTimer = (this.dustTimer ?? 0) - dt;
+      if (this.dustTimer <= 0) {
+        this.dustTimer = this.sprinting ? 0.16 : 0.3;
+        const p = new THREE.Vector3(this.pos.x, this.pos.y + 0.06, this.pos.z);
+        this.game.fx?.burst?.(p, {
+          color: '#c8bba4',
+          count: this.sprinting ? 5 : 3,
+          speed: 0.7,
+          up: 0.55,
+          size: 0.55,
+          life: 0.5,
+          gravity: 2.2,
+        });
+      }
+    }
     if (this.state === 'attack' && !this.attackHitApplied && this.stateTime > 0.17) {
       this.attackHitApplied = true;
       this._applyMeleeHit();
@@ -612,6 +740,26 @@ export class Player {
       cloak.rotation.x = Math.PI + Math.sin(this.walkPhase * 0.9) * 0.04 - flutter * 0.5;
       cloak.rotation.z = Math.sin(this.walkPhase * 0.6) * 0.03;
     }
+
+    // peleryna — im szybciej biegniesz, tym mocniej odchyla się do tyłu
+    if (this.cape) {
+      const speedMag2 = Math.hypot(this.vel.x, this.vel.z);
+      const flutter = clamp(speedMag2 * 0.075, 0, 0.5);
+      const t = this.walkPhase * 0.8;
+      const segs = this.cape.segments;
+      for (let i = 0; i < segs.length; i++) {
+        const lag = 1 + i * 0.35;
+        segs[i].rotation.x = 0.16 + flutter * (0.55 + i * 0.35) + Math.sin(t + i * 0.7) * 0.045 * lag;
+        segs[i].rotation.z = Math.sin(t * 0.8 + i * 0.5) * 0.05 + clamp(this.vel.x * 0.02, -0.12, 0.12);
+      }
+      this.cape.root.rotation.x = -0.05 - flutter * 0.3;
+    }
+    if (this.runeMesh) {
+      const pulse = 0.65 + Math.sin(this.walkPhase * 1.2) * 0.18 + (this.state === 'cast' ? 1.2 : 0);
+      this.runeMesh.material.emissiveIntensity = pulse;
+      this.runeMesh.rotation.z += dt * 0.6;
+    }
+    if (head) head.rotation.x = Math.sin(this.walkPhase * 0.5) * 0.02;
 
     // migotanie nietykalności
     if (this.invuln > 0 && this.state !== 'dodge') {

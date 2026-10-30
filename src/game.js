@@ -6,6 +6,7 @@ import { World } from './world/world.js';
 import { Sky, skyColors } from './world/sky.js';
 import { LOCATIONS, heightAt } from './world/terrain.js';
 import { Player } from './entities/player.js';
+import { Companion } from './entities/companion.js';
 import { NPC } from './entities/npc.js';
 import { EnemyManager } from './entities/enemy.js';
 import { FX } from './systems/fx.js';
@@ -115,6 +116,20 @@ export class Game {
     this.cameraRig.yaw = 0;
   }
 
+  /** Wilczy towarzysz — tworzony raz, przeżywa respawn gracza. */
+  _ensureCompanion() {
+    if (this.companion && this.companion.group && this.companion.group.parent) {
+      this.companion._placeNearPlayer(true);
+      return this.companion;
+    }
+    if (this.companion) {
+      try { this.scene.remove(this.companion.group); } catch { /* scena już wyczyszczona */ }
+    }
+    this.companion = new Companion(this);
+    this.scene.add(this.companion.group);
+    return this.companion;
+  }
+
   _initGame() {
     this.dayNight = new DayNight(8.5);
     this.audio = new AudioSystem();
@@ -123,6 +138,7 @@ export class Game {
     this.player = new Player(this);
     this.player.group.rotation.y = this.player.yaw;
     this.scene.add(this.player.group);
+    this._ensureCompanion();
 
     this.world = new World(this);
     this.enemies = new EnemyManager(this);
@@ -248,6 +264,7 @@ export class Game {
     this.player = new Player(this);
     this.player.yaw = Math.PI;
     this.scene.add(this.player.group);
+    this._ensureCompanion();
 
     this.quests = new QuestSystem(this);
     this.dialogue = new DialogueSystem(this);
@@ -388,6 +405,7 @@ export class Game {
     this._updateLighting();
 
     this.player.update(dt, this.input);
+    this.companion?.update(dt);
     this.enemies.update(dt);
     this.world.update(dt, this.time, this.player.pos);
     this.fx.update(dt);
@@ -980,6 +998,7 @@ export class Game {
     this.scene.remove(this.player.group);
     this.player = new Player(this);
     this.scene.add(this.player.group);
+    this._ensureCompanion();
     this.player.load(data.player);
     if (this.player.hp <= 0) this.player.hp = Math.max(1, Math.round(this.player.maxHP * 0.5));
     this.quests = new QuestSystem(this);

@@ -1144,6 +1144,51 @@ export class World {
       rocks += 1;
     }
 
+    // Skalne żebra: skupiska 3–7 głazów rosnących z jednego miejsca — zmieniają sylwetkę gór
+    let outcrops = 0;
+    for (let attempt = 0; attempt < 1400 && outcrops < 190; attempt++) {
+      const a = rng.float(0, Math.PI * 2);
+      const r = 90 + Math.pow(rng.next(), 0.55) * 680;
+      const cx = Math.cos(a) * r;
+      const cz = Math.sin(a) * r;
+      if (isWater(cx, cz) || distanceToPath(cx, cz) < 8) continue;
+      if (isBlocked(cx, cz, 6)) continue;
+      const ch = heightAt(cx, cz);
+      const steep = slopeAt(cx, cz);
+      if (steep < 0.35 && ch < 80) continue;
+      const piles = 3 + Math.floor(rng.next() * 5);
+      for (let i = 0; i < piles; i++) {
+        const spread = 1.2 + rng.float(0, 4.2);
+        const ox = cx + rng.float(-spread, spread);
+        const oz = cz + rng.float(-spread, spread);
+        if (isWater(ox, oz)) continue;
+        const geo = rockVariants[Math.floor(rng.next() * rockVariants.length)];
+        const scale = rng.float(0.7, 2.6) * (i === 0 ? 1.35 : 1);
+        this.batcher.addGeometry(geo, ox, heightAt(ox, oz) - 0.15, oz, rng.float(0, 6.28), scale);
+        if (scale > 1.5) this.colliders.push({ x: ox, z: oz, r: scale * 0.6 });
+      }
+      outcrops += 1;
+    }
+
+    // Uschłe drzewa na wysokościach — przełamują monotonne zbocza
+    let deadTrees = 0;
+    for (let attempt = 0; attempt < 900 && deadTrees < 110; attempt++) {
+      const a = rng.float(0, Math.PI * 2);
+      const r = 120 + Math.pow(rng.next(), 0.5) * 640;
+      const x = Math.cos(a) * r;
+      const z = Math.sin(a) * r;
+      if (isWater(x, z) || distanceToPath(x, z) < 6) continue;
+      if (isBlocked(x, z)) continue;
+      const h = heightAt(x, z);
+      if (h < 96) continue;
+      const dead = treeVariants.find((v) => v.dead);
+      if (!dead) break;
+      const scale = rng.float(0.9, 1.6);
+      this.batcher.addGeometry(dead.geo, x, h, z, rng.float(0, 6.28), scale);
+      if (scale > 1.25) this.colliders.push({ x, z, r: 0.35 * scale });
+      deadTrees += 1;
+    }
+
     let bushes = 0;
     for (let attempt = 0; attempt < 2500 && bushes < 950; attempt++) {
       const a = rng.float(0, Math.PI * 2);
