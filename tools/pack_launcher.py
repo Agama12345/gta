@@ -20,7 +20,9 @@ def main() -> int:
     count = 0
     total = 0
     with zipfile.ZipFile(OUT, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for dirpath, _dirs, files in os.walk(SRC):
+        skip = {'src', 'assets'}
+        for dirpath, dirs, files in os.walk(SRC):
+            dirs[:] = [d for d in dirs if d not in skip]
             for name in sorted(files):
                 if name.endswith('.zip'):
                     continue
