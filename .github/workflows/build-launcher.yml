@@ -89,11 +89,36 @@ jobs:
           Write-Host ("Ikona: " + $icon.Width + "x" + $icon.Height)
           $icon.Dispose()
 
+      - name: Paczka ZIP (exe + skrypty pomocy)
+        shell: pwsh
+        run: |
+          $stage = "stage"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item out/ArcaneSpire.exe $stage/
+          if (Test-Path out/ArcaneSpire.exe.config) { Copy-Item out/ArcaneSpire.exe.config $stage/ }
+          Copy-Item launcher/uruchom.cmd $stage/
+          Copy-Item launcher/diagnostyka.cmd $stage/
+          Copy-Item launcher/diagnostyka.ps1 $stage/
+          @"
+          ARCANE SPIRE
+          ============
+          1. Kliknij dwa razy uruchom.cmd  (uruchamia launcher i pokazuje, co sie stalo, jesli okno sie nie pojawi)
+          2. Albo uruchom bezposrednio ArcaneSpire.exe
+          3. Jesli cos nie dziala: diagnostyka.cmd -> na pulpicie powstanie diagnostyka.txt
+
+          Wymagania: Windows 10 (1903+) lub Windows 11. .NET Framework 4.8 jest czescia systemu.
+          Podglad: https://github.com/Agama12345/gta
+          "@ | Set-Content -Path "$stage/CZYTAJ-NAJPIERW.txt" -Encoding UTF8
+          Compress-Archive -Path "$stage/*" -DestinationPath out/ArcaneSpire.zip -Force
+          Get-ChildItem out | Format-Table Name, Length -AutoSize
+
       - name: Artefakt
         uses: actions/upload-artifact@v4
         with:
           name: ArcaneSpire-exe
-          path: out/ArcaneSpire.exe
+          path: |
+            out/ArcaneSpire.exe
+            out/ArcaneSpire.zip
           if-no-files-found: error
 
       - name: Wydanie launcher-latest (zawsze aktualny link do pobrania)
@@ -111,5 +136,6 @@ jobs:
               --notes "build=$sha`nZawsze najświeższy launcher (Windows 10/11, .NET Framework 4.8 wbudowany)."
           }
           gh release upload launcher-latest out/ArcaneSpire.exe --clobber
+          gh release upload launcher-latest out/ArcaneSpire.zip --clobber
           if ($LASTEXITCODE -ne 0) { throw "Nie udało się wgrać pliku do wydania" }
           gh release edit launcher-latest --notes "build=$sha`nzbudowano: $built`npliki: ArcaneSpire.exe`n`nPobierz: https://github.com/Agama12345/gta/releases/download/launcher-latest/ArcaneSpire.exe"

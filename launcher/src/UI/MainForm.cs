@@ -57,9 +57,13 @@ namespace ArcaneSpire.UI
             Store.LoadAccounts();
             Store.RestoreSession();
 
+            Program.Step("MainForm: dane wczytane (gry: " + Store.Catalog.Count + ", konta: " + Store.Accounts.Count + ")");
             BuildShell();
+            Program.Step("MainForm: szkielet okna gotowy");
             BuildPages();
+            Program.Step("MainForm: strony zbudowane");
             ShowPage(string.IsNullOrEmpty(Store.Settings.LastPage) ? "store" : Store.Settings.LastPage);
+            Program.Step("MainForm: strona startowa ustawiona");
 
             AppPaths.Log("=== Arcane Spire " + Application.ProductVersion + " start (build " + BuildInfo.Sha + ") ===");
         }
@@ -266,20 +270,53 @@ namespace ArcaneSpire.UI
 
         private void BuildPages()
         {
-            AddPage("store", new StorePage(this));
-            AddPage("library", new LibraryPage(this));
-            AddPage("downloads", new DownloadsPage(this));
-            AddPage("account", new AccountPage(this));
-            AddPage("settings", new SettingsPage(this));
+            // każda strona budowana osobno: jeśli jedna się wysypie, reszta działa
+            AddPage("store", () => new StorePage(this));
+            AddPage("library", () => new LibraryPage(this));
+            AddPage("downloads", () => new DownloadsPage(this));
+            AddPage("account", () => new AccountPage(this));
+            AddPage("settings", () => new SettingsPage(this));
         }
 
-        private void AddPage(string key, UserControl page)
+        private void AddPage(string key, Func<UserControl> factory)
         {
+            UserControl page;
+            try
+            {
+                page = factory();
+            }
+            catch (Exception ex)
+            {
+                Program.Step("Strona '" + key + "' nie powstała: " + Program.Describe(ex));
+                page = BuildErrorPage(key, ex);
+            }
             page.Dock = DockStyle.Fill;
             page.Visible = false;
             page.BackColor = Theme.Bg;
             _pages[key] = page;
             _content.Controls.Add(page);
+        }
+
+        private UserControl BuildErrorPage(string key, Exception ex)
+        {
+            var panel = new UserControl { BackColor = Theme.Bg };
+            panel.Controls.Add(new Label
+            {
+                Text = "Ta sekcja nie mogła zostać zbudowana.",
+                ForeColor = Theme.Text,
+                Font = Theme.H2,
+                AutoSize = true,
+                Location = new Point(24, 20)
+            });
+            panel.Controls.Add(new Label
+            {
+                Text = key + " → " + Program.Describe(ex) + "\n\nSzczegóły: " + Program.LogPath(),
+                ForeColor = Theme.Muted,
+                Font = Theme.Small,
+                Size = new Size(760, 160),
+                Location = new Point(24, 54)
+            });
+            return panel;
         }
 
         private void DoLayout()
@@ -580,8 +617,14 @@ namespace ArcaneSpire.UI
         protected override void OnShown(EventArgs e)
         {
             base.OnShown(e);
+            Program.Step("MainForm: okno pokazane");
             BeginInvoke((MethodInvoker)(async () =>
             {
+                if (Program.SafeMode)
+                {
+                    SetStatus("Tryb awaryjny — bez sprawdzania aktualizacji i bez sieci.");
+                    return;
+                }
                 if (Store.Settings.AutoUpdate) await CheckEverythingAsync(false);
                 else if (Store.Current == null) SetStatus("Witaj w Arcane Spire. Zarejestruj konto, aby korzystać ze sklepu.");
             }));

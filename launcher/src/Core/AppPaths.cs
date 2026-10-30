@@ -57,6 +57,18 @@ namespace ArcaneSpire.Core
 
         private static readonly object LogLock = new object();
 
+        public static void Trace(string message)
+        {
+            try
+            {
+                if (!Directory.Exists(DataDir)) Directory.CreateDirectory(DataDir);
+                File.AppendAllText(Path.Combine(DataDir, "start.log"),
+                    "[" + DateTime.Now.ToString("HH:mm:ss.fff") + "] " + message + Environment.NewLine,
+                    Encoding.UTF8);
+            }
+            catch { }
+        }
+
         public static void Log(string message)
         {
             try
