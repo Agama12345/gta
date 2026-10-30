@@ -1,0 +1,99 @@
+name: build-launcher
+
+on:
+  push:
+    branches:
+      - '**'
+    paths:
+      - 'launcher/src/**'
+      - 'launcher/assets/**'
+      - 'tools/make_icons.py'
+      - '.github/workflows/build-launcher.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-launcher
+  cancel-in-progress: true
+
+jobs:
+  windows-exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pobranie .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Znacznik kompilacji (SHA + data)
+        shell: pwsh
+        run: |
+          $sha = "${{ github.sha }}".Substring(0, 7)
+          $built = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+          $code = @"
+          namespace ArcaneSpire.Core
+          {
+              public static class BuildInfo
+              {
+                  public const string Sha = "$sha";
+                  public const string BuiltAt = "$built";
+                  public const string Channel = "launcher-latest";
+              }
+          }
+          "@
+          New-Item -ItemType Directory -Force -Path launcher/src/Core | Out-Null
+          Set-Content -Path launcher/src/Core/BuildInfo.cs -Value $code -Encoding UTF8
+          Write-Host "build=$sha ($built)"
+
+      - name: Kompilacja (net48, WinForms)
+        shell: pwsh
+        run: |
+          dotnet build launcher/src/ArcaneSpire.csproj -c Release -v minimal
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Publikacja
+        shell: pwsh
+        run: |
+          dotnet publish launcher/src/ArcaneSpire.csproj -c Release -o out -v minimal
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Get-ChildItem out | Format-Table Name, Length -AutoSize
+
+      - name: Weryfikacja pliku
+        shell: pwsh
+        run: |
+          $exe = "out/ArcaneSpire.exe"
+          if (-not (Test-Path $exe)) { throw "Brak pliku $exe" }
+          $size = (Get-Item $exe).Length
+          Write-Host "ArcaneSpire.exe = $size bajtów"
+          if ($size -lt 30000) { throw "Plik wygląda na niepoprawny" }
+          $info = [System.Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $exe))
+          Write-Host ("Produkt: " + $info.ProductName + " " + $info.ProductVersion)
+
+      - name: Artefakt
+        uses: actions/upload-artifact@v4
+        with:
+          name: ArcaneSpire-exe
+          path: out/ArcaneSpire.exe
+          if-no-files-found: error
+
+      - name: Wydanie launcher-latest (zawsze aktualny link do pobrania)
+        if: github.event_name == 'push'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $sha = "${{ github.sha }}".Substring(0, 7)
+          $built = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+          gh release view launcher-latest *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create launcher-latest --target "${{ github.ref_name }}" `
+              --title "Arcane Spire — najnowszy build" `
+              --notes "build=$sha`nZawsze najświeższy launcher (Windows 10/11, .NET Framework 4.8 wbudowany)."
+          }
+          gh release upload launcher-latest out/ArcaneSpire.exe --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Nie udało się wgrać pliku do wydania" }
+          gh release edit launcher-latest --notes "build=$sha`nzbudowano: $built`npliki: ArcaneSpire.exe`n`nPobierz: https://github.com/Agama12345/gta/releases/download/launcher-latest/ArcaneSpire.exe"
