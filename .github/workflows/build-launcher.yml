@@ -9,6 +9,10 @@ on:
       - 'launcher/src/**'
       - 'launcher/assets/**'
       - 'tools/make_icons.py'
+      - 'tools/gamehost/**'
+      - 'src/**'
+      - 'games/**'
+      - 'releases/**'
       - '.github/workflows/build-launcher.yml'
   workflow_dispatch: {}
 
@@ -158,3 +162,75 @@ jobs:
           gh release upload launcher-latest out/ArcaneSpire.zip --clobber
           if ($LASTEXITCODE -ne 0) { throw "Nie udało się wgrać pliku do wydania" }
           gh release edit launcher-latest --notes "build=$sha`nzbudowano: $built`npliki: ArcaneSpire.exe`n`nPobierz: https://github.com/Agama12345/gta/releases/download/launcher-latest/ArcaneSpire.exe"
+
+  game-exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Instalacja zależności gry
+        run: npm ci --no-audit --no-fund
+
+      - name: Budowa paczki gry
+        run: npm run release
+
+      - name: Kompilacja pliku exe z grą
+        shell: pwsh
+        run: |
+          dotnet publish tools/gamehost/GameHost.csproj -c Release -o out-game -v minimal
+          if ($LASTEXITCODE -ne 0) { throw "Kompilacja gry nie udała się" }
+
+      - name: Weryfikacja exe z grą
+        shell: pwsh
+        run: |
+          $exe = "out-game/RunyPrzeznaczenia.exe"
+          if (-not (Test-Path $exe)) { throw "Brak $exe" }
+          $size = (Get-Item $exe).Length
+          Write-Host "RunyPrzeznaczenia.exe = $size bajtów"
+          if ($size -lt 300000) { throw "Plik wygląda na niepoprawny (brak zasobów?)" }
+          $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path $exe))
+          $peOffset = [BitConverter]::ToInt32($bytes, 0x3C)
+          $subsystem = [BitConverter]::ToUInt16($bytes, $peOffset + 0x5C)
+          Write-Host "Podsystem: $subsystem"
+          if ($subsystem -ne 2) { throw "Zły podsystem: $subsystem" }
+          $text = [System.Text.Encoding]::ASCII.GetString($bytes)
+          if ($text -notmatch "index\.html") { Write-Host "UWAGA: nie widzę nazw zasobów w tekście (mogą być skompresowane)" }
+          Add-Type -AssemblyName System.Drawing
+          $icon = [System.Drawing.Icon]::ExtractAssociatedIcon((Resolve-Path $exe))
+          if ($null -eq $icon) { throw "Brak ikony" }
+          Write-Host ("Ikona: " + $icon.Width + "x" + $icon.Height)
+          $icon.Dispose()
+
+      - name: Artefakt gry
+        uses: actions/upload-artifact@v4
+        with:
+          name: RunyPrzeznaczenia-exe
+          path: out-game/RunyPrzeznaczenia.exe
+          if-no-files-found: error
+
+      - name: Wydanie game-latest (link do pobrania gry)
+        if: github.event_name == 'push'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $sha = "${{ github.sha }}".Substring(0, 7)
+          gh release view game-latest *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create game-latest --target "${{ github.ref_name }}" `
+              --title "Runy Przeznaczenia — gra (exe)" `
+              --notes "Gra w jednym pliku exe. Pobierz i uruchom."
+          }
+          gh release upload game-latest out-game/RunyPrzeznaczenia.exe --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Nie udało się wgrać gry do wydania" }
+          gh release edit game-latest --notes "build=$sha`nGra „Runy Przeznaczenia” w jednym pliku exe (Windows 10/11, .NET Framework 4.8).`n`nPobierz: https://github.com/Agama12345/gta/releases/download/game-latest/RunyPrzeznaczenia.exe"

@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>RunyPrzeznaczenia</RootNamespace>
+    <AssemblyName>RunyPrzeznaczenia</AssemblyName>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Deterministic>true</Deterministic>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <Product>Runy Przeznaczenia</Product>
+    <Company>Arcane Spire Studio</Company>
+    <Description>Runy Przeznaczenia — trójwymiarowa gra RPG</Description>
+    <Version>1.1.0</Version>
+    <FileVersion>1.1.0.0</FileVersion>
+    <AssemblyVersion>1.1.0.0</AssemblyVersion>
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+  </ItemGroup>
+
+  <!-- Cała gra jest wbudowana w plik exe (bez folderów obok). -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\releases\runy-przeznaczenia\**\*.*"
+                      LogicalName="game/%(RecursiveDir)%(Filename)%(Extension)"
+                      Exclude="..\..\releases\runy-przeznaczenia\*.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="All" />
+  </ItemGroup>
+
+</Project>
