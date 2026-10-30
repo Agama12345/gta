@@ -243,6 +243,10 @@ for (let i = 0; i < 3; i++) game.updateGame(1 / 60);
 check('wieszczka znika dniem', !wraith.active);
 const boss = game.enemies.list.find((e) => e.def.boss);
 check('boss na mapie', !!boss && boss.maxHP > 500);
+check('boss śpi do finału', boss.active === false);
+boss.dormant = false;
+boss.active = true;
+boss.model.visible = true;
 boss.pos.set(game.player.pos.x + 3, game.player.pos.y, game.player.pos.z);
 boss.aggro = true;
 for (let i = 0; i < 60; i++) {

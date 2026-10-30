@@ -14,7 +14,7 @@ const erynTree = (ctx) => {
             : ctx.active === 'forge'
               ? '„Borys czeka przy anvilu. Trzy okruchy, dwa kawałki starożytnego metalu. Kowalska Góra ma jedno i drugie, jeśli dobrze szukać.”'
               : ctx.active === 'boss'
-                ? '„Mgliste Wrota są na południu, za kamiennym łukiem. Idź i nie oglądaj się za siebie.”'
+                ? '„Mgliste Wrota są na północy, za kamiennym łukiem. Idź i nie oglądaj się za siebie.”'
                 : '„Wilcza Dolina nie jest bogata, ale ma dach i ogień. Rozgość się — choć nie na długo, bo mamy problemy.”',
       choices: [],
     },
@@ -212,46 +212,117 @@ const ghostTree = (ctx) => ({
   },
 });
 
+
+const pustelnikTree = () => ({
+  start: {
+    speaker: 'Pustelnik Ivar',
+    text: '„Przychodzisz z dołu, z hałasu. Siadaj. W ciemnym lesie nikt nie pyta, po co przyszedł — tylko czy przyniósł własne milczenie.”',
+    choices: [
+      { label: '„Co wiesz o Mglistych Wrotach?”', next: 'gates' },
+      { label: '„Mogę odpocząć przy twoim ogniu?”', next: 'rest' },
+      { label: '„Muszę iść.”', action: 'close' },
+    ],
+  },
+  gates: {
+    speaker: 'Pustelnik Ivar',
+    text: '„Wrota nie zostały zbudowane po to, by coś wpuszczać. Zbudowano je, żeby coś trzymać w środku. Kaldras stanął w progu i zapomniał, po której stronie stoi. Gdy go spotkasz, nie pytaj go o imię — odpowie cudzym.”',
+    choices: [
+      { label: '„Skąd to wiesz?”', next: 'who' },
+      { label: '„Wróćmy do ognia.”', next: 'start' },
+    ],
+  },
+  who: {
+    speaker: 'Pustelnik Ivar',
+    text: '„Byłem przy wrotach, gdy je zamykano. Miałem wtedy inne imię i inne oczy. Zostało mi to, co widzisz: ogień, mech i trzy zdania prawdy na krzyż.”',
+    choices: [{ label: '„Rozumiem.”', next: 'start' }],
+  },
+  rest: {
+    speaker: 'Pustelnik Ivar',
+    text: '„Ogień jest twój, dopóki płonie. Ale pamiętaj — las nie śpi, gdy ty śpisz.”',
+    choices: [
+      { label: 'Usiądź przy ogniu', action: 'rest' },
+      { label: '„Dziękuję.”', next: 'start' },
+    ],
+  },
+});
+
+const kupiecTree = () => ({
+  start: {
+    speaker: 'Kupiec Bogdan',
+    text: '„Kotlina Kupców! Najlepsze ceny od Wilczej Doliny do przełęczy, a i tam nie ma czego szukać. Czego szukasz — stali, ziół, czy może plotki?”',
+    choices: [
+      { label: '„Pokaż towar.”', action: 'shop:bogdan' },
+      { label: '„Co słychać na trakcie?”', next: 'news' },
+      { label: '„Muszę iść.”', action: 'close' },
+    ],
+  },
+  news: {
+    speaker: 'Kupiec Bogdan',
+    text: '„Na trakcie coraz więcej znaków. Bandyci Rudego Wilka siedzą na północnym zachodzie i liczą każdego, kto idzie z ładunkiem. Za przełęczą ktoś zabił trzy wozy. A nad jeziorem rybacy mówią, że woda w nocy paruje — i to nie od zimna.”',
+    choices: [
+      { label: '„A Kamienny Krąg?”', next: 'circle' },
+      { label: '„Wróćmy do interesów.”', next: 'start' },
+    ],
+  },
+  circle: {
+    speaker: 'Kupiec Bogdan',
+    text: '„Kamienny Krąg stoi na wschód od traktu, na polanie, której nikt nie kosi. Kamienie pamiętają więcej niż my. Ja tam nie chodzę — ale towar z kręgu zawsze jest w cenie.”',
+    choices: [{ label: '„Ciekawe.”', next: 'start' }],
+  },
+});
+
 export const NPCS = {
   eryn: {
     name: 'Stary Eryn', role: 'Starosta Wilczej Doliny',
-    pos: [4.5, 26], rot: -2.2, radius: 4.2,
+    pos: [8, 344], rot: -0.45, radius: 4.2,
     visual: { tunic: '#5c4a33', pants: '#3a3228', hair: '#b9b0a0', beard: true, skin: '#c79a71', bulk: 1.0, cloak: '#4a4034' },
     tree: erynTree,
   },
   borys: {
     name: 'Borys Kowal', role: 'Kowal',
-    pos: [-8, 23], rot: 1.9, radius: 4.2,
+    pos: [-16, 353], rot: 1.6, radius: 4.2,
     visual: { tunic: '#4a3a2c', pants: '#33291f', hair: '#2a1d14', beard: true, skin: '#b98258', bulk: 1.16, armor: '#5b5548', scar: true },
     tree: borysTree,
   },
   marena: {
     name: 'Marena Zielarka', role: 'Zielarka',
-    pos: [10, 38], rot: -1.2, radius: 4.2,
+    pos: [23, 340], rot: -1.1, radius: 4.2,
     visual: { tunic: '#3f5a42', pants: '#3a3b2e', hair: '#8a6b45', skin: '#d2a67d', bulk: 0.94, cloak: '#2f4a37' },
     tree: marenaTree,
   },
   zorzan: {
     name: 'Kupiec Zorzan', role: 'Wędrowny kupiec',
-    pos: [-11, 41], rot: 1.1, radius: 4.2,
+    pos: [11, 371], rot: 1.0, radius: 4.2,
     visual: { tunic: '#5a3f52', pants: '#382e3a', hair: '#241a16', skin: '#c9976d', bulk: 1.02, cloak: '#45304a', hood: '#3a2840' },
     tree: zorzanTree,
   },
   wilk: {
     name: 'Strażnik Wilk', role: 'Straż wioski',
-    pos: [0, 15], rot: 0.2, radius: 4.0,
+    pos: [4, 313], rot: 0.15, radius: 4.0,
     visual: { tunic: '#4c4e52', pants: '#33373b', hair: '#3a2b1f', skin: '#cba07a', bulk: 1.1, armor: '#5e6367' },
     tree: wilkTree,
   },
   iskra: {
     name: 'Iskra', role: 'Uczennica zielarki',
-    pos: [13, 29], rot: 2.6, radius: 4.0,
+    pos: [27, 344], rot: 2.4, radius: 4.0,
     visual: { tunic: '#5d6a4c', pants: '#3c4032', hair: '#b8542f', skin: '#e0b48a', bulk: 0.84 },
     tree: iskraTree,
   },
+  pustelnik: {
+    name: 'Pustelnik Ivar', role: 'Samotnik z Ciemnego Lasu',
+    pos: [-556, -196], rot: 0.9, radius: 4.4,
+    visual: { tunic: '#46503c', pants: '#33372c', hair: '#c8c2b2', beard: true, skin: '#c39a76', bulk: 0.9, cloak: '#37402f', hood: '#3c4636' },
+    tree: pustelnikTree,
+  },
+  kupiec: {
+    name: 'Kupiec Bogdan', role: 'Handlarz z Kotliny',
+    pos: [172, 256], rot: 2.2, radius: 4.4,
+    visual: { tunic: '#5b4636', pants: '#3a3026', hair: '#2d2119', skin: '#c08a5e', bulk: 1.08, cloak: '#6a4a3a', hood: '#4a3628' },
+    tree: kupiecTree,
+  },
   duch: {
     name: 'Cień pod Łukiem', role: 'Zjawisko',
-    pos: [-16, -42], rot: 0.4, radius: 5.0, ghost: true, hidden: true,
+    pos: [-148, -534], rot: 0.4, radius: 5.0, ghost: true, hidden: true,
     visual: { tunic: '#3d4a52', pants: '#2f3a40', hair: '#20282c', skin: '#8fa6ad', bulk: 1.0, cloak: '#2a3a44', eyeColor: '#8fe0ff' },
     tree: ghostTree,
   },
@@ -265,6 +336,10 @@ export const SHOPS = {
   marena: {
     name: 'Marena Zielarka',
     stock: ['health_potion', 'mana_potion', 'might_elixir', 'herbs', 'herbs', 'crystal_mana'],
+  },
+  bogdan: {
+    name: 'Kupiec Bogdan',
+    stock: ['health_potion', 'mana_potion', 'bread', 'iron_ore', 'ancient_metal', 'iron_axe', 'hunter_bow', 'leather_vest', 'might_elixir'],
   },
 };
 

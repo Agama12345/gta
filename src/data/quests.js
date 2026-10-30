@@ -20,7 +20,7 @@ export const QUESTS = {
     giver: 'eryn',
     level: 2,
     intro:
-      '„Banda Rudego Wilka zabrała nam zapas zboża na zimę. Obozowisko leży na zachód, za rozdrożem. Przynieś worek, a jeśli Rudy stanie ci na drodze… cóż, nikt w wiosce nie będzie płakać.”',
+      '„Banda Rudego Wilka zabrała nam zapas zboża na zimę. Obozowisko leży na północny zachód, za rozdrożem. Przynieś worek, a jeśli Rudy stanie ci na drodze… cóż, nikt w wiosce nie będzie płakać.”',
     objectives: [
       { id: 'grain', type: 'collect', item: 'stolen_grain', target: 1, text: 'Odzyskaj worek zboża z obozu bandytów' },
       { id: 'leader', type: 'kill', enemy: 'bandit_leader', target: 1, text: 'Pokonaj Rudego Wilka' },
@@ -28,7 +28,7 @@ export const QUESTS = {
     ],
     reward: { gold: 140, xp: 260, items: [['iron_ore', 3], ['health_potion', 2]] },
     outro:
-      'Eryn przez chwilę milczy. „Rudy Wilk nie żyje. To znaczy, że w dolinie zrobi się spokojniej… albo ktoś inny zajmie jego miejsce.” Wskazuje na północ. „Kurhan Szeptu. Słyszałeś kiedyś, jak ziemia mówi?”',
+      'Eryn przez chwilę milczy. „Rudy Wilk nie żyje. To znaczy, że w dolinie zrobi się spokojniej… albo ktoś inny zajmie jego miejsce.” Wskazuje na północ. „Kurhan Szeptu, na północnym wschodzie. Słyszałeś kiedyś, jak ziemia mówi?”',
     next: 'barrow',
   },
   barrow: {
@@ -36,7 +36,7 @@ export const QUESTS = {
     giver: 'eryn',
     level: 3,
     intro:
-      '„W kurhanie na północy pochowano kiedyś wieszczkę. Nocami jej głos niesie się po dolinie i woła imiona tych, którzy umrą. Idź tam po zmroku i ucisz ją. Mówią, że strzeże okruchu ostrza — tego, o którym mówił twój ojciec.”',
+      '„W kurhanie na północnym wschodzie pochowano kiedyś wieszczkę. Nocami jej głos niesie się po dolinie i woła imiona tych, którzy umrą. Idź tam po zmroku i ucisz ją. Mówią, że strzeże okruchu ostrza — tego, o którym mówił twój ojciec.”',
     objectives: [
       { id: 'wraith', type: 'kill', enemy: 'wraith', target: 1, text: 'Pokonaj Wieszczkę z Kurhanu (tylko nocą)' },
       { id: 'shard', type: 'collect', item: 'shard_dawn', target: 1, text: 'Zdobądź Okruch Ostrza Świtu' },
@@ -52,7 +52,7 @@ export const QUESTS = {
     giver: 'eryn',
     level: 4,
     intro:
-      'Borys kowal rozkłada na anvilu trzy okruchy. „Starożytny metal jest w kamieniołomie, na południu. Wykuję ci klingę, ale musisz sam przynieść wszystko. Trzy okruchy, dwa kawałki metalu i cierpliwość.”',
+      'Borys kowal rozkłada na anvilu trzy okruchy. „Starożytny metal jest w kamieniołomie na zachodzie. Wykuję ci klingę, ale musisz sam przynieść wszystko. Trzy okruchy, dwa kawałki metalu i cierpliwość.”',
     objectives: [
       { id: 'metal', type: 'collect', item: 'ancient_metal', target: 2, text: 'Zdobądź starożytny metal (2)' },
       { id: 'shards', type: 'collect', item: 'shard_dawn', target: 3, text: 'Zdobądź trzy okruchy Ostrza Świtu (3)' },
@@ -60,7 +60,7 @@ export const QUESTS = {
     ],
     reward: { gold: 200, xp: 420, items: [['might_elixir', 2]] },
     outro:
-      'Ostrze wychodzi z ognia białe jak poranek. Borys cofa się o krok. „Nie dotykałem czegoś takiego od trzydziestu lat. Idź. Wrota na południu czekają, a Kaldras nie będzie czekał wiecznie.”',
+      'Ostrze wychodzi z ognia białe jak poranek. Borys cofa się o krok. „Nie dotykałem czegoś takiego od trzydziestu lat. Idź. Wrota na północy czekają, a Kaldras nie będzie czekał wiecznie.”',
     next: 'boss',
   },
   boss: {
@@ -68,7 +68,7 @@ export const QUESTS = {
     giver: 'eryn',
     level: 5,
     intro:
-      'Eryn stoi na skraju wioski i patrzy na południe, gdzie nad ruinami zbiera się mgła. „Kaldras był kiedyś strażnikiem tych wrót. Potem coś po drugiej stronie zaczęło mu odpowiadać. Zamknij je. Na zawsze.”',
+      'Eryn stoi na skraju wioski i patrzy na północ, gdzie nad ruinami zbiera się mgła. „Kaldras był kiedyś strażnikiem tych wrót. Potem coś po drugiej stronie zaczęło mu odpowiadać. Zamknij je. Na zawsze.”',
     objectives: [
       { id: 'kaldras', type: 'kill', enemy: 'kaldras', target: 1, text: 'Pokonaj Kaldrasa w Mglistych Wrotach' },
     ],

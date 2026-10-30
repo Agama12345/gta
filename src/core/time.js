@@ -90,8 +90,8 @@ export class DayNight {
     const nightFog = new THREE.Color('#26344a');
     this.fogColor.copy(dayFog).lerp(duskFog, duskF * 0.85).lerp(nightFog, Math.pow(1 - dayF, 1.9));
 
-    this.sunIntensity = lerp(0.62, 2.4, dayF);
-    this.ambientIntensity = lerp(0.52, 0.88, dayF) + duskF * 0.12;
+    this.sunIntensity = lerp(0.55, 1.85, dayF);
+    this.ambientIntensity = lerp(0.34, 0.6, dayF) + duskF * 0.1;
     this.dayF = dayF;
     this.nightF = 1 - dayF;
     this.duskF = duskF;

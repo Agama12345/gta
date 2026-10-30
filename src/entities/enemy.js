@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { clamp, damp, dampAngle, dist2, TAU } from '../core/utils.js';
 import { heightAt, LOCATIONS } from '../world/terrain.js';
-import { makeHumanoid, makeSword, makeSkeleton, makeWolf } from '../world/models.js';
+import { makeHumanoid, makeSword, makeSkeleton, makeWolf, makeGolem, makeLurker } from '../world/models.js';
 import { ENEMY_TYPES, SPAWNS } from '../data/enemies.js';
 
-const VILLAGE_SAFE = { x: LOCATIONS.village.x, z: LOCATIONS.village.z, r: 21 };
+const VILLAGE_SAFE = { x: LOCATIONS.village.x, z: LOCATIONS.village.z, r: 48 };
 
 function buildKaldras() {
   const built = makeHumanoid({
@@ -135,6 +135,8 @@ export function buildEnemyModel(typeId) {
   }
   if (def.model === 'wraith') return buildWraith();
   if (def.model === 'kaldras') return buildKaldras();
+  if (def.model === 'golem') return makeGolem();
+  if (def.model === 'lurker') return makeLurker();
 
   const built = makeHumanoid(def.visual);
   const weaponDef = def.weapon === 'axe'
@@ -691,14 +693,17 @@ export class EnemyManager {
     for (const [x, z, type, level] of SPAWNS) {
       const typeDef = ENEMY_TYPES[type];
       const spawn = { x, z, type, level, home: { x, z } };
-      if (typeDef.boss && !this.game.flags?.bossEnabled) {
-        // boss czeka, dopóki gracz nie dotrze do Mglistych Wrót
-      }
       this.spawnPoints.push(spawn);
       const enemy = new Enemy(this, spawn);
       if (typeDef.nightOnly) {
         enemy.active = false;
         enemy.model.visible = false;
+      }
+      if (typeDef.boss) {
+        // Kaldras śpi w ruinach, dopóki gracz nie podejmie finałowego zadania
+        enemy.active = false;
+        enemy.model.visible = false;
+        enemy.dormant = true;
       }
       enemy.respawnTimer = 0;
       this.list.push(enemy);
@@ -712,6 +717,23 @@ export class EnemyManager {
   update(dt) {
     const night = this.game.dayNight.isNight;
     const bossAlive = this.list.some((e) => e.def.boss && !e.dead);
+    const ppos = this.game.player?.pos;
+    // wybudzenie bossa po podjęciu finałowego zadania
+    if (ppos) {
+      for (const e of this.list) {
+        if (!e.dormant || !e.def.boss || e.dead) continue;
+        const questReady = this.game.quests?.active === 'boss' || this.game.quests?.questDone?.('forge');
+        const near = dist2(e.pos.x, e.pos.z, ppos.x, ppos.z) < 130;
+        if (questReady && near) {
+          e.dormant = false;
+          e.active = true;
+          e.model.visible = true;
+          this.game.ui?.log('Mgła gęstnieje — Kaldras się przebudził.', 'bad');
+          this.game.ui?.showLocation('Mgliste Wrota', 'Zwiastun Mroku czuwa');
+          this.game.audio?.boss?.();
+        }
+      }
+    }
     for (const e of this.list) {
       if (e.summoned && !bossAlive) {
         this.game.scene.remove(e.model);
@@ -719,6 +741,20 @@ export class EnemyManager {
         e.dead = true;
         e.summoned = false;
         continue;
+      }
+      // daleki tłum nie jest animowany — duża mapa, dużo przeciwników
+      if (ppos && e.active) {
+        const range = e.boss ? 420 : e.aggro ? 190 : 150;
+        const far = dist2(e.pos.x, e.pos.z, ppos.x, ppos.z) > range;
+        if (far) {
+          if (e.model.visible) e.model.visible = false;
+          e._asleep = true;
+          continue;
+        }
+        if (e._asleep) {
+          e._asleep = false;
+          if (!e.dead) e.model.visible = true;
+        }
       }
       e.update(dt);
     }
@@ -763,6 +799,13 @@ export class EnemyManager {
       }
     } else if (!night && this.timeOfDaySeen !== 'day') {
       this.timeOfDaySeen = 'day';
+      for (const e of this.list) {
+        if (e.isNightOnly) {
+          e.active = false;
+          e.model.visible = false;
+          e.aggro = false;
+        }
+      }
     }
 
     // respawn zwykłych wrogów
@@ -820,6 +863,14 @@ export class EnemyManager {
     }
     this.list = this.list.filter((e) => !e.summoned);
     for (const e of this.list) {
+      if (e.def.boss) {
+        e.active = false;
+        e.dormant = true;
+        e.model.visible = false;
+        e.hp = e.maxHP;
+        e.dead = false;
+        continue;
+      }
       e.respawn();
       if (e.isNightOnly) {
         e.active = false;

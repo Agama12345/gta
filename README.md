@@ -1,6 +1,6 @@
 # Ostrze Świtu — trójwymiarowa gra RPG w przeglądarce
 
-> Wilcza Dolina umiera powoli. Mgła podnosi się od południa, a pod Mglistymi Wrotami
+> Wilcza Dolina umiera powoli. Mgła podnosi się od północy, a pod Mglistymi Wrotami
 > coś nosi twarz strażnika, który zamknął je trzydzieści lat temu.
 > Odnajdź trzy okruchy Ostrza Świtu i wykuj je na nowo — zanim będzie za późno.
 
@@ -55,15 +55,23 @@ lewa strona ekranu to ruch, prawa to kamera.
 
 ## Co jest w grze
 
-**Świat 3D.** Proceduralny teren 210 × 210 m (dolina otoczona górami), jezioro,
-ścieżki, lasy, sześć miejsc: Wilcza Dolina, Kowalska Góra, obóz bandytów,
-Kurhan Szeptu, Mgliste Wrota i kamieniołom. Pełny cykl dnia i nocy (doba = 6 minut)
-ze wschodami, zmierzchem, gwiazdami i światłem księżyca.
+**Świat 3D — duża, otwarta kraina.** Teren 1560 × 1560 m (ok. 2,4 km²), ukształtowany
+proceduralnie: sześć pasm górskich, przełęcze, pagórki, polany, lasy, bagno, jezioro
+i skalny wał na krawędzi mapy. Piętnaście miejsc: Wilcza Dolina, Kotlina Kupców,
+Rozdroże Trzech Dróg, Kowalska Góra, obóz bandytów, Kurhan Szeptu, Mgliste Wrota,
+kamieniołom, Jezioro Milczące, Warownia Popiołu, Pustelnia, Bagno Wieszczki,
+Przełęcz Kalmoru, Kamienny Krąg i Kopalnia Żelazna — połączonych siecią dróg.
+Teren dzieli się na 12 × 12 chunków z trzema poziomami szczegółu (5 m / 10 m / 18 m
+siatki), ma analityczne normalne (brak szwów), proceduralną teksturę detalu
+i cieniowanie stoków. Pełny cykl dnia i nocy (doba = 6 minut) ze wschodami,
+zmierzchem, gwiazdami i światłem księżyca.
 
 **Walka.** Ciosy łączone w kombinacje, uniki z nietykalnością, trafienia krytyczne,
 pociski (strzały, kule wieszczki), trzy zaklęcia, wstrząsy kamery, cząstki, efekty
-cięcia. Sześć typów przeciwników + dwa starcia z bossami (Rudy Wilk i Kaldras
-z drugą fazą walki).
+cięcia. Dziesięć typów przeciwników (wilki i alfa, bandyci, łucznicy, weterani,
+szkielety, zjawy, bagniaki, kamienne golemy, zapomniani górnicy) + trzy starcia
+z bossami (Rudy Wilk, Wieszczka z Kurhanu, Kaldras z drugą fazą walki).
+Kaldras śpi w ruinach do czasu podjęcia finałowego zadania.
 
 **Rozwój.** Poziomy i doświadczenie, cztery atrybuty (siła, zręczność,
 wytrzymałość, skupienie), ekwipunek na cztery sloty, rzadkości przedmiotów,
@@ -74,12 +82,15 @@ mikstury, zbroje i legendarna Klinga Świtu, którą można wykować tylko z trz
 okruchów, starożytnego metalu i w odpowiednim miejscu.
 
 **Fabuła.** Pięć powiązanych zadań, drzewka dialogowe reagujące na stan zadań,
-porę dnia i poziom gracza, siedmioro mieszkańców z własnymi historiami,
-przedmioty fabularne i finał z wyborem tonu opowieści.
+porę dnia i poziom gracza, dziewięcioro mieszkańców z własnymi historiami
+(w tym pustelnik w Ciemnym Lesie i kupiec w Kotlinie), przedmioty fabularne
+i finał z wyborem tonu opowieści.
 
 **Świat żyje.** Odpoczynek przy ognisku przesuwa czas do świtu, nocą w kurhanie
 pojawia się wieszczka, dniem znika, wrogowie wracają po czasie, zioła i rudy
-odrastają, skrzynie otwierają się na dobre, gracz zostawia latarnię na noc.
+odrastają, skrzynie otwierają się na dobre. Przeciwnicy poza zasięgiem wzroku
+nie są animowani (duża mapa, ~80 punktów spawnu). W głęboką wodę jeziora wejść
+nie można — bagno i mokradła są przechodnie.
 
 **UI.** HUD z paskami życia, many, kondycji i doświadczenia, minimapa, kompas
 z celem zadania, dziennik zadań, dziennik zdarzeń, plakietki wrogów, liczby obrażeń,
@@ -119,11 +130,13 @@ src/
 
 ### Jak to działa (skrót)
 
-* **Teren** to jedna siatka 177 × 177 wierzchołków. Wysokość liczy proceduralny szum
-  (fbm) plus „spłaszczenia” w miejscach osad; gra używa tej samej siatki z interpolacją,
-  więc postacie stoją dokładnie na tym, co widać.
-* **Wydajność**: drzewa, skały, płoty i domy są łączone w kilka statycznych siatek,
-  trawa to jedna `InstancedMesh`. Scena rysuje ~100–160 wywołań na klatkę.
+* **Teren** to jedna siatka wysokości 313 × 313 próbek (co 5 m). Wysokość liczy
+  proceduralny szum (fbm), pasma gór (odległość od łamanej), pierścień gór na krawędzi
+  i „spłaszczenia” w miejscach osad. Gra używa tej samej siatki z interpolacją,
+  więc postacie stoją dokładnie na tym, co widać (budowa siatki ≈ 150 ms).
+* **Wydajność**: geometria terenu jest dzielona na chunki (130 m) z LOD zależnym od
+  odległości; drzewa, skały, płoty i domy są łączone w statyczne siatki per chunk,
+  trawa to jedna `InstancedMesh`. Scena rysuje zwykle 100–400 wywołań na klatkę.
 * **Modele** to bryły (Box/Cylinder/Cone/Icosahedron) składane w grupy z animowanymi
   stawami — ruch, atak, unik, trafienie, śmierć i gesty rozmówców są animowane w kodzie.
 
@@ -131,7 +144,10 @@ src/
 
 * **Nowy przeciwnik** — dopisz wpis w `src/data/enemies.js` (statystyki, model, łup)
   i punkt spawnu w `SPAWNS`. Model wybierasz z gotowych: `humanoid`, `wolf`,
-  `skeleton`, `wraith`, `kaldras`.
+  `skeleton`, `wraith`, `golem`, `lurker`, `kaldras`.
+* **Nowa kraina** — dodaj wpis do `LOCATIONS` w `src/world/terrain.js`, spłaszczenie
+  w `FLAT_SPOTS`, ścieżkę w `PATHS`, zabudowę w `world.js` oraz etykietę w `POI_LABELS`
+  (`src/ui/ui.js`).
 * **Nowy przedmiot** — wpis w `src/data/items.js` (statystyki, ikona z `src/ui/icons.js`).
 * **Nowe zadanie** — wpis w `src/data/quests.js` + kolejność w `QUEST_ORDER`,
   drzewko dialogowe w `src/data/dialogue.js`.

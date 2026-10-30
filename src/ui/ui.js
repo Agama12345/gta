@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { ITEMS, RARITY, EQUIP_SLOTS, RECIPES, itemStatSummary } from '../data/items.js';
 import { SPELLS, ATTRS } from '../entities/player.js';
 import { QUESTS, QUEST_ORDER, LORE } from '../data/quests.js';
-import { LOCATIONS, WORLD_RADIUS, heightAt, WATER_LEVEL, PATHS } from '../world/terrain.js';
+import { LOCATIONS, WORLD_RADIUS, heightAt, WATER_LEVEL, PATHS, forestMask } from '../world/terrain.js';
 import { TIPS } from '../data/dialogue.js';
 import { clamp, dist2, fbm } from '../core/utils.js';
 import { SHOPS } from '../data/dialogue.js';
@@ -16,13 +16,51 @@ function qs(sel, root = document) {
 }
 
 const POI_LABELS = [
-  { ...LOCATIONS.village, short: 'Wioska', color: '#e2b878' },
-  { ...LOCATIONS.forge, short: 'Kuźnia', color: '#6ee0d6' },
-  { ...LOCATIONS.bandits, short: 'Obóz', color: '#d0705a' },
-  { ...LOCATIONS.barrow, short: 'Kurhan', color: '#b49ae0' },
-  { ...LOCATIONS.ruins, short: 'Wrota', color: '#b977e8' },
+  { ...LOCATIONS.village, short: 'Wilcza Dolina', color: '#e2b878' },
+  { ...LOCATIONS.trading, short: 'Kotlina Kupców', color: '#d8b85a' },
+  { ...LOCATIONS.crossroads, short: 'Rozdroże', color: '#cfc2a4' },
+  { ...LOCATIONS.forge, short: 'Kowalska Góra', color: '#6ee0d6' },
+  { ...LOCATIONS.bandits, short: 'Obóz bandytów', color: '#d0705a' },
+  { ...LOCATIONS.barrow, short: 'Kurhan Szeptu', color: '#b49ae0' },
+  { ...LOCATIONS.ruins, short: 'Mgliste Wrota', color: '#b977e8' },
   { ...LOCATIONS.quarry, short: 'Kamieniołom', color: '#c9c2b0' },
+  { ...LOCATIONS.lake, short: 'Jezioro Zwierciadło', color: '#7fb8cc' },
+  { ...LOCATIONS.castle, short: 'Warownia Popiołu', color: '#c08f6a' },
+  { ...LOCATIONS.hermit, short: 'Pustelnia', color: '#9fc48a' },
+  { ...LOCATIONS.swamp, short: 'Bagno Wieszczki', color: '#7f9670' },
+  { ...LOCATIONS.pass, short: 'Przełęcz Kalmoru', color: '#b0a898' },
+  { ...LOCATIONS.circle, short: 'Kamienny Krąg', color: '#9f7cf0' },
+  { ...LOCATIONS.mine, short: 'Kopalnia', color: '#a89a80' },
 ];
+
+// Kolor terenu w danym punkcie świata — wspólny dla mapy i minimapy.
+function terrainSample(wx, wz) {
+  const h = heightAt(wx, wz);
+  const lakeD = Math.hypot(wx - LOCATIONS.lake.x, wz - LOCATIONS.lake.z);
+  const swampD = Math.hypot(wx - LOCATIONS.swamp.x, wz - LOCATIONS.swamp.z);
+  if (lakeD < 118 && h < WATER_LEVEL + 0.2) return [42, 70, 88];
+  if (lakeD < 126 && h < WATER_LEVEL + 1.8) return [122, 112, 82];
+  if (swampD < 200) return [74, 82, 58];
+  if (h > 196) return [226, 229, 231];
+  if (h > 154) return [162, 160, 154];
+  if (h > 108) return [116, 112, 104];
+  const forest = forestMask(wx, wz);
+  const t = clamp((h - 22) / 40, 0, 1);
+  let col = [
+    96 - t * 16,
+    112 - t * 10,
+    68 - t * 12,
+  ];
+  if (forest > 0.55) col = [col[0] * 0.62 + 22, col[1] * 0.66 + 12, col[2] * 0.6 + 10];
+  const shade = 0.86 + (h % 7) * 0.012;
+  return [col[0] * shade, col[1] * shade, col[2] * shade];
+}
+
+function hillshade(wx, wz, e = 2.2) {
+  const hx = heightAt(wx + e, wz) - heightAt(wx - e, wz);
+  const hz = heightAt(wx, wz + e) - heightAt(wx, wz - e);
+  return clamp(0.72 + Math.max(0, 0.62 + (-hx - hz) * 0.62) * 0.42, 0.55, 1.4);
+}
 
 export class UI {
   constructor(game, root) {
@@ -35,7 +73,7 @@ export class UI {
     this.locationTimer = 0;
     this.interactText = null;
     this.mapCanvas = null;
-    this.mapSize = 300;
+    this.mapSize = 700;
     this.minimapAcc = 0;
     this.hudAcc = 0;
     this.platesAcc = 0;
@@ -306,7 +344,7 @@ export class UI {
     map.innerHTML = `
       <div class="panel" style="width:min(900px,95vw)">
         <div class="panel-head">
-          <div><h2>Mapa Wilczej Doliny</h2><div class="sub">Mgła skrywa południe — ale nie przed tobą</div></div>
+          <div><h2>Mapa Krainy</h2><div class="sub">Mgła skrywa północ — ale nie przed tobą</div></div>
           <div class="spacer"></div>
           <button class="close-x" data-close="map">✕</button>
         </div>
@@ -1177,54 +1215,74 @@ export class UI {
     c.height = size;
     const ctx = c.getContext('2d');
     const img = ctx.createImageData(size, size);
-    const water = [43, 74, 88];
-    const grassLow = [96, 106, 68];
-    const grassHigh = [58, 82, 52];
-    const rock = [108, 105, 98];
-    const sand = [126, 114, 82];
     for (let py = 0; py < size; py++) {
       for (let px = 0; px < size; px++) {
         const wx = ((px + 0.5) / size) * 2 * WORLD_RADIUS - WORLD_RADIUS;
         const wz = ((py + 0.5) / size) * 2 * WORLD_RADIUS - WORLD_RADIUS;
-        const h = heightAt(wx, wz);
-        let col;
-        if (h < WATER_LEVEL + 0.2) col = water;
-        else if (h < WATER_LEVEL + 1.3) col = sand;
-        else if (h > 20) col = rock;
-        else {
-          const t = clamp((h - 2) / 22, 0, 1);
-          col = [
-            grassLow[0] + (grassHigh[0] - grassLow[0]) * t,
-            grassLow[1] + (grassHigh[1] - grassLow[1]) * t,
-            grassLow[2] + (grassHigh[2] - grassLow[2]) * t,
-          ];
-        }
-        // cieniowanie stoków (hillshade) + delikatny szum — czytelna rzeźba terenu
-        const e = 1.6;
-        const hx = heightAt(wx + e, wz) - heightAt(wx - e, wz);
-        const hz = heightAt(wx, wz + e) - heightAt(wx, wz - e);
-        const lightDot = Math.max(0, 0.62 + (-hx - hz) * 0.55);
-        const noise = fbm(wx * 0.09, wz * 0.09, 2) * 0.06;
-        const shade = clamp(0.72 + lightDot * 0.42 + noise, 0.55, 1.35);
+        const col = terrainSample(wx, wz);
+        const shade = hillshade(wx, wz, 4);
         const idx = (py * size + px) * 4;
-        img.data[idx] = col[0] * shade;
-        img.data[idx + 1] = col[1] * shade;
-        img.data[idx + 2] = col[2] * shade;
+        img.data[idx] = Math.min(255, col[0] * shade);
+        img.data[idx + 1] = Math.min(255, col[1] * shade);
+        img.data[idx + 2] = Math.min(255, col[2] * shade);
         img.data[idx + 3] = 255;
       }
     }
     ctx.putImageData(img, 0, 0);
     // ścieżki
     ctx.strokeStyle = 'rgba(196,168,116,0.85)';
-    ctx.lineWidth = 2.4;
+    ctx.lineWidth = Math.max(2, size / 260);
+    ctx.lineJoin = 'round';
     for (const [ax, az, bx, bz] of PATHS) {
       ctx.beginPath();
       ctx.moveTo(((ax + WORLD_RADIUS) / (2 * WORLD_RADIUS)) * size, ((az + WORLD_RADIUS) / (2 * WORLD_RADIUS)) * size);
       ctx.lineTo(((bx + WORLD_RADIUS) / (2 * WORLD_RADIUS)) * size, ((bz + WORLD_RADIUS) / (2 * WORLD_RADIUS)) * size);
       ctx.stroke();
     }
-    // jezioro podkreślenie
     this.mapCanvas = c;
+  }
+
+  // Minimapa: kafelek terenu liczony na bieżąco wokół gracza (mapa jest duża,
+  // więc skalowanie jednego obrazka dałoby rozmycie).
+  _renderMinimapTile(p, viewRadius, res = 96) {
+    if (!this.miniCanvas) {
+      const c = document.createElement('canvas');
+      c.width = res;
+      c.height = res;
+      this.miniCanvas = c;
+      this.miniCtx = c.getContext('2d');
+      this.miniImage = this.miniCtx.createImageData(res, res);
+    }
+    const img = this.miniImage;
+    for (let py = 0; py < res; py++) {
+      for (let px = 0; px < res; px++) {
+        const wx = p.x + ((px + 0.5) / res - 0.5) * 2 * viewRadius;
+        const wz = p.z + ((py + 0.5) / res - 0.5) * 2 * viewRadius;
+        const col = terrainSample(wx, wz);
+        const shade = hillshade(wx, wz, 1.6);
+        const idx = (py * res + px) * 4;
+        img.data[idx] = Math.min(255, col[0] * shade);
+        img.data[idx + 1] = Math.min(255, col[1] * shade);
+        img.data[idx + 2] = Math.min(255, col[2] * shade);
+        img.data[idx + 3] = 255;
+      }
+    }
+    this.miniCtx.putImageData(img, 0, 0);
+    this.miniCtx.strokeStyle = 'rgba(196,168,116,0.7)';
+    this.miniCtx.lineWidth = 1;
+    const toTile = (x, z) => ({
+      x: ((x - p.x) / (2 * viewRadius) + 0.5) * res,
+      y: ((z - p.z) / (2 * viewRadius) + 0.5) * res,
+    });
+    for (const [ax, az, bx, bz] of PATHS) {
+      const a = toTile(ax, az);
+      const b = toTile(bx, bz);
+      this.miniCtx.beginPath();
+      this.miniCtx.moveTo(a.x, a.y);
+      this.miniCtx.lineTo(b.x, b.y);
+      this.miniCtx.stroke();
+    }
+    return this.miniCanvas;
   }
 
   _worldToMap(x, z, size, scale = 1) {
@@ -1250,11 +1308,9 @@ export class UI {
     ctx.fillStyle = '#0b1116';
     ctx.fillRect(0, 0, size, size);
 
-    const mapScale = this.mapSize / (2 * WORLD_RADIUS);
-    const px = (p.x + WORLD_RADIUS) * mapScale;
-    const py = (p.z + WORLD_RADIUS) * mapScale;
-    const srcSize = viewRadius * 2 * mapScale;
-    ctx.drawImage(this.mapCanvas, px - srcSize / 2, py - srcSize / 2, srcSize, srcSize, 0, 0, size, size);
+    const tile = this._renderMinimapTile(p, viewRadius);
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(tile, 0, 0, tile.width, tile.height, 0, 0, size, size);
 
     const toScreen = (x, z) => ({
       x: size / 2 + ((x - p.x) / viewRadius) * (size / 2),
@@ -1359,31 +1415,49 @@ export class UI {
     ctx.fillRect(0, 0, W, H);
 
     ctx.textAlign = 'center';
+    const placedLabels = [];
     for (const poi of POI_LABELS) {
-      const s = toScreen(poi.x, poi.z);
+      const sp = toScreen(poi.x, poi.z);
       ctx.fillStyle = poi.color;
       ctx.beginPath();
-      ctx.arc(s.x, s.y, 7, 0, Math.PI * 2);
+      ctx.arc(sp.x, sp.y, 6.5, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = 'rgba(0,0,0,0.5)';
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, 7, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+      ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      ctx.font = '600 15px Inter, sans-serif';
+      // etykiety nie mogą na siebie nachodzić — pomijamy dalsze w kolejności
+      ctx.font = '600 14px Inter, sans-serif';
+      const tw = ctx.measureText(poi.short).width;
+      const candidates = [
+        { dx: 0, dy: -15 }, { dx: 0, dy: 26 }, { dx: -tw / 2 - 12, dy: 5 }, { dx: tw / 2 + 12, dy: 5 },
+      ];
+      let chosen = null;
+      for (const c of candidates) {
+        const box = { x: sp.x + c.dx - tw / 2 - 3, y: sp.y + c.dy - 13, w: tw + 6, h: 18 };
+        const overlaps = placedLabels.some((b) => box.x < b.x + b.w && box.x + box.w > b.x && box.y < b.y + b.h && box.y + box.h > b.y);
+        if (!overlaps) { chosen = { ...c, box }; break; }
+      }
+      if (!chosen) continue;
+      placedLabels.push(chosen.box);
+      ctx.textAlign = chosen.dy === 5 ? (chosen.dx < 0 ? 'right' : 'left') : 'center';
+      const tx = chosen.dy === 5 ? sp.x + chosen.dx : sp.x;
       ctx.lineWidth = 3;
       ctx.strokeStyle = 'rgba(8,10,13,0.85)';
-      ctx.strokeText(poi.short, s.x, s.y - 14);
+      ctx.strokeText(poi.short, tx, sp.y + chosen.dy);
       ctx.fillStyle = '#e8dfcd';
-      ctx.fillText(poi.short, s.x, s.y - 14);
+      ctx.fillText(poi.short, tx, sp.y + chosen.dy);
+      ctx.textAlign = 'center';
     }
 
+    const pl = this.game.player.pos;
     for (const e of this.game.enemies.list) {
       if (!e.active || e.dead) continue;
+      if (!e.boss && dist2(e.pos.x, e.pos.z, pl.x, pl.z) > 170) continue;
       const s = toScreen(e.pos.x, e.pos.z);
       ctx.fillStyle = e.boss ? '#ff7a4a' : e.elite ? '#e0a851' : 'rgba(206,96,78,0.95)';
       ctx.beginPath();
-      ctx.arc(s.x, s.y, e.boss ? 6 : 3.6, 0, Math.PI * 2);
+      ctx.arc(s.x, s.y, e.boss ? 6 : 3.2, 0, Math.PI * 2);
       ctx.fill();
     }
 
@@ -1431,7 +1505,11 @@ export class UI {
     ctx.fillStyle = 'rgba(233,226,212,0.65)';
     ctx.font = '12px Inter, sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText('0 ——— 50 m', 24, H - 22);
+    // pasek skali: 100 m w pikselach mapy
+    const barPx = (100 / (2 * WORLD_RADIUS)) * drawSize;
+    ctx.fillText('0', 24, H - 26);
+    ctx.fillRect(24, H - 22, barPx, 2);
+    ctx.fillText('100 m', 24 + barPx + 6, H - 22);
     ctx.textAlign = 'right';
     ctx.fillText('N ↑', W - 24, 30);
   }

@@ -97,6 +97,20 @@ export class ThirdPersonCamera {
       }
     }
 
+    // wzniesienia między graczem a kamerą — podnieś kamerę, żeby nie patrzyła w zbocze
+    const rayDir = desired.clone().sub(this.pivot);
+    let lift = 0;
+    for (let i = 1; i <= 8; i++) {
+      const t = i / 8;
+      const px = this.pivot.x + rayDir.x * t;
+      const pz = this.pivot.z + rayDir.z * t;
+      const need = heightAt(px, pz) + 0.9 - (this.pivot.y + rayDir.y * t);
+      if (need > 0) lift = Math.max(lift, need / Math.max(0.25, t));
+    }
+    const targetLift = Math.min(lift, 14);
+    this.lift = damp(this.lift ?? 0, targetLift, targetLift > (this.lift ?? 0) ? 7 : 3.5, dt);
+    desired.y += this.lift;
+
     this.camera.position.copy(desired);
     this.currentDistance = this.camera.position.distanceTo(this.pivot);
 

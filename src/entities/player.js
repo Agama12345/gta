@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { clamp, damp, dampAngle } from '../core/utils.js';
-import { heightAt, WATER_LEVEL, WORLD_RADIUS } from '../world/terrain.js';
+import { heightAt, isWater, WATER_LEVEL, WORLD_RADIUS } from '../world/terrain.js';
 import { makeHumanoid, makeSword, makeShield } from '../world/models.js';
 import { Inventory } from '../systems/inventory.js';
 import { ITEMS } from '../data/items.js';
@@ -38,7 +38,7 @@ export class Player {
     this.inventory = new Inventory();
 
     // pozycja startowa — brama Wilczej Doliny
-    this.pos = new THREE.Vector3(2, heightAt(2, 46), 46);
+    this.pos = new THREE.Vector3(2, heightAt(2, 342), 342);
     this.vel = new THREE.Vector3();
     this.yaw = Math.PI;
     this.radius = 0.42;
@@ -354,7 +354,7 @@ export class Player {
     this.hp = this.maxHP;
     this.mana = this.maxMana;
     this.stamina = this.maxStamina;
-    this.pos.set(0, heightAt(0, 38) + 0.1, 38);
+    this.pos.set(0, heightAt(0, 342) + 0.1, 342);
     this.vel.set(0, 0, 0);
     this.invuln = 2.5;
     this.buffs.attackTime = 0;
@@ -460,11 +460,18 @@ export class Player {
       this.vel.multiplyScalar(0.4);
     }
     const groundNext = heightAt(next.x, next.z);
-    if (groundNext > WATER_LEVEL - 0.35) {
+    // tylko głęboka woda jeziora blokuje ruch — bagno i mokradła są przechodnie
+    const deepWater = isWater(next.x, next.z) && groundNext < WATER_LEVEL - 0.9;
+    if (!deepWater) {
       this.pos.x = next.x;
       this.pos.z = next.z;
     } else {
       this.vel.multiplyScalar(0.2);
+      this.waterHint = (this.waterHint ?? 0) - dt;
+      if (this.waterHint <= 0) {
+        this.waterHint = 6;
+        this.game.ui?.log('Głęboka woda — dalej nie popłynę.', 'info');
+      }
     }
 
     const ground = heightAt(this.pos.x, this.pos.z);

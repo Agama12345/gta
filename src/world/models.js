@@ -33,6 +33,7 @@ function mesh(geo, material, x = 0, y = 0, z = 0) {
 }
 
 const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+const cyl = (rt, rb, h, seg = 6) => new THREE.CylinderGeometry(rt, rb, h, seg);
 
 // ---------------------------------------------------------------------------
 // DOMY
@@ -405,6 +406,148 @@ export function makeWolf(seed = 1) {
 
   g.userData.height = 1.15;
   return { group: g, parts: { body, head, legs, tail } };
+}
+
+
+export function makeGolem() {
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const stone = mat('#7b776e', { rough: 0.95 });
+  const stoneDark = mat('#5c5952', { rough: 0.96 });
+  const moss = mat('#54704a', { rough: 0.98 });
+  const glowMat = mat('#8fe0c8', { emissive: '#4fe0b8', emissiveIntensity: 1.8, rough: 0.3 });
+
+  const torso = mesh(new THREE.DodecahedronGeometry(0.85, 0), stone, 0, 1.85, 0);
+  torso.scale.set(1, 1.15, 0.85);
+  body.add(torso);
+  // pęknięcia świecące
+  for (let i = 0; i < 4; i++) {
+    const crack = mesh(box(0.07, 0.5 - i * 0.08, 0.06), glowMat, -0.3 + i * 0.2, 1.8 + (i % 2) * 0.2, 0.72);
+    crack.rotation.z = 0.3 - i * 0.2;
+    body.add(crack);
+  }
+  const pelvis = mesh(new THREE.DodecahedronGeometry(0.5, 0), stoneDark, 0, 1.0, 0);
+  pelvis.scale.set(1.1, 0.8, 0.9);
+  body.add(pelvis);
+
+  const head = new THREE.Group();
+  head.position.set(0, 2.75, 0.08);
+  body.add(head);
+  const skull = mesh(new THREE.DodecahedronGeometry(0.42, 0), stoneDark, 0, 0, 0);
+  skull.scale.set(1, 0.9, 0.95);
+  head.add(skull);
+  for (const sx of [-1, 1]) {
+    const eye = mesh(new THREE.SphereGeometry(0.07, 6, 5), glowMat, sx * 0.15, 0.03, 0.36);
+    eye.castShadow = false;
+    head.add(eye);
+  }
+  const mossPatch = mesh(new THREE.IcosahedronGeometry(0.3, 0), moss, 0.3, 0.25, -0.1);
+  head.add(mossPatch);
+
+  const arms = [];
+  for (const sx of [-1, 1]) {
+    const pivot = new THREE.Group();
+    pivot.position.set(sx * 0.95, 2.35, 0);
+    const upper = mesh(new THREE.DodecahedronGeometry(0.34, 0), stone, 0, -0.42, 0);
+    upper.scale.set(1, 1.5, 1);
+    pivot.add(upper);
+    const fore = mesh(new THREE.DodecahedronGeometry(0.3, 0), stoneDark, 0, -1.0, 0);
+    fore.scale.set(1, 1.35, 1);
+    pivot.add(fore);
+    const fist = mesh(new THREE.DodecahedronGeometry(0.36, 0), stone, 0, -1.42, 0);
+    pivot.add(fist);
+    body.add(pivot);
+    arms.push(pivot);
+  }
+
+  const legs = [];
+  for (const sx of [-1, 1]) {
+    const pivot = new THREE.Group();
+    pivot.position.set(sx * 0.34, 1.0, 0);
+    const thigh = mesh(new THREE.DodecahedronGeometry(0.28, 0), stoneDark, 0, -0.28, 0);
+    thigh.scale.set(1, 1.3, 1);
+    pivot.add(thigh);
+    const shin = mesh(new THREE.DodecahedronGeometry(0.24, 0), stone, 0, -0.68, 0);
+    shin.scale.set(1, 1.4, 1);
+    pivot.add(shin);
+    const foot = mesh(box(0.42, 0.2, 0.56), stoneDark, 0, -1.0, 0.06);
+    pivot.add(foot);
+    body.add(pivot);
+    legs.push(pivot);
+  }
+
+  const light = new THREE.PointLight('#6fe0c0', 2.2, 8, 2);
+  light.position.y = 1.9;
+  g.add(light);
+
+  g.userData.height = 3.2;
+  return { group: g, parts: { body, head, arms, legs, golem: true } };
+}
+
+export function makeLurker() {
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const flesh = mat('#4c5a3c', { rough: 0.9 });
+  const fleshDark = mat('#37422c', { rough: 0.92 });
+  const slime = mat('#6f8a52', { emissive: '#2f4a22', emissiveIntensity: 0.5, rough: 0.5 });
+
+  const torso = mesh(new THREE.SphereGeometry(0.72, 9, 7), flesh, 0, 0.95, 0);
+  torso.scale.set(1.15, 0.86, 1.05);
+  body.add(torso);
+  const back = mesh(new THREE.SphereGeometry(0.5, 8, 6), fleshDark, 0, 1.05, -0.45);
+  back.scale.set(1.2, 0.7, 0.9);
+  body.add(back);
+
+  const head = new THREE.Group();
+  head.position.set(0, 1.22, 0.62);
+  body.add(head);
+  const skull = mesh(new THREE.SphereGeometry(0.42, 8, 6), flesh, 0, 0, 0);
+  skull.scale.set(1.1, 0.8, 1.05);
+  head.add(skull);
+  const mouth = mesh(box(0.42, 0.12, 0.16), mat('#1c2318'), 0, -0.12, 0.36);
+  head.add(mouth);
+  for (const sx of [-1, 1]) {
+    const eye = mesh(new THREE.SphereGeometry(0.09, 6, 5), mat('#d8e06a', { emissive: '#c8e04a', emissiveIntensity: 1.8 }), sx * 0.17, 0.12, 0.32);
+    eye.castShadow = false;
+    head.add(eye);
+    const horn = mesh(new THREE.ConeGeometry(0.09, 0.34, 4), fleshDark, sx * 0.26, 0.34, -0.05);
+    horn.rotation.z = sx * 0.5;
+    head.add(horn);
+  }
+
+  const arms = [];
+  for (const sx of [-1, 1]) {
+    const pivot = new THREE.Group();
+    pivot.position.set(sx * 0.72, 0.95, 0.15);
+    const arm = mesh(cyl(0.16, 0.1, 0.95, 5), flesh, 0, -0.45, 0);
+    pivot.add(arm);
+    const claw = mesh(new THREE.ConeGeometry(0.16, 0.34, 4), fleshDark, 0, -0.95, 0.05);
+    claw.rotation.x = Math.PI;
+    pivot.add(claw);
+    body.add(pivot);
+    arms.push(pivot);
+  }
+
+  const legs = [];
+  for (const sx of [-1, 1]) {
+    const pivot = new THREE.Group();
+    pivot.position.set(sx * 0.38, 0.5, 0);
+    const leg = mesh(cyl(0.14, 0.12, 0.5, 5), fleshDark, 0, -0.25, 0);
+    pivot.add(leg);
+    const foot = mesh(box(0.3, 0.12, 0.44), fleshDark, 0, -0.5, 0.08);
+    pivot.add(foot);
+    body.add(pivot);
+    legs.push(pivot);
+  }
+
+  const spots = mesh(new THREE.SphereGeometry(0.16, 6, 5), slime, 0.3, 1.15, 0.42);
+  spots.scale.set(1.4, 0.5, 1.1);
+  body.add(spots);
+
+  g.userData.height = 1.7;
+  return { group: g, parts: { body, head, arms, legs, lurker: true } };
 }
 
 export function makeSkeleton() {

@@ -62,9 +62,9 @@ export class Game {
 
   _initScene() {
     this.scene = new THREE.Scene();
-    this.scene.fog = new THREE.Fog('#b9d2dc', 70, 230);
+    this.scene.fog = new THREE.Fog('#b9d2dc', 90, 330);
 
-    this.camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 520);
+    this.camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.12, 900);
     this.camera.position.set(0, 12, 58);
 
     this.hemi = new THREE.HemisphereLight('#cfe0ea', '#4a4433', 0.9);
@@ -74,11 +74,11 @@ export class Game {
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
     this.sun.shadow.camera.near = 1;
-    this.sun.shadow.camera.far = 220;
-    this.sun.shadow.camera.left = -48;
-    this.sun.shadow.camera.right = 48;
-    this.sun.shadow.camera.top = 48;
-    this.sun.shadow.camera.bottom = -48;
+    this.sun.shadow.camera.far = 300;
+    this.sun.shadow.camera.left = -60;
+    this.sun.shadow.camera.right = 60;
+    this.sun.shadow.camera.top = 60;
+    this.sun.shadow.camera.bottom = -60;
     this.sun.shadow.bias = -0.0006;
     this.sun.shadow.normalBias = 0.045;
     this.scene.add(this.sun);
@@ -265,7 +265,7 @@ export class Game {
     this.player.hp = this.player.maxHP;
     this.player.mana = this.player.maxMana;
     this.player.stamina = this.player.maxStamina;
-    this.player.pos.set(2, heightAt(2, 46), 46);
+    this.player.pos.set(2, heightAt(2, 342), 342);
     this.player.yaw = Math.PI;
     this.player.syncModel();
 
@@ -387,7 +387,7 @@ export class Game {
 
     this.player.update(dt, this.input);
     this.enemies.update(dt);
-    this.world.update(dt, this.time);
+    this.world.update(dt, this.time, this.player.pos);
     this.fx.update(dt);
     for (const npc of this.npcs) npc.update(dt, this.player);
     this.npcs.forEach((n) => {
@@ -428,15 +428,15 @@ export class Game {
 
   _titleCamera(dt) {
     this.titleAngle += dt * 0.045;
-    const r = 34;
+    const r = 46;
     const cx = Math.cos(this.titleAngle) * r;
-    const cz = 34 + Math.sin(this.titleAngle) * r;
-    this.camera.position.set(cx, heightAt(cx, cz) + 7.5, cz);
-    this.camera.lookAt(0, heightAt(0, 32) + 3.2, 32);
+    const cz = 350 + Math.sin(this.titleAngle) * r;
+    this.camera.position.set(cx, heightAt(cx, cz) + 9.5, cz);
+    this.camera.lookAt(0, heightAt(0, 350) + 3.4, 350);
     this.dayNight.update(dt);
     this._updateLighting();
     this.fx.update(dt);
-    this.world.update(dt, this.time);
+    this.world.update(dt, this.time, this.camera.position);
     this.ui.setClock(this.dayNight.clockString, this.dayNight.isNight);
   }
 
@@ -460,8 +460,8 @@ export class Game {
     this.sky.update(sky.top, sky.horizon);
     if (this.scene.fog) {
       this.scene.fog.color.set(sky.horizon).lerp(dn.fogColor, 0.45);
-      this.scene.fog.near = dn.nightF > 0.6 ? 34 : 72;
-      this.scene.fog.far = dn.nightF > 0.6 ? 130 : 250;
+      this.scene.fog.near = dn.nightF > 0.6 ? 36 : 90;
+      this.scene.fog.far = dn.nightF > 0.6 ? 150 : 330;
     }
     this.stars.material.opacity = clamp(dn.nightF * 1.05, 0, 0.95);
     if (this.player?.lantern) this.player.lantern.intensity = 3.6 * clamp(dn.nightF * 1.2, 0, 1);
@@ -507,14 +507,21 @@ export class Game {
   _updateRegion() {
     const p = this.player.pos;
     const regions = [
-      { id: 'village', ...LOCATIONS.village, r: 26 },
-      { id: 'forge', ...LOCATIONS.forge, r: 17 },
-      { id: 'bandits', ...LOCATIONS.bandits, r: 17 },
-      { id: 'barrow', ...LOCATIONS.barrow, r: 18 },
-      { id: 'ruins', ...LOCATIONS.ruins, r: 22 },
-      { id: 'quarry', ...LOCATIONS.quarry, r: 13 },
-      { id: 'lake', ...LOCATIONS.lake, r: 22 },
-      { id: 'crossroads', ...LOCATIONS.crossroads, r: 12 },
+      { id: 'village', ...LOCATIONS.village, r: 58 },
+      { id: 'trading', ...LOCATIONS.trading, r: 36 },
+      { id: 'forge', ...LOCATIONS.forge, r: 26 },
+      { id: 'bandits', ...LOCATIONS.bandits, r: 26 },
+      { id: 'barrow', ...LOCATIONS.barrow, r: 30 },
+      { id: 'ruins', ...LOCATIONS.ruins, r: 36 },
+      { id: 'quarry', ...LOCATIONS.quarry, r: 24 },
+      { id: 'lake', ...LOCATIONS.lake, r: 90 },
+      { id: 'castle', ...LOCATIONS.castle, r: 40 },
+      { id: 'hermit', ...LOCATIONS.hermit, r: 26 },
+      { id: 'swamp', ...LOCATIONS.swamp, r: 90 },
+      { id: 'pass', ...LOCATIONS.pass, r: 40 },
+      { id: 'circle', ...LOCATIONS.circle, r: 24 },
+      { id: 'mine', ...LOCATIONS.mine, r: 22 },
+      { id: 'crossroads', ...LOCATIONS.crossroads, r: 18 },
     ];
     let current = null;
     for (const r of regions) {
@@ -527,7 +534,10 @@ export class Game {
     if (id !== this.lastRegion) {
       this.lastRegion = id;
       if (current) this.ui.showLocation(current.name, current.sub);
-      else this.ui.showLocation('Dzicz', 'Wilcza Dolina i okolice');
+      else {
+        const h = this.player.pos.y;
+        this.ui.showLocation(h > 120 ? 'Górskie granie' : 'Dzicz', 'Wilcza Dolina i okolice');
+      }
     }
   }
 
@@ -902,6 +912,8 @@ export class Game {
       const fallback = {
         wolf: LOCATIONS.village, bandit: LOCATIONS.bandits, bandit_leader: LOCATIONS.bandits,
         skeleton: LOCATIONS.barrow, wraith: LOCATIONS.barrow, kaldras: LOCATIONS.ruins,
+        wolf_alpha: LOCATIONS.village, bog_lurker: LOCATIONS.swamp, stone_golem: LOCATIONS.circle,
+        mine_guard: LOCATIONS.mine, castle_wraith: LOCATIONS.castle, wolf_rider: LOCATIONS.pass,
       };
       const l = fallback[obj.enemy];
       return l ? new THREE.Vector3(l.x, 0, l.z) : null;
