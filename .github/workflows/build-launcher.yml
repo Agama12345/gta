@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - '**'
+    # tylko zmiany w kodzie launchera wywołują build (commit z plikiem exe nie zapętla CI)
     paths:
       - 'launcher/src/**'
       - 'launcher/assets/**'
@@ -120,6 +121,24 @@ jobs:
             out/ArcaneSpire.exe
             out/ArcaneSpire.zip
           if-no-files-found: error
+
+      - name: Kopia do repozytorium (downloads/ArcaneSpire.exe)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path downloads | Out-Null
+          Copy-Item out/ArcaneSpire.exe downloads/ArcaneSpire.exe -Force
+          Copy-Item out/ArcaneSpire.zip downloads/ArcaneSpire.zip -Force
+
+      - name: Commit kopii (bez ponownego builda)
+        shell: pwsh
+        run: |
+          git config user.name "Arcane Spire Build"
+          git config user.email "build@users.noreply.github.com"
+          git add downloads/ArcaneSpire.exe downloads/ArcaneSpire.zip
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) { Write-Host "Bez zmian."; exit 0 }
+          git commit -m "build: launcher ${{ github.sha }} [skip ci]"
+          git push
 
       - name: Wydanie launcher-latest (zawsze aktualny link do pobrania)
         if: github.event_name == 'push'
