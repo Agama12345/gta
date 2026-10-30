@@ -604,6 +604,67 @@ function buildLakeSurface() {
   return geo;
 }
 
+// Piana przy brzegu: pas wody w miejscach, gdzie głębokość jest mała.
+// Kolor wierzchołków przechodzi od bieli (brzeg) do koloru wody (głębiej),
+// więc piana wtapia się w taflę bez ostrej krawędzi.
+function buildLakeFoam() {
+  const cx = LOCATIONS.lake.x;
+  const cz = LOCATIONS.lake.z;
+  const span = 150;
+  const n = Math.ceil((span * 2) / WATER_CELL) + 1;
+  const x0 = cx - span;
+  const z0 = cz - span;
+  const shallow = 1.5;
+
+  const depth = new Float32Array(n * n);
+  for (let j = 0; j < n; j++) {
+    for (let i = 0; i < n; i++) {
+      depth[j * n + i] = WATER_LEVEL - heightAt(x0 + i * WATER_CELL, z0 + j * WATER_CELL);
+    }
+  }
+
+  const positions = [];
+  const colors = [];
+  const indices = [];
+  const water = new THREE.Color('#2f6579');
+  const white = new THREE.Color('#e8f6f8');
+  const tmp = new THREE.Color();
+
+  const pushVert = (i, j) => {
+    const d = depth[j * n + i];
+    const t = Math.max(0, Math.min(1, d / shallow));
+    tmp.copy(white).lerp(water, t);
+    positions.push(x0 + i * WATER_CELL, 0, z0 + j * WATER_CELL);
+    colors.push(tmp.r, tmp.g, tmp.b);
+    return positions.length / 3 - 1;
+  };
+
+  for (let j = 0; j < n - 1; j++) {
+    for (let i = 0; i < n - 1; i++) {
+      const d00 = depth[j * n + i];
+      const d10 = depth[j * n + i + 1];
+      const d01 = depth[(j + 1) * n + i];
+      const d11 = depth[(j + 1) * n + i + 1];
+      const maxD = Math.max(d00, d10, d01, d11);
+      const minD = Math.min(d00, d10, d01, d11);
+      if (maxD <= 0 || minD > shallow) continue;
+
+      const a = pushVert(i, j);
+      const b = pushVert(i + 1, j);
+      const c = pushVert(i, j + 1);
+      const d = pushVert(i + 1, j + 1);
+      indices.push(a, c, b, b, c, d);
+    }
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
+}
+
 export function createWater() {
   const group = new THREE.Group();
   group.name = 'water';
@@ -622,6 +683,18 @@ export function createWater() {
   lake.position.set(0, WATER_LEVEL, 0);
   lake.name = 'lake';
   group.add(lake);
+
+  const foamMat = new THREE.MeshBasicMaterial({
+    color: '#ffffff',
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.5,
+    depthWrite: false,
+  });
+  const foamMesh = new THREE.Mesh(buildLakeFoam(), foamMat);
+  foamMesh.position.set(0, WATER_LEVEL + 0.07, 0);
+  foamMesh.name = 'lake-foam';
+  group.add(foamMesh);
 
   const pooled = [];
   const swampBase = heightAt(LOCATIONS.swamp.x, LOCATIONS.swamp.z);
@@ -658,6 +731,9 @@ export function createWater() {
       for (let i = 0; i < pooled.length; i++) {
         pooled[i].mesh.position.y = pooled[i].level + Math.sin(t * 0.8 + i) * 0.012;
       }
+      // piana delikatnie faluje i rozjaśnia się przy uderzeniu fali
+      foamMat.opacity = 0.40 + Math.sin(t * 0.9) * 0.10 + Math.sin(t * 2.3) * 0.04;
+      foamMesh.position.y = WATER_LEVEL + 0.07 + Math.sin(t * 0.9) * 0.02;
     },
   };
 }

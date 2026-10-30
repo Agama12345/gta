@@ -232,5 +232,12 @@ jobs:
               --notes "Gra w jednym pliku exe. Pobierz i uruchom."
           }
           gh release upload game-latest out-game/RunyPrzeznaczenia.exe --clobber
-          if ($LASTEXITCODE -ne 0) { throw "Nie udało się wgrać gry do wydania" }
-          gh release edit game-latest --notes "build=$sha`nGra „Runy Przeznaczenia” w jednym pliku exe (Windows 10/11, .NET Framework 4.8).`n`nPobierz: https://github.com/Agama12345/gta/releases/download/game-latest/RunyPrzeznaczenia.exe"
+          $notes = @"
+          build=$sha
+          Gra "Runy Przeznaczenia" w jednym pliku exe.
+          Windows 10/11 - .NET Framework 4.8 jest czescia systemu.
+
+          Pobierz: https://github.com/Agama12345/gta/releases/download/game-latest/RunyPrzeznaczenia.exe
+          Pomoc: uruchom z parametrem --selftest, jesli cos nie dziala.
+          "@
+          gh release edit game-latest --notes $notes

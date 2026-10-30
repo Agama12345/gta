@@ -128,6 +128,7 @@ export class World {
 
   update(dt, time, playerPos) {
     this.water.update(dt);
+    if (time) this._updateFireflies(dt, 1 - (time.dayF ?? 1));
     for (const a of this.animated) a.update?.(dt);
     for (const n of this.nodes) {
       if (!n.available && n.timer > 0) {
@@ -1204,6 +1205,63 @@ export class World {
     }
 
     this._scatterGrass();
+    this._buildFireflies();
+  }
+
+  /** Świetliki nad łąkami i skrajem lasu — widoczne tylko nocą. */
+  _buildFireflies() {
+    const rng = new RNG(77123);
+    const positions = [];
+    const phases = [];
+    for (let i = 0; i < 520; i++) {
+      const a = rng.float(0, Math.PI * 2);
+      const r = 40 + Math.pow(rng.next(), 0.7) * 640;
+      const x = Math.cos(a) * r;
+      const z = Math.sin(a) * r;
+      const h = heightAt(x, z);
+      if (h < WATER_LEVEL + 1) continue;
+      if (heightAt(x, z) > 120) continue;
+      positions.push(x, h + 0.6 + rng.float(0, 1.6), z);
+      phases.push(rng.float(0, Math.PI * 2));
+    }
+    if (positions.length === 0) return;
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+
+    const mat = new THREE.PointsMaterial({
+      color: '#ffe4a3',
+      size: 0.26,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      sizeAttenuation: true,
+    });
+    const points = new THREE.Points(geo, mat);
+    points.name = 'fireflies';
+    points.frustumCulled = false;
+    (this.group ?? this.scene).add(points);
+    this.fireflies = { points, mat, geo, base: Float32Array.from(geo.attributes.position.array), phases, t: 0 };
+  }
+
+  _updateFireflies(dt, nightF) {
+    const ff = this.fireflies;
+    if (!ff) return;
+    ff.t += dt;
+    // w dzień gasną, nocą rozbłyskują
+    const target = Math.max(0, Math.min(1, (nightF - 0.25) / 0.5)) * 0.95;
+    ff.mat.opacity += (target - ff.mat.opacity) * Math.min(1, dt * 2.5);
+    if (ff.mat.opacity < 0.01) return;
+    const arr = ff.geo.attributes.position.array;
+    const t = ff.t;
+    for (let i = 0; i < arr.length / 3; i++) {
+      const ph = ff.phases[i];
+      arr[i * 3] = ff.base[i * 3] + Math.sin(t * 0.6 + ph) * 1.4;
+      arr[i * 3 + 1] = ff.base[i * 3 + 1] + Math.sin(t * 1.1 + ph * 1.7) * 0.45;
+      arr[i * 3 + 2] = ff.base[i * 3 + 2] + Math.cos(t * 0.5 + ph * 1.3) * 1.4;
+    }
+    ff.geo.attributes.position.needsUpdate = true;
   }
 
   _scatterGrass() {
