@@ -194,16 +194,24 @@ jobs:
       - name: Diagnostyka błędu kompilacji gry
         if: failure()
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          $log = (dotnet build tools/gamehost/GameHost.csproj -c Release -v minimal 2>&1 | Out-String)
+          if ($log.Length -gt 7000) { $log = $log.Substring(0, 7000) }
+          $log | Out-File -Encoding utf8 build-error.txt
+          gh release view game-latest *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit game-latest --notes "BLAD KOMPILACJI:`n`n$log"
+          }
           git config user.name "Arcane Spire Build"
           git config user.email "build@users.noreply.github.com"
-          "== dotnet build (Release) ==" | Set-Content build-error.txt
-          dotnet build tools/gamehost/GameHost.csproj -c Release -v minimal 2>&1 | Out-File -Append -Encoding utf8 build-error.txt
-          "`n== restore ==" | Out-File -Append -Encoding utf8 build-error.txt
-          dotnet restore tools/gamehost/GameHost.csproj -v minimal 2>&1 | Out-File -Append -Encoding utf8 build-error.txt
           git add build-error.txt
           git commit -m "ci: blad kompilacji gry [skip ci]"
-          if ($LASTEXITCODE -eq 0) { git push }
+          if ($LASTEXITCODE -eq 0) {
+            git pull --rebase --autostash origin "${{ github.ref_name }}" 2>&1 | Out-Null
+            git push origin "HEAD:${{ github.ref_name }}" 2>&1 | Out-Null
+          }
           exit 0
 
       - name: Weryfikacja exe z grą
