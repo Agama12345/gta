@@ -162,6 +162,48 @@ def write_ico(path, images):
         f.write(header + entries + payload)
 
 
+
+
+def dilate(px, w, h, radius=1):
+    """Pogrubia rysunek: każdy nieprzezroczysty piksel rozlewa się na sąsiadów.
+
+    Działa w rozdzielczości źródła (32×32), więc po przeskalowaniu nearest-neighbour
+    kreska jest grubsza, ale nadal ostra — bez rozmycia.
+    """
+    out = bytearray(px)
+    for _ in range(radius):
+        src = bytes(out)
+        for y in range(h):
+            for x in range(w):
+                i = (y * w + x) * 4
+                if src[i + 3] > 140:
+                    continue
+                best = None
+                best_a = 140
+                total_a = 0
+                acc = [0, 0, 0]
+                for dy in (-1, 0, 1):
+                    for dx in (-1, 0, 1):
+                        nx, ny = x + dx, y + dy
+                        if nx < 0 or ny < 0 or nx >= w or ny >= h:
+                            continue
+                        j = (ny * w + nx) * 4
+                        a = src[j + 3]
+                        if a <= 140:
+                            continue
+                        total_a += a
+                        acc[0] += src[j] * a
+                        acc[1] += src[j + 1] * a
+                        acc[2] += src[j + 2] * a
+                if total_a == 0:
+                    continue
+                out[i] = acc[0] // total_a
+                out[i + 1] = acc[1] // total_a
+                out[i + 2] = acc[2] // total_a
+                out[i + 3] = 255
+    return out
+
+
 # --------------------------------------------------------------- skalowanie
 def scale_nearest(src, sw, sh, size):
     out = bytearray(size * size * 4)
@@ -240,12 +282,22 @@ def build_game_icon():
     public = os.path.join(ROOT, 'public')
     os.makedirs(public, exist_ok=True)
     w, h, px = read_png(src_path)
-    print(f'ikona gry: {w}×{h}')
+    print(f'ikona gry: {w}×{h} (pogrubienie +1 px)')
+    bold = dilate(px, w, h, 1)
+
+    ico_images = []
     for size in SIZES:
-        data = scale_nearest(px, w, h, size)
+        data = scale_nearest(bold, w, h, size)
         write_png(os.path.join(public, f'icon-{size}.png'), size, size, data)
-    write_png(os.path.join(public, 'favicon.png'), 32, 32, scale_nearest(px, w, h, 32))
-    print('  zapisano', ', '.join(f'icon-{s}.png' for s in SIZES))
+        if size in ICO_SIZES:
+            ico_images.append((size, open(os.path.join(public, f'icon-{size}.png'), 'rb').read()))
+    write_png(os.path.join(public, 'favicon.png'), 32, 32, scale_nearest(bold, w, h, 32))
+
+    # ikona wbudowywana w plik exe gry — dokładnie ten sam rysunek, bez żadnych płytek
+    host_dir = os.path.join(ROOT, 'tools', 'gamehost')
+    os.makedirs(host_dir, exist_ok=True)
+    write_ico(os.path.join(host_dir, 'app.ico'), ico_images)
+    print('  zapisano', ', '.join(f'icon-{s}.png' for s in SIZES), '+ tools/gamehost/app.ico')
 
 
 def build_launcher_icon():
@@ -254,7 +306,7 @@ def build_launcher_icon():
         print('pomijam ikonę launchera: brak', src_path)
         return
     w, h, px = read_png(src_path)
-    print(f'ikona launchera: {w}×{h}')
+    print(f'ikona launchera: {w}×{h} (pogrubienie +1 px, bez tła)')
 
     out_dirs = [
         os.path.join(ROOT, 'launcher', 'ui'),
@@ -263,9 +315,10 @@ def build_launcher_icon():
     for d in out_dirs:
         os.makedirs(d, exist_ok=True)
 
+    bold = dilate(px, w, h, 1)
     ico_images = []
     for size in SIZES:
-        data = compose_launcher_icon(px, w, h, size)
+        data = scale_nearest(bold, w, h, size)
         for d in out_dirs:
             name = 'app.png' if size == 512 else f'icon-{size}.png'
             write_png(os.path.join(d, name), size, size, data)

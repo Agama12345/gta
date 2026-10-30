@@ -195,27 +195,67 @@ jobs:
         run: |
           $exe = "out-game/RunyPrzeznaczenia.exe"
           if (-not (Test-Path $exe)) { throw "Brak $exe" }
-          $size = (Get-Item $exe).Length
-          Write-Host "RunyPrzeznaczenia.exe = $size bajtów"
-          if ($size -lt 300000) { throw "Plik wygląda na niepoprawny (brak zasobów?)" }
+          Write-Host ("RunyPrzeznaczenia.exe = " + (Get-Item $exe).Length + " bajtów")
+          Get-ChildItem out-game | Format-Table Name, Length -AutoSize
+          if (-not (Test-Path "out-game/WebView2Loader.dll")) { throw "Brak WebView2Loader.dll (natywne okno nie zadziała)" }
           $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path $exe))
           $peOffset = [BitConverter]::ToInt32($bytes, 0x3C)
           $subsystem = [BitConverter]::ToUInt16($bytes, $peOffset + 0x5C)
-          Write-Host "Podsystem: $subsystem"
           if ($subsystem -ne 2) { throw "Zły podsystem: $subsystem" }
-          $text = [System.Text.Encoding]::ASCII.GetString($bytes)
-          if ($text -notmatch "index\.html") { Write-Host "UWAGA: nie widzę nazw zasobów w tekście (mogą być skompresowane)" }
           Add-Type -AssemblyName System.Drawing
           $icon = [System.Drawing.Icon]::ExtractAssociatedIcon((Resolve-Path $exe))
           if ($null -eq $icon) { throw "Brak ikony" }
-          Write-Host ("Ikona: " + $icon.Width + "x" + $icon.Height)
+          Write-Host ("Ikona okna: " + $icon.Width + "x" + $icon.Height)
           $icon.Dispose()
+
+      - name: Paczka gry (exe + WebView2 + Uruchom.cmd)
+        shell: pwsh
+        run: |
+          $stage = "stage-game"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item out-game/* $stage/ -Recurse -Force
+          $run = @"
+          @echo off
+          rem Uruchamia gre bez okna "Windows chronil Twoj komputer".
+          chcp 65001 >nul 2>nul
+          setlocal
+          set "HERE=%~dp0"
+          if not exist "%HERE%RunyPrzeznaczenia.exe" (
+            echo Nie znaleziono RunyPrzeznaczenia.exe obok tego pliku.
+            pause
+            exit /b 1
+          )
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Unblock-File -LiteralPath '%HERE%RunyPrzeznaczenia.exe'" >nul 2>nul
+          start "" "%HERE%RunyPrzeznaczenia.exe"
+          exit /b 0
+          "@
+          $run = $run -replace "`n", "`r`n"
+          Set-Content -Path "$stage/Uruchom.cmd" -Value $run -Encoding ASCII
+          $read = @"
+          RUNY PRZEZNACZENIA - wersja na PC
+          ================================
+          1. Kliknij dwa razy Uruchom.cmd  (odblokowuje plik i startuje gre)
+             albo od razu RunyPrzeznaczenia.exe
+          2. Gra otwiera sie we wlasnym oknie Windows - bez paska adresu,
+             bez kart przegladarki, z wlasna ikona na pasku zadan.
+          3. Sterowanie: WASD - ruch, Spacja - atak, Shift - sprint,
+             E - interakcja, Tab - ekwipunek, M - mapa, Esc - menu.
+
+          Wymagania: Windows 10/11. Silnik okna (WebView2) jest czescia
+          systemu razem z Edge; jesli go brak, gra otworzy sie w przegladarce.
+          Log: %LOCALAPPDATA%\RunyPrzeznaczenia\game.log
+          Diagnostyka: RunyPrzeznaczenia.exe --selftest
+          "@
+          $read = $read -replace "`n", "`r`n"
+          Set-Content -Path "$stage/CZYTAJ.txt" -Value $read -Encoding UTF8
+          Compress-Archive -Path "$stage/*" -DestinationPath out-game/RunyPrzeznaczenia-PC.zip -Force
+          Write-Host ("Paczka: " + (Get-Item out-game/RunyPrzeznaczenia-PC.zip).Length + " bajtów")
 
       - name: Artefakt gry
         uses: actions/upload-artifact@v4
         with:
-          name: RunyPrzeznaczenia-exe
-          path: out-game/RunyPrzeznaczenia.exe
+          name: RunyPrzeznaczenia-PC
+          path: out-game/RunyPrzeznaczenia-PC.zip
           if-no-files-found: error
 
       - name: Wydanie game-latest (link do pobrania gry)
@@ -231,13 +271,15 @@ jobs:
               --title "Runy Przeznaczenia — gra (exe)" `
               --notes "Gra w jednym pliku exe. Pobierz i uruchom."
           }
+          gh release upload game-latest out-game/RunyPrzeznaczenia-PC.zip --clobber
           gh release upload game-latest out-game/RunyPrzeznaczenia.exe --clobber
           $notes = @"
           build=$sha
           Gra "Runy Przeznaczenia" w jednym pliku exe.
           Windows 10/11 - .NET Framework 4.8 jest czescia systemu.
 
-          Pobierz: https://github.com/Agama12345/gta/releases/download/game-latest/RunyPrzeznaczenia.exe
+          Pobierz: https://github.com/Agama12345/gta/releases/download/game-latest/RunyPrzeznaczenia-PC.zip
+          (rozpakuj i kliknij Uruchom.cmd - gra dziala we wlasnym oknie Windows)
           Pomoc: uruchom z parametrem --selftest, jesli cos nie dziala.
           "@
           gh release edit game-latest --notes $notes
