@@ -24,7 +24,9 @@ page.on('console', (m) => { if (m.type() === 'error') logs.push('[error] ' + m.t
 await page.goto('http://127.0.0.1:5173/', { waitUntil: 'load', timeout: 60000 });
 await page.waitForFunction('window.__game && window.__game.state === "title"', { timeout: 60000 });
 await page.evaluate(() => window.__game.startNew());
-await new Promise((r) => setTimeout(r, 1800));
+// czekaj aż ekran ładowania zniknie i świat będzie gotowy
+await page.waitForFunction('!document.getElementById("loading") || document.getElementById("loading").classList.contains("hidden")', { timeout: 120000 });
+await new Promise((r) => setTimeout(r, 2500));
 
 const shots = JSON.parse(process.env.SHOTS || '[]');
 let i = 0;

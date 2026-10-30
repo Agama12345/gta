@@ -108,6 +108,11 @@ export const ITEMS = {
     value: 8, use: { heal: 18 },
     desc: 'Suche i żylaste, ale lepsze niż pusty żołądek.',
   },
+  lake_fish: {
+    name: 'Ryba z jeziora', icon: 'meat', type: 'consumable', rarity: 'common', stack: 9,
+    value: 10, use: { heal: 22 },
+    desc: 'Zimna woda daje tłuste, srebrne ryby. Nad ogniem smakują lepiej niż w plecaku.',
+  },
   bread: {
     name: 'Chleb podróżny', icon: 'bread', type: 'consumable', rarity: 'common', stack: 9,
     value: 5, use: { heal: 12 },

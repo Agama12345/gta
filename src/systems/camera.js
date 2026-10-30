@@ -73,7 +73,7 @@ export class ThirdPersonCamera {
         if (!blocked) {
           for (const c of this.colliders) {
             // tylko duże przeszkody (domy, mury) — drobne meble nie szarpią kamerą
-            if (c.r < 1.3) continue;
+            if (c.r < 1.6) continue;
             const dx = px - c.x;
             const dz = pz - c.z;
             if (dx * dx + dz * dz < c.r * c.r * 0.9) {

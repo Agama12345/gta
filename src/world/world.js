@@ -58,6 +58,8 @@ export class World {
     this._buildCircle();
     this._buildMine();
     this._buildCrossroads();
+    this._buildHighlands();
+    this._buildRoadCamp();
     this._scatterNature();
 
     this.batcher.finalize(true);
@@ -636,6 +638,7 @@ export class World {
   _buildLake() {
     const cx = LOCATIONS.lake.x;
     const cz = LOCATIONS.lake.z;
+    // pomost na wschodnim brzegu, skierowany w głąb jeziora
     const dock = new THREE.Group();
     for (let i = 0; i < 8; i++) {
       dock.add(mesh(box(2.4, 0.14, 0.44), mat('#5a422a'), 0, 0.2, i * 0.5 - 2));
@@ -645,18 +648,20 @@ export class World {
         dock.add(mesh(cyl(0.11, 0.11, 2.4, 5), mat('#42301f'), sx * 1.0, -0.6, zz));
       }
     }
-    dock.position.set(cx + 44, WATER_LEVEL + 0.2, cz + 10);
-    dock.rotation.y = -0.6;
+    const dx = cx + 92;
+    const dz = cz - 61;
+    dock.position.set(dx, WATER_LEVEL + 0.55, dz);
+    dock.rotation.y = -0.58 - Math.PI / 2;
     this.group.add(dock);
 
     const boat = makeBoat();
-    boat.position.set(cx + 40, WATER_LEVEL + 0.15, cz + 17);
+    boat.position.set(cx + 77, WATER_LEVEL + 0.15, cz - 50);
     boat.rotation.y = 0.8;
     this.group.add(boat);
 
-    for (let i = 0; i < 12; i++) {
-      const a = i * 0.52;
-      const r = 76 + (i % 3) * 9;
+    for (let i = 0; i < 14; i++) {
+      const a = i * 0.45;
+      const r = 126 + (i % 3) * 9;
       const x = cx + Math.cos(a) * r;
       const z = cz + Math.sin(a) * r;
       if (!isWater(x, z) && distanceToPath(x, z) > 8) {
@@ -664,12 +669,17 @@ export class World {
       }
     }
     this.addInteractive({
-      id: 'lake_herbs', kind: 'resource', x: cx + 52, z: cz - 24, radius: 3,
+      id: 'lake_herbs', kind: 'resource', x: cx + 80, z: cz + 100, radius: 3,
       label: 'Zbierz zioła', mesh: makeHerbPatch(66), cooldown: 45,
       data: { item: 'herbs', qty: 3 },
     });
     this.addInteractive({
-      id: 'lake_chest', kind: 'chest', x: cx - 62, z: cz + 40, radius: 3.2,
+      id: 'lake_fishing', kind: 'resource', x: cx + 102, z: cz - 67, radius: 3.2,
+      label: 'Złów rybę (wędka rybacka)', mesh: null, cooldown: 40,
+      data: { item: 'lake_fish', qty: 1 },
+    });
+    this.addInteractive({
+      id: 'lake_chest', kind: 'chest', x: cx + 120, z: cz + 51, radius: 3.2,
       label: 'Zamulona skrzynia', mesh: makeChest(), rotY: 1.4,
       data: { loot: [['gold', 60], ['crystal_mana', 1], ['mana_potion', 2]] },
     });
@@ -996,6 +1006,61 @@ export class World {
   }
 
   // =========================================================================
+  // WYŻYNY KALMORU — strażnica na grani
+  // =========================================================================
+  _buildHighlands() {
+    const cx = LOCATIONS.highlands.x;
+    const cz = LOCATIONS.highlands.z;
+    const stone = mat('#6f6a60');
+
+    const base = new THREE.Group();
+    base.add(mesh(box(7.0, 1.2, 7.0), stone, 0, 0.6, 0));
+    base.add(mesh(box(5.2, 2.4, 5.2), mat('#5d594f'), 0, 2.0, 0));
+    base.add(mesh(box(1.6, 1.4, 0.4), mat('#141518'), 0, 1.9, 2.7));
+    this.addStatic(base, cx, cz, 0.4, { collide: 3.6 });
+
+    for (let i = 0; i < 4; i++) {
+      const a = 0.9 + i * 1.5;
+      const x = cx + Math.cos(a) * 9;
+      const z = cz + Math.sin(a) * 9;
+      this.batcher.add(makeMenhir(2.0 + (i % 2) * 0.8, 8000 + i), x, heightAt(x, z), z, a);
+      this.colliders.push({ x, z, r: 0.8 });
+    }
+    this.batcher.add(makeSignpost(), cx + 6, heightAt(cx + 6, cz + 5), cz + 5, 0.7);
+    this.addInteractive({
+      id: 'highlands_chest', kind: 'chest', x: cx - 5, z: cz + 6, radius: 3,
+      label: 'Skrzynia strażnicy', mesh: makeChest(), rotY: 0.9,
+      data: { loot: [['iron_ore', 3], ['gold', 60], ['might_elixir', 1]] },
+    });
+    this.addInteractive({
+      id: 'highlands_ore', kind: 'resource', x: cx + 10, z: cz - 8, radius: 3,
+      label: 'Wydobądź rudę żelaza', mesh: makeOreNode(8100), cooldown: 55,
+      data: { item: 'iron_ore', qty: 2 },
+    });
+  }
+
+  // =========================================================================
+  // OBÓZ PRZY TRAKCIE
+  // =========================================================================
+  _buildRoadCamp() {
+    const cx = 0;
+    const cz = 250;
+    this.addStatic(makeTent('#4f4432'), cx + 4, cz + 3, 0.8, { collide: 1.7 });
+    const fire = makeCampfire();
+    fire.group.position.set(cx, heightAt(cx, cz), cz);
+    this.group.add(fire.group);
+    this.animated.push(fire);
+    this.colliders.push({ x: cx, z: cz, r: 1.1 });
+    this.batcher.add(makeBarrel(), cx - 3.5, heightAt(cx - 3.5, cz + 1.5), cz + 1.5, 0.4);
+    this.batcher.add(makeCrate(0.7), cx - 4.5, heightAt(cx - 4.5, cz - 1.2), cz - 1.2, 0.9);
+    this.addLight('#ff9a45', 3, 12, cx, cz, 2.4);
+    this.addInteractive({
+      id: 'road_camp_rest', kind: 'rest', x: cx, z: cz, radius: 3.8,
+      label: 'Odpocznij przy ogniu (do świtu)', mesh: null,
+    });
+  }
+
+  // =========================================================================
   // ROŚLINNOŚĆ I SKAŁY
   // =========================================================================
   _scatterNature() {
@@ -1044,6 +1109,7 @@ export class World {
       const x = Math.cos(a) * r;
       const z = Math.sin(a) * r;
       if (isWater(x, z) || distanceToPath(x, z) < 6) continue;
+      if (dist2(x, z, LOCATIONS.lake.x, LOCATIONS.lake.z) < 132 && heightAt(x, z) < WATER_LEVEL + 3.4) continue;
       if (isBlocked(x, z)) continue;
       if (slopeAt(x, z) > 1.15) continue;
       const h = heightAt(x, z);
@@ -1056,7 +1122,7 @@ export class World {
         : treeVariants[Math.floor(rng.next() * treeVariants.length)];
       const scale = rng.float(1.0, 1.85);
       this.batcher.addGeometry(variant.geo, x, h, z, rng.float(0, Math.PI * 2), scale);
-      if (scale > 1.3) this.colliders.push({ x, z, r: 0.55 * scale });
+      if (scale > 1.3) this.colliders.push({ x, z, r: 0.5 * scale });
       trees += 1;
     }
 

@@ -57,7 +57,8 @@ lewa strona ekranu to ruch, prawa to kamera.
 
 **Świat 3D — duża, otwarta kraina.** Teren 1560 × 1560 m (ok. 2,4 km²), ukształtowany
 proceduralnie: sześć pasm górskich, przełęcze, pagórki, polany, lasy, bagno, jezioro
-i skalny wał na krawędzi mapy. Piętnaście miejsc: Wilcza Dolina, Kotlina Kupców,
+i skalny wał na krawędzi mapy. Brzeg jeziora jest wycinany z rzeczywistego zarysu
+niecki, więc linia wody zgadza się z terenem; w głęboką wodę wejść nie można. Piętnaście miejsc: Wilcza Dolina, Kotlina Kupców,
 Rozdroże Trzech Dróg, Kowalska Góra, obóz bandytów, Kurhan Szeptu, Mgliste Wrota,
 kamieniołom, Jezioro Milczące, Warownia Popiołu, Pustelnia, Bagno Wieszczki,
 Przełęcz Kalmoru, Kamienny Krąg i Kopalnia Żelazna — połączonych siecią dróg.

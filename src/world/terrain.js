@@ -80,6 +80,7 @@ const FLAT_SPOTS = [
   { ...LOCATIONS.pass, r: 46, inner: 26, lift: 0 },
   { ...LOCATIONS.circle, r: 34, inner: 16, lift: 3 },
   { ...LOCATIONS.mine, r: 30, inner: 14, lift: 2 },
+  { ...LOCATIONS.highlands, r: 28, inner: 13, lift: 1 },
 ];
 
 function distToSegment(px, pz, ax, az, bx, bz) {
@@ -122,6 +123,12 @@ function rawHeight(x, z) {
   }
   h += ridge;
 
+  // skalne granie — im wyżej, tym bardziej poszarpany grzbiet
+  if (h > 96) {
+    const crag = Math.abs(fbm(x * 0.045 + 3.3, z * 0.045 - 8.1, 3));
+    h += crag * smoothstep(96, 150, h) * 34;
+  }
+
   // pierścień gór na skraju krainy — nieregularny, żeby kraina nie była misą
   const r = Math.hypot(x, z);
   const rimNoise = fbm(x * 0.0035 + 50.2, z * 0.0035 - 21.7, 2) * 0.5 + 0.5;
@@ -132,9 +139,12 @@ function rawHeight(x, z) {
   const edge = smoothstep(700, 776, r);
   if (edge > 0) h = Math.max(h, edge * 195);
 
-  // niecka jeziora
+  // niecka jeziora — płaskie dno i łagodny brzeg
   const dl = dist2(x, z, LOCATIONS.lake.x, LOCATIONS.lake.z);
-  if (dl < 130) h -= 17 * smoothstep(130, 18, dl);
+  if (dl < 152) {
+    const basin = 1 - smoothstep(94, 150, dl);
+    h = lerp(h, 12.4, basin * 0.94);
+  }
 
   // bagno — wilgotna, niska kotlina
   const ds = dist2(x, z, LOCATIONS.swamp.x, LOCATIONS.swamp.z);
@@ -533,22 +543,83 @@ export function createTerrain() {
 
 // ---------------------------------------------------------------------------
 // Woda: jezioro + oczka na bagnie.
-// ---------------------------------------------------------------------------
+// Powierzchnia jeziora jest wycinana według rzeczywistego zarysu niecki,
+// więc linia brzegowa zgadza się z terenem co do kilku metrów.
+const WATER_CELL = 4;
+
+function buildLakeSurface() {
+  const cx = LOCATIONS.lake.x;
+  const cz = LOCATIONS.lake.z;
+  const span = 150;
+  const n = Math.ceil((span * 2) / WATER_CELL) + 1;
+  const x0 = cx - span;
+  const z0 = cz - span;
+
+  const submerged = new Uint8Array(n * n);
+  for (let j = 0; j < n; j++) {
+    for (let i = 0; i < n; i++) {
+      // margines: woda zachodzi minimalnie na brzeg, więc nie ma prześwitów
+      const x = x0 + i * WATER_CELL;
+      const z = z0 + j * WATER_CELL;
+      submerged[j * n + i] = heightAt(x, z) < WATER_LEVEL + 0.55 ? 1 : 0;
+    }
+  }
+
+  const positions = [];
+  const uvs = [];
+  const indices = [];
+  const map = new Int32Array(n * n).fill(-1);
+  const addVert = (i, j) => {
+    const k = j * n + i;
+    if (map[k] >= 0) return map[k];
+    const idx = positions.length / 3;
+    positions.push(x0 + i * WATER_CELL, 0, z0 + j * WATER_CELL);
+    uvs.push((x0 + i * WATER_CELL) / 18, (z0 + j * WATER_CELL) / 18);
+    map[k] = idx;
+    return idx;
+  };
+  for (let j = 0; j < n - 1; j++) {
+    for (let i = 0; i < n - 1; i++) {
+      const a = submerged[j * n + i];
+      const b = submerged[j * n + i + 1];
+      const c = submerged[(j + 1) * n + i];
+      const d = submerged[(j + 1) * n + i + 1];
+      if (!(a || b || c || d)) continue;
+      const v00 = addVert(i, j);
+      const v10 = addVert(i + 1, j);
+      const v01 = addVert(i, j + 1);
+      const v11 = addVert(i + 1, j + 1);
+      if (a && b && c) indices.push(v00, v01, v10);
+      if (b && c && d) indices.push(v10, v01, v11);
+      if (b && d) indices.push(v10, v01, v11);
+    }
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  geo.computeBoundingSphere();
+  return geo;
+}
+
 export function createWater() {
   const group = new THREE.Group();
   group.name = 'water';
   const mat = new THREE.MeshStandardMaterial({
-    color: '#33606e',
+    color: '#27586c',
     transparent: true,
-    opacity: 0.86,
-    roughness: 0.14,
-    metalness: 0.6,
-    flatShading: true,
+    opacity: 0.94,
+    roughness: 0.28,
+    metalness: 0.16,
+    flatShading: false,
   });
+  mat.side = THREE.DoubleSide;
 
-  const lake = new THREE.Mesh(new THREE.CircleGeometry(118, 56), mat);
-  lake.geometry.rotateX(-Math.PI / 2);
-  lake.position.set(LOCATIONS.lake.x, WATER_LEVEL, LOCATIONS.lake.z);
+  const lakeGeo = buildLakeSurface();
+  const lake = new THREE.Mesh(lakeGeo, mat);
+  lake.position.set(0, WATER_LEVEL, 0);
   lake.name = 'lake';
   group.add(lake);
 
@@ -559,31 +630,33 @@ export function createWater() {
     const r = 22 + (i % 3) * 16;
     const x = LOCATIONS.swamp.x + Math.cos(a) * r;
     const z = LOCATIONS.swamp.z + Math.sin(a) * r;
-    const geo = new THREE.CircleGeometry(9 + (i % 4) * 3.5, 12);
+    const level = Math.max(swampBase + 0.3, heightAt(x, z) + 0.22);
+    const geo = new THREE.CircleGeometry(8 + (i % 4) * 3, 12);
     const m = new THREE.Mesh(geo, mat);
     m.rotation.x = -Math.PI / 2;
     m.rotation.z = a;
-    m.position.set(x, Math.max(swampBase + 0.35, heightAt(x, z) + 0.28), z);
+    m.position.set(x, level, z);
     group.add(m);
-    pooled.push(m);
+    pooled.push({ mesh: m, level });
   }
 
-  const base = lake.geometry.attributes.position.array.slice();
+  const pos = lake.geometry.attributes.position;
+  const base = Float32Array.from(pos.array);
   let t = 0;
   return {
     mesh: group,
     update(dt) {
       t += dt;
-      const pos = lake.geometry.attributes.position;
+      const arr = pos.array;
       for (let i = 0; i < pos.count; i++) {
         const x = base[i * 3];
-        const y = base[i * 3 + 1];
-        pos.setZ(i, Math.sin(x * 0.12 + t * 1.2) * 0.16 + Math.cos(y * 0.15 + t * 0.9) * 0.12);
+        const z = base[i * 3 + 2];
+        arr[i * 3 + 1] = Math.sin(x * 0.06 + t * 0.9) * 0.13 + Math.cos(z * 0.08 + t * 0.7) * 0.1;
       }
       pos.needsUpdate = true;
       lake.geometry.computeVertexNormals();
       for (let i = 0; i < pooled.length; i++) {
-        pooled[i].position.y = Math.max(swampBase + 0.35, pooled[i].position.y) + Math.sin(t * 0.8 + i) * 0.0006;
+        pooled[i].mesh.position.y = pooled[i].level + Math.sin(t * 0.8 + i) * 0.012;
       }
     },
   };

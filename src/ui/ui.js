@@ -73,7 +73,7 @@ export class UI {
     this.locationTimer = 0;
     this.interactText = null;
     this.mapCanvas = null;
-    this.mapSize = 700;
+    this.mapSize = 560;
     this.minimapAcc = 0;
     this.hudAcc = 0;
     this.platesAcc = 0;
