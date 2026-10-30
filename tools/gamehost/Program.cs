@@ -107,8 +107,7 @@ namespace RunyPrzeznaczenia
                 StartPosition = FormStartPosition.CenterScreen,
                 BackColor = Color.FromArgb(12, 14, 18),
                 ForeColor = Color.FromArgb(230, 234, 240),
-                Icon = LoadWindowIcon(),
-                DoubleBuffered = true
+                Icon = LoadWindowIcon()
             };
 
             var splash = new Label
