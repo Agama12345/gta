@@ -292,5 +292,16 @@ jobs:
           Pobierz: https://github.com/Agama12345/gta/releases/download/game-latest/RunyPrzeznaczenia-PC.zip
           (rozpakuj i kliknij Uruchom.cmd - gra dziala we wlasnym oknie Windows)
           Pomoc: uruchom z parametrem --selftest, jesli cos nie dziala.
+
+          NOWE W TEJ WERSJI
+          - mapa 5 x 5 km (25 km2, okolo 5x wiecej terenu niz wczesniej)
+          - ocean dokola krainy: plaze, klify, fale, piana, wyspy, mielizna na Samotna Skale
+          - nowe miejsca: Latarnia na Cyplu, wrak "Zimnej Fali", Chaty Rybakow (rybak Tobiasz - handel i dialogi)
+          - modele natury w stylu Gothica: sosny, deby z korzeniami, brzozy, paprocie, trzciny, glazy z mchem
+          - animacje ze stawami (kolana, lokcie, kolysanie bioder), plynne przejscia
+          - dzwiek otoczenia w stereo: wiatr, fale, ptaki, swierszcze, ogien, kroki zalezne od podloza
+          - postacie mowia na glos (synteza mowy systemu); klawisz V wylacza i wlacza glosy
+          - pogoda: slonce, chmury, deszcz, burza, mgla - deszcz zmniejsza zasieg, z jakiego wrogowie cie widza
+          - sterowanie: WASD ruch, LPM atak, Spacja unik, Shift sprint, F interakcja, Tab ekwipunek, M mapa
           "@
           gh release edit game-latest --notes $notes
