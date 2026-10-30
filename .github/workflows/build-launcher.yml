@@ -191,29 +191,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Kompilacja gry nie udała się" }
 
 
-      - name: Diagnostyka błędu kompilacji gry
-        if: failure()
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          $log = (dotnet build tools/gamehost/GameHost.csproj -c Release -v minimal 2>&1 | Out-String)
-          if ($log.Length -gt 7000) { $log = $log.Substring(0, 7000) }
-          $log | Out-File -Encoding utf8 build-error.txt
-          gh release view game-latest *> $null
-          if ($LASTEXITCODE -eq 0) {
-            gh release edit game-latest --notes "BLAD KOMPILACJI:`n`n$log"
-          }
-          git config user.name "Arcane Spire Build"
-          git config user.email "build@users.noreply.github.com"
-          git add build-error.txt
-          git commit -m "ci: blad kompilacji gry [skip ci]"
-          if ($LASTEXITCODE -eq 0) {
-            git pull --rebase --autostash origin "${{ github.ref_name }}" 2>&1 | Out-Null
-            git push origin "HEAD:${{ github.ref_name }}" 2>&1 | Out-Null
-          }
-          exit 0
-
       - name: Weryfikacja exe z grą
         shell: pwsh
         run: |
@@ -274,6 +251,16 @@ jobs:
           Set-Content -Path "$stage/CZYTAJ.txt" -Value $read -Encoding UTF8
           Compress-Archive -Path "$stage/*" -DestinationPath out-game/RunyPrzeznaczenia-PC.zip -Force
           Write-Host ("Paczka: " + (Get-Item out-game/RunyPrzeznaczenia-PC.zip).Length + " bajtów")
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path "out-game/RunyPrzeznaczenia-PC.zip"))
+          $names = @($zip.Entries | ForEach-Object { $_.FullName })
+          $zip.Dispose()
+          Write-Host ("Zawartosc paczki:`n" + ($names -join "`n"))
+          $names -join "`n" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+          foreach ($need in @("RunyPrzeznaczenia.exe", "WebView2Loader.dll", "Microsoft.Web.WebView2.Core.dll", "Microsoft.Web.WebView2.WinForms.dll", "Uruchom.cmd", "CZYTAJ.txt")) {
+            if ($names -notcontains $need) { throw "W paczce brakuje: $need" }
+          }
+          Write-Host "Paczka kompletna (exe + WebView2 + instrukcja)."
 
       - name: Artefakt gry
         uses: actions/upload-artifact@v4
