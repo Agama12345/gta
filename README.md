@@ -1,8 +1,23 @@
-# Runy Przeznaczenia — trójwymiarowa gra RPG w przeglądarce
+# Runy Przeznaczenia — trójwymiarowa gra RPG
 
 > Wilcza Dolina umiera powoli. Mgła podnosi się od północy, a pod Mglistymi Wrotami
 > coś nosi twarz strażnika, który zamknął je trzydzieści lat temu.
 > Odnajdź trzy okruchy Ostrza Świtu i wykuj je na nowo — zanim będzie za późno.
+
+## Pobierz i zagraj
+
+**Gra w jednym pliku `.exe` (~790 kB)** — pobierz i uruchom, nic więcej nie trzeba:
+
+### https://github.com/Agama12345/gta/releases/download/game-latest/RunyPrzeznaczenia.exe
+
+Cała gra jest w środku pliku (serwer startuje lokalnie, gra otwiera się w oknie aplikacji).
+Windows 10 (1903+) / 11 — .NET Framework 4.8 jest częścią systemu.
+Jeśli SmartScreen ostrzega: *Więcej informacji → Uruchom mimo to*.
+Diagnostyka: `RunyPrzeznaczenia.exe --selftest`.
+
+Alternatywy: [paczka ZIP](https://github.com/Agama12345/gta/raw/arena/68dc2b6a-gta/downloads/RunyPrzeznaczenia.zip)
+(rozpakuj → `Uruchom-gre.cmd`) albo launcher **Arcane Spire**
+([`ArcaneSpire.exe`](https://github.com/Agama12345/gta/releases/download/launcher-latest/ArcaneSpire.exe)).
 
 ## Co to jest
 
