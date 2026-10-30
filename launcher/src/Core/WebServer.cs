@@ -65,7 +65,7 @@ namespace ArcaneSpire.Core
                 TcpClient client;
                 try { client = await _listener.AcceptTcpClientAsync().ConfigureAwait(false); }
                 catch { break; }
-                Task.Run(() => HandleClient(client));
+                var ignored = Task.Run(() => HandleClient(client));
             }
         }
 

@@ -53,22 +53,26 @@ namespace ArcaneSpire.Core
             {
                 Id = OreRushId,
                 Name = "OreRush",
-                Tagline = "Zręcznościówka o kopaniu i ucieczce",
+                Tagline = "Zręcznościówka o kopaniu rudy · szybkie zjazdy",
                 Description =
-                    "Wpadnij do kopalni, wywieź rudę i nie daj się złapać. Szybka gra zręcznościowa " +
-                    "w stylu arcade — krótkie próby, wysoka powtarzalność, tabela wyników.\n\n" +
-                    "Launcher uruchamia ją w osobnym oknie aplikacji. Jeśli chcesz podłączyć własną " +
-                    "kopię (repozytorium GitHub z paczką HTML albo bezpośredni link), wejdź w " +
-                    "Biblioteka → Właściwości i wpisz adres — launcher zapamięta i będzie aktualizował.",
-                Kind = "external",
+                    "Wjeżdżasz do kopalni z jedną lampą i pustym wózkiem. Zbieraj rudę, unikaj " +
+                    "spadających kamieni i chodź szybciej, niż gaśnie światło — każdy poziom to krótsza " +
+                    "lampa i więcej pułapek. Pięć szybów, kombinacje za serię, rekord zapisywany lokalnie.\n\n" +
+                    "Sterowanie: W A S D — ruch · Spacja — kilof · Shift — sprint (zużywa lampę). " +
+                    "Launcher instaluje ją jak każdą inną grę — z paskiem pobierania i automatycznymi " +
+                    "aktualizacjami z repozytorium.",
+                Kind = "web",
+                Repo = "Agama12345/gta",
+                Branch = "arena/68dc2b6a-gta",
+                SubPath = "releases/orerush",
                 Url = "https://orerush.com",
                 Genre = "Zręcznościowa",
-                Developer = "OreRush",
+                Developer = "Arcane Spire Studio",
                 Price = "Darmowa",
                 Accent = "#C9A227",
                 Emblem = "OR",
                 BuiltIn = true,
-                ApproxSize = 0
+                ApproxSize = 60 * 1024
             };
         }
 

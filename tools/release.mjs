@@ -58,3 +58,24 @@ fs.writeFileSync(
 console.log(`✔ Paczka gotowa: ${files.length} plików, ${(total / 1024 / 1024).toFixed(2)} MB`);
 console.log(`  katalog: ${path.relative(root, outDir)}`);
 console.log(`  wersja:  ${meta.version} @ ${sha.slice(0, 7)}`);
+
+// ---------------------------------------------------------------- OreRush
+// Mała gra zręcznościowa (czysty HTML + canvas) — druga pozycja w bibliotece launchera.
+const oreSrc = path.join(root, 'games', 'orerush');
+const oreOut = path.join(root, 'releases', 'orerush');
+if (fs.existsSync(oreSrc)) {
+  fs.mkdirSync(oreOut, { recursive: true });
+  for (const entry of fs.readdirSync(oreSrc)) {
+    const from = path.join(oreSrc, entry);
+    if (fs.statSync(from).isFile()) fs.copyFileSync(from, path.join(oreOut, entry));
+  }
+  const oreMeta = {
+    game: 'orerush',
+    title: 'OreRush',
+    version: pkg.version,
+    commit: sha,
+    builtAt: date,
+  };
+  fs.writeFileSync(path.join(oreOut, 'version.json'), JSON.stringify(oreMeta, null, 2));
+  console.log(`✔ OreRush: ${fs.readdirSync(oreOut).length} plików w releases/orerush`);
+}
