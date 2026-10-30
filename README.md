@@ -17,7 +17,12 @@ zewnętrznych assetów ani serwera gry. Wystarczy otworzyć stronę.
 Gra jest rozpowszechniana przez launcher **Arcane Spire** (folder `launcher/`)
 — biblioteka gier z automatycznymi aktualizacjami z GitHuba, w stylu Steama.
 
-**Najszybciej — jedno polecenie** (Windows PowerShell):
+**Najprościej — pobierz jeden plik:**
+[`ArcaneSpire-launcher.zip`](https://github.com/Agama12345/gta/raw/arena/68dc2b6a-gta/downloads/ArcaneSpire-launcher.zip)
+(23 kB) → rozpakuj → kliknij dwa razy `ArcaneSpire.bat`.
+Wydanie: [spire-1.0.0](https://github.com/Agama12345/gta/releases/tag/spire-1.0.0).
+
+**Albo jedno polecenie** (Windows PowerShell):
 
 ```powershell
 irm https://raw.githubusercontent.com/Agama12345/gta/arena/68dc2b6a-gta/launcher/install.ps1 | iex
