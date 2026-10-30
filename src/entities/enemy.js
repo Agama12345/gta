@@ -1,11 +1,8 @@
 import * as THREE from 'three';
-import { clamp, damp, dampAngle, dist2, lerp, TAU } from '../core/utils.js';
+import { clamp, damp, dampAngle, dist2, TAU } from '../core/utils.js';
 import { heightAt, LOCATIONS } from '../world/terrain.js';
-import {
-  makeHumanoid, makeSword, makeSkeleton, makeWolf, tintEmissive,
-} from '../world/models.js';
+import { makeHumanoid, makeSword, makeSkeleton, makeWolf } from '../world/models.js';
 import { ENEMY_TYPES, SPAWNS } from '../data/enemies.js';
-import { ITEMS } from '../data/items.js';
 
 const VILLAGE_SAFE = { x: LOCATIONS.village.x, z: LOCATIONS.village.z, r: 21 };
 

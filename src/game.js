@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { Input } from './core/input.js';
 import { DayNight } from './core/time.js';
-import { clamp, dist2, damp } from './core/utils.js';
+import { clamp, dist2 } from './core/utils.js';
 import { World } from './world/world.js';
 import { Sky, skyColors } from './world/sky.js';
-import { LOCATIONS, heightAt, WORLD_RADIUS } from './world/terrain.js';
+import { LOCATIONS, heightAt } from './world/terrain.js';
 import { Player } from './entities/player.js';
 import { NPC } from './entities/npc.js';
 import { EnemyManager } from './entities/enemy.js';
@@ -14,10 +14,8 @@ import { UI } from './ui/ui.js';
 import { QuestSystem } from './systems/quests.js';
 import { DialogueSystem } from './systems/dialogue.js';
 import { AudioSystem } from './systems/audio.js';
-import { NPCS, SHOPS } from './data/dialogue.js';
+import { NPCS } from './data/dialogue.js';
 import { ITEMS, RECIPES } from './data/items.js';
-import { ENEMY_TYPES } from './data/enemies.js';
-import { QUESTS } from './data/quests.js';
 
 const SAVE_KEY = 'ostrze-switu-save';
 
@@ -422,6 +420,10 @@ export class Game {
     const speed = Math.hypot(this.player.vel.x, this.player.vel.z);
     this.cameraRig.colliders = this.world?.colliders ?? null;
     this.cameraRig.update(dt, this.player.pos, speed);
+    // gdy kamera jest tuż przy postaci, chowamy model, żeby nie zasłaniał widoku
+    if (this.player && !this.player.dead) {
+      this.player.model.visible = this.cameraRig.currentDistance > 1.75;
+    }
   }
 
   _titleCamera(dt) {

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { damp, dampAngle, dist2, TAU } from '../core/utils.js';
+import { dampAngle, dist2, TAU } from '../core/utils.js';
 import { heightAt } from '../world/terrain.js';
 import { makeHumanoid } from '../world/models.js';
 

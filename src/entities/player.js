@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import { clamp, damp, dampAngle, lerp, TAU } from '../core/utils.js';
+import { clamp, damp, dampAngle } from '../core/utils.js';
 import { heightAt, WATER_LEVEL, WORLD_RADIUS } from '../world/terrain.js';
-import { makeHumanoid, makeSword, makeShield, makePortal } from '../world/models.js';
+import { makeHumanoid, makeSword, makeShield } from '../world/models.js';
 import { Inventory } from '../systems/inventory.js';
 import { ITEMS } from '../data/items.js';
 

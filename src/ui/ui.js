@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { ITEMS, RARITY, EQUIP_SLOTS, RECIPES, itemStatSummary } from '../data/items.js';
 import { SPELLS, ATTRS } from '../entities/player.js';
 import { QUESTS, QUEST_ORDER, LORE } from '../data/quests.js';
-import { LOCATIONS, WORLD_RADIUS, heightAt, WATER_LEVEL, PATHS, distanceToPath } from '../world/terrain.js';
+import { LOCATIONS, WORLD_RADIUS, heightAt, WATER_LEVEL, PATHS } from '../world/terrain.js';
 import { TIPS } from '../data/dialogue.js';
 import { clamp, dist2, fbm } from '../core/utils.js';
 import { SHOPS } from '../data/dialogue.js';

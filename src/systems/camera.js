@@ -17,6 +17,8 @@ export class ThirdPersonCamera {
     this.offset = new THREE.Vector3();
     this.initialized = false;
     this.fov = 62;
+    this.closeness = 1;
+    this.currentDistance = 5.4;
   }
 
   look(dx, dy, sens = 0.0022) {
@@ -70,27 +72,33 @@ export class ThirdPersonCamera {
         let blocked = py > this.pivot.y + dir.y * t + 0.1;
         if (!blocked) {
           for (const c of this.colliders) {
+            // tylko duże przeszkody (domy, mury) — drobne meble nie szarpią kamerą
+            if (c.r < 1.3) continue;
             const dx = px - c.x;
             const dz = pz - c.z;
-            if (dx * dx + dz * dz < c.r * c.r * 0.85) {
+            if (dx * dx + dz * dz < c.r * c.r * 0.9) {
               blocked = true;
               break;
             }
           }
         }
         if (blocked) {
-          allowed = Math.max(0.18, (i - 1) / steps);
+          allowed = Math.max(0.34, (i - 1) / steps);
           break;
         }
       }
       if (allowed < 1) {
+        this.closeness = allowed;
         desired.copy(this.pivot).add(dir.multiplyScalar(allowed));
         const g2 = heightAt(desired.x, desired.z) + 0.6;
         if (desired.y < g2) desired.y = g2;
+      } else {
+        this.closeness = 1;
       }
     }
 
     this.camera.position.copy(desired);
+    this.currentDistance = this.camera.position.distanceTo(this.pivot);
 
     // wstrząsy
     if (this.shake > 0.001) {

@@ -9,9 +9,9 @@ import {
   makeForgeFurnace, makeAnvil, makeTent, makeBarrel, makeCrate, makeChest,
   makeMenhir, makeStoneArch, makePillar, makeCrystal, makeOreNode, makeHerbPatch,
   makeBanner, makeBonePile, makeGrave, makePortal, makeShrine, makeBoat,
-  makeWolfTotem, makeSignpost, makeGrassTuft, makeSword, mat,
+  makeWolfTotem, makeSignpost, mat,
 } from './models.js';
-import { buildStaticMesh, flattenGroup, collectInto } from './mergeProps.js';
+import { buildStaticMesh, collectInto } from './mergeProps.js';
 
 const VILLAGE = LOCATIONS.village;
 
