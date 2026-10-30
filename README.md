@@ -17,6 +17,15 @@ zewnętrznych assetów ani serwera gry. Wystarczy otworzyć stronę.
 Gra jest rozpowszechniana przez launcher **Arcane Spire** — bibliotekę i sklep z grami
 w stylu Steama, z automatycznymi aktualizacjami z GitHuba.
 
+### Pobierz grę bez launchera (najszybsza droga)
+
+| Gra | Plik | Jak uruchomić |
+| --- | --- | --- |
+| **Runy Przeznaczenia** | [`RunyPrzeznaczenia.zip`](https://github.com/Agama12345/gta/raw/arena/68dc2b6a-gta/downloads/RunyPrzeznaczenia.zip) (219 kB) | rozpakuj → `Uruchom-gre.cmd` (otwiera grę w oknie aplikacji na lokalnym serwerze) |
+| **OreRush** | [`OreRush.zip`](https://github.com/Agama12345/gta/raw/arena/68dc2b6a-gta/downloads/OreRush.zip) (7 kB) | rozpakuj → `index.html` (gra działa też offline, bez serwera) |
+
+Paczki są generowane przez `npm run release && npm run downloads`.
+
 ### Gotowy plik do pobrania (Windows 10/11)
 
 **[ArcaneSpire.exe](https://github.com/Agama12345/gta/releases/download/launcher-latest/ArcaneSpire.exe)**
