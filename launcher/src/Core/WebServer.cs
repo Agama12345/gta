@@ -30,7 +30,7 @@ namespace ArcaneSpire.Core
             _listener = new TcpListener(IPAddress.Loopback, 0);
             _listener.Start();
             Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
-            Task.Run(() => AcceptLoopAsync()).ConfigureAwait(false);
+            var ignored = Task.Run(() => AcceptLoopAsync());
         }
 
         public static LocalServer EnsureFor(string gameId, string wwwRoot)

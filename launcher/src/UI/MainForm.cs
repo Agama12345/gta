@@ -82,7 +82,7 @@ namespace ArcaneSpire.UI
             }
             catch { }
 
-            RestoreBounds();
+            RestoreWindowBounds();
 
             _rail = new Panel { BackColor = Theme.Rail };
             _topBar = new Panel { BackColor = Theme.Rail };
@@ -113,7 +113,7 @@ namespace ArcaneSpire.UI
             DoLayout();
         }
 
-        private void RestoreBounds()
+        private void RestoreWindowBounds()
         {
             try
             {

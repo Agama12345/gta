@@ -49,6 +49,17 @@ namespace ArcaneSpire
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
+            if (args != null && args.Length > 0 &&
+                (string.Equals(args[0], "--selftest", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(args[0], "-selftest", StringComparison.OrdinalIgnoreCase)))
+            {
+                string report;
+                try { report = SelfTest.Run(); }
+                catch (Exception ex) { report = "Autotest nie udał się: " + ex.Message; }
+                MessageBox.Show(report, "Arcane Spire — autotest", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
             try
             {
                 Application.Run(new UI.MainForm());
