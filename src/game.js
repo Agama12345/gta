@@ -4,7 +4,7 @@ import { DayNight } from './core/time.js';
 import { clamp, dist2 } from './core/utils.js';
 import { World } from './world/world.js';
 import { Sky, skyColors } from './world/sky.js';
-import { LOCATIONS, heightAt } from './world/terrain.js';
+import { LOCATIONS, heightAt, forestMask, COAST_RADIUS, WATER_LEVEL, isWater } from './world/terrain.js';
 import { Player } from './entities/player.js';
 import { Companion } from './entities/companion.js';
 import { NPC } from './entities/npc.js';
@@ -15,6 +15,8 @@ import { UI } from './ui/ui.js';
 import { QuestSystem } from './systems/quests.js';
 import { DialogueSystem } from './systems/dialogue.js';
 import { AudioSystem } from './systems/audio.js';
+import { VoiceSystem } from './systems/voice.js';
+import { Weather } from './systems/weather.js';
 import { NPCS } from './data/dialogue.js';
 import { ITEMS, RECIPES } from './data/items.js';
 
@@ -65,9 +67,9 @@ export class Game {
 
   _initScene() {
     this.scene = new THREE.Scene();
-    this.scene.fog = new THREE.Fog('#b9d2dc', 90, 330);
+    this.scene.fog = new THREE.Fog('#b9d2dc', 140, 1150);
 
-    this.camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.12, 900);
+    this.camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.12, 3200);
     this.camera.position.set(0, 12, 58);
 
     this.hemi = new THREE.HemisphereLight('#cfe0ea', '#4a4433', 0.9);
@@ -91,6 +93,7 @@ export class Game {
     this.ambient = new THREE.AmbientLight('#4a5468', 0.45);
     this.scene.add(this.ambient);
     this.sky = new Sky(this.scene);
+    this.weather = new Weather(this.scene);
 
     // gwiazdy
     const starGeo = new THREE.BufferGeometry();
@@ -133,6 +136,7 @@ export class Game {
   _initGame() {
     this.dayNight = new DayNight(8.5);
     this.audio = new AudioSystem();
+    this.voice = new VoiceSystem(this);
     this.fx = new FX(this.scene);
 
     this.player = new Player(this);
@@ -219,6 +223,9 @@ export class Game {
         break;
       case 'KeyM':
         this.ui.openMap();
+        break;
+      case 'KeyV':
+        this.toggleVoice();
         break;
       case 'KeyF':
         this.interact();
@@ -421,9 +428,8 @@ export class Game {
     this._updateInteractions();
     this._updateRegion();
 
-    if (this.player.sprinting && Math.hypot(this.player.vel.x, this.player.vel.z) > 3) {
-      this.audio.step();
-    }
+    this.weather?.update(dt, this.camera);
+    this._updateAudio(dt);
 
     if (this.player.hp <= 0 && this.state === 'playing') {
       // stan śmierci ustawiany w takeDamage
@@ -434,6 +440,51 @@ export class Game {
       this.autosaveTimer = 0;
       this.saveGame();
     }
+  }
+
+  /** Włączanie/wyłączanie głosów postaci (klawisz V). */
+  toggleVoice() {
+    const on = this.voice?.toggle?.();
+    if (on === undefined) return;
+    const msg = on
+      ? `Głosy włączone — ${this.voice.status()}`
+      : 'Głosy wyłączone. Klawisz V włącza je ponownie.';
+    this.ui?.log(msg, 'info');
+  }
+
+  /** Dźwięk otoczenia: morze, las, wiatr, ogień, noc, deszcz. */
+  _updateAudio(dt) {
+    const a = this.audio;
+    if (!a || !a.ctx) return;
+    const p = this.player.pos;
+    a.setListener(p.x, p.z, this.player.yaw);
+
+    const dist = Math.hypot(p.x, p.z);
+    const sea = clamp((dist - (COAST_RADIUS - 620)) / 620, 0, 1);
+    const forest = forestMask(p.x, p.z);
+    const altitude = clamp((heightAt(p.x, p.z) - 45) / 170, 0, 1);
+
+    // ogień: najbliższe palenisko w promieniu 18 m
+    let fire = 0;
+    let firePos = null;
+    for (const n of this.world.interactables) {
+      if (n.kind !== 'rest') continue;
+      const d = dist2(p.x, p.z, n.pos.x, n.pos.z);
+      if (d < 18) {
+        fire = Math.max(fire, 1 - d / 18);
+        firePos = n.pos;
+      }
+    }
+    a._firePos = firePos;
+
+    a.update(dt, {
+      night: this.dayNight.nightF ?? (this.dayNight.isNight ? 1 : 0),
+      sea,
+      forest,
+      fire,
+      wind: 0.35 + altitude * 0.65,
+      rain: this.weather?.rain ?? 0,
+    });
   }
 
   _updateCamera(dt) {
@@ -480,8 +531,8 @@ export class Game {
     this.sky.update(sky.top, sky.horizon);
     if (this.scene.fog) {
       this.scene.fog.color.set(sky.horizon).lerp(dn.fogColor, 0.45);
-      this.scene.fog.near = dn.nightF > 0.6 ? 36 : 90;
-      this.scene.fog.far = dn.nightF > 0.6 ? 150 : 330;
+      this.scene.fog.near = dn.nightF > 0.6 ? 45 : 140;
+      this.scene.fog.far = (dn.nightF > 0.6 ? 320 : 1150) * (this.weather?.fogScale ?? 1);
     }
     this.stars.material.opacity = clamp(dn.nightF * 1.05, 0, 0.95);
     if (this.player?.lantern) this.player.lantern.intensity = 3.6 * clamp(dn.nightF * 1.2, 0, 1);

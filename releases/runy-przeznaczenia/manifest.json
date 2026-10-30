@@ -2,16 +2,16 @@
   "game": "runy-przeznaczenia",
   "title": "Runy Przeznaczenia",
   "version": "1.0.0",
-  "commit": "c0fc4b65d7cd5959739a2074fd0c717082ec8762",
-  "builtAt": "2026-10-30T21:38:55.751Z",
+  "commit": "16a60dd73c36e4f6fe793ff1e9565b1890dc7a23",
+  "builtAt": "2026-10-30T22:21:25.075Z",
   "files": [
     {
       "path": "ArcaneSpire.ico",
       "size": 2699
     },
     {
-      "path": "assets/index-CUkbbxka.js",
-      "size": 721789
+      "path": "assets/index-9I94fcud.js",
+      "size": 750232
     },
     {
       "path": "assets/index-D2fMNRMg.css",
@@ -19,35 +19,35 @@
     },
     {
       "path": "favicon.png",
-      "size": 253
+      "size": 272
     },
     {
       "path": "icon-128.png",
-      "size": 492
+      "size": 524
     },
     {
       "path": "icon-16.png",
-      "size": 142
+      "size": 144
     },
     {
       "path": "icon-256.png",
-      "size": 1085
+      "size": 1200
     },
     {
       "path": "icon-32.png",
-      "size": 253
+      "size": 272
     },
     {
       "path": "icon-48.png",
-      "size": 291
+      "size": 318
     },
     {
       "path": "icon-512.png",
-      "size": 3237
+      "size": 3660
     },
     {
       "path": "icon-64.png",
-      "size": 334
+      "size": 352
     },
     {
       "path": "index.html",
@@ -55,31 +55,31 @@
     },
     {
       "path": "launcher-icon-128.png",
-      "size": 1421
+      "size": 622
     },
     {
       "path": "launcher-icon-16.png",
-      "size": 261
+      "size": 186
     },
     {
       "path": "launcher-icon-256.png",
-      "size": 2719
+      "size": 1313
     },
     {
       "path": "launcher-icon-32.png",
-      "size": 456
+      "size": 343
     },
     {
       "path": "launcher-icon-48.png",
-      "size": 619
+      "size": 409
     },
     {
       "path": "launcher-icon-512.png",
-      "size": 6054
+      "size": 3749
     },
     {
       "path": "launcher-icon-64.png",
-      "size": 800
+      "size": 444
     },
     {
       "path": "version.json",

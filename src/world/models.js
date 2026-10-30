@@ -34,6 +34,8 @@ function mesh(geo, material, x = 0, y = 0, z = 0) {
 
 const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
 const cyl = (rt, rb, h, seg = 6) => new THREE.CylinderGeometry(rt, rb, h, seg);
+// otwarte walce: bez denek, których i tak nie widać — połowa wierzchołków mniej
+const ocyl = (rt, rb, h, seg = 6) => new THREE.CylinderGeometry(rt, rb, h, seg, 1, true);
 
 // ---------------------------------------------------------------------------
 // DOMY
@@ -87,52 +89,136 @@ export function makeHouse({ w = 5.4, d = 4.6, h = 3.0, wall = '#b9a17c', roof = 
 
 // ---------------------------------------------------------------------------
 // ROŚLINNOŚĆ
+// Modele w stylu „Gothic”: czytelna, nieco kanciasta sylwetka, stonowane
+// kolory, ręcznie ułożone gałęzie. Każdy wariant to kompletna grupa, którą
+// batcher scala w jedną siatkę z kolorami wierzchołków.
 // ---------------------------------------------------------------------------
+
+/** Pierń z rozszerzoną podstawą (korzenie) i lekkim pochyleniem. */
+function trunkWithRoots(rng, { height = 6, rTop = 0.26, rBottom = 0.46, color = '#4a3626', lean = 0.05 } = {}) {
+  const g = new THREE.Group();
+  const m = mat(color, { rough: 0.95 });
+  const trunk = mesh(ocyl(rTop, rBottom, height, 6), m, 0, height / 2, 0);
+  trunk.rotation.z = rng.float(-lean, lean);
+  trunk.rotation.x = rng.float(-lean, lean);
+  g.add(trunk);
+  // korzenie
+  const roots = 3 + Math.floor(rng.float(0, 2));
+  for (let i = 0; i < roots; i++) {
+    const a = (i / roots) * Math.PI * 2 + rng.float(-0.4, 0.4);
+    const len = rBottom * 3.4;
+    const root = mesh(new THREE.ConeGeometry(rBottom * 0.55, len, 5), m,
+      Math.cos(a) * rBottom * 1.1, 0.12, Math.sin(a) * rBottom * 1.1);
+    root.rotation.set(Math.PI / 2 - 0.35, -a, 0.35);
+    g.add(root);
+  }
+  return g;
+}
+
 export function makeTree(seed = 1, { kind = 'oak' } = {}) {
   const rng = new RNG(seed);
   const g = new THREE.Group();
-  const scale = rng.float(0.85, 1.35);
+  const scale = rng.float(0.9, 1.35);
 
   if (kind === 'pine') {
-    const trunk = mesh(new THREE.CylinderGeometry(0.24, 0.36, 5.6, 6), mat('#4a3626'), 0, 2.8, 0);
+    const H = rng.float(7.4, 10.5);
+    const bark = mat(rng.chance(0.5) ? '#4b3728' : '#423124', { rough: 0.96 });
+    const trunk = mesh(ocyl(0.17, 0.34, H, 6), bark, 0, H / 2, 0);
+    trunk.rotation.z = rng.float(-0.045, 0.045);
     g.add(trunk);
-    const pineMat = mat('#3c5c36', { rough: 0.95 });
-    for (let i = 0; i < 4; i++) {
-      const r = 2.5 - i * 0.5;
-      const cone = mesh(new THREE.ConeGeometry(r, 2.4, 7), pineMat, 0, 3.4 + i * 1.5, 0);
-      cone.rotation.y = rng.float(0, Math.PI);
-      g.add(cone);
+
+    // uschnięte sęki na pniu — sosna w lesie ma ich zawsze kilka
+    for (let i = 0; i < 3; i++) {
+      const a = rng.float(0, Math.PI * 2);
+      const y = rng.float(H * 0.32, H * 0.62);
+      const stub = mesh(ocyl(0.03, 0.075, rng.float(0.5, 1.0), 4), mat('#3b2c20'),
+        Math.cos(a) * 0.24, y, Math.sin(a) * 0.24);
+      stub.rotation.set(Math.PI / 2.1, 0, -a);
+      g.add(stub);
+    }
+
+    // korona: stożkowe piętra, coraz mniejsze ku górze
+    const tiers = 4 + Math.floor(rng.float(0, 1.99));
+    const green1 = mat('#32512e', { rough: 0.97 });
+    const green2 = mat('#3d6136', { rough: 0.97 });
+    for (let i = 0; i < tiers; i++) {
+      const t = i / tiers;
+      const rad = (1.9 - t * 1.35) * rng.float(0.88, 1.12);
+      const hgt = (2.6 - t * 1.1) * rng.float(0.9, 1.1);
+      const y = H * 0.34 + (H * 0.66) * (i / tiers) * 0.92;
+      const tier = mesh(new THREE.ConeGeometry(rad, hgt, 7), i % 2 ? green2 : green1, 0, y, 0);
+      tier.rotation.y = rng.float(0, Math.PI);
+      tier.rotation.z = rng.float(-0.05, 0.05);
+      g.add(tier);
+    }
+    // czubek
+    const tip = mesh(new THREE.ConeGeometry(0.42, 1.5, 6), green1, 0, H + 0.35, 0);
+    g.add(tip);
+  } else if (kind === 'birch') {
+    const H = rng.float(7.0, 9.6);
+    const white = mat('#d9d6c8', { rough: 0.85 });
+    const trunk = mesh(ocyl(0.11, 0.2, H, 6), white, 0, H / 2, 0);
+    trunk.rotation.z = rng.float(-0.07, 0.07);
+    g.add(trunk);
+    // czarne pasy kory
+    const dark = mat('#2c2823', { rough: 0.9 });
+    for (let i = 0; i < 3; i++) {
+      const y = rng.float(H * 0.12, H * 0.8);
+      const band = mesh(ocyl(0.135, 0.14, rng.float(0.05, 0.12), 6), dark, 0, y, 0);
+      band.rotation.z = trunk.rotation.z;
+      g.add(band);
+    }
+    const leafA = mat('#7c9a4e', { rough: 0.95 });
+    const leafB = mat('#93ad5c', { rough: 0.95 });
+    for (let i = 0; i < 5; i++) {
+      const a = rng.float(0, Math.PI * 2);
+      const rad = rng.float(0.3, 1.5);
+      const size = rng.float(0.9, 1.6);
+      const leaf = mesh(new THREE.IcosahedronGeometry(size, 0), i % 2 ? leafA : leafB,
+        Math.cos(a) * rad, H * 0.72 + rng.float(-0.4, 1.7), Math.sin(a) * rad);
+      leaf.rotation.set(rng.float(0, 3), rng.float(0, 3), rng.float(0, 3));
+      leaf.scale.y = 0.82;
+      g.add(leaf);
     }
   } else if (kind === 'dead') {
-    const trunk = mesh(new THREE.CylinderGeometry(0.16, 0.42, 5.0, 6), mat('#3a322a'), 0, 2.5, 0);
-    g.add(trunk);
-    const branchMat = mat('#332c25');
-    for (let i = 0; i < 4; i++) {
+    const g2 = trunkWithRoots(rng, { height: 5.6, rTop: 0.13, rBottom: 0.36, color: '#3a322a', lean: 0.08 });
+    g.add(g2);
+    const branchMat = mat('#332c25', { rough: 0.96 });
+    for (let i = 0; i < 6; i++) {
       const a = rng.float(0, Math.PI * 2);
-      const len = rng.float(1.4, 2.4);
-      const br = mesh(new THREE.CylinderGeometry(0.05, 0.14, len, 5), branchMat);
-      br.position.set(Math.cos(a) * len * 0.32, 3.2 + i * 0.5, Math.sin(a) * len * 0.32);
-      br.rotation.set(Math.cos(a) * 1.1, 0, -Math.sin(a) * 1.1);
+      const len = rng.float(1.6, 3.2);
+      const y = rng.float(2.4, 5.2);
+      const br = mesh(ocyl(0.025, 0.11, len, 4), branchMat,
+        Math.cos(a) * len * 0.28, y, Math.sin(a) * len * 0.28);
+      br.rotation.set(Math.PI / 2 - rng.float(0.5, 1.1), 0, -a);
       g.add(br);
     }
   } else {
-    const trunk = mesh(new THREE.CylinderGeometry(0.3, 0.44, 3.4, 6), mat('#523a26'), 0, 1.7, 0);
-    g.add(trunk);
-    const leafA = mat('#4d7a41', { rough: 0.94 });
-    const leafB = mat('#5d8a4c', { rough: 0.94 });
-    const clusters = 3 + Math.floor(rng.float(0, 2.6));
+    // dąb — gruby pień, rozłożysta, nieregularna korona
+    const H = rng.float(4.2, 5.8);
+    g.add(trunkWithRoots(rng, { height: H, rTop: 0.3, rBottom: 0.56, color: rng.chance(0.5) ? '#523a26' : '#4631225'.slice(0, 7) }));
+    const branchMat = mat('#463122', { rough: 0.95 });
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2 + rng.float(-0.5, 0.5);
+      const len = rng.float(1.7, 2.7);
+      const br = mesh(ocyl(0.09, 0.19, len, 5), branchMat,
+        Math.cos(a) * len * 0.3, H * 0.86 + rng.float(0, 0.5), Math.sin(a) * len * 0.3);
+      br.rotation.set(Math.PI / 2 - rng.float(0.45, 0.85), 0, -a);
+      g.add(br);
+    }
+    const leafA = mat('#4a7440', { rough: 0.96 });
+    const leafB = mat('#5d8a4c', { rough: 0.96 });
+    const leafC = mat('#3f6638', { rough: 0.96 });
+    const clusters = 5 + Math.floor(rng.float(0, 2));
     for (let i = 0; i < clusters; i++) {
       const a = rng.float(0, Math.PI * 2);
-      const rad = rng.float(0.4, 1.5);
-      const size = rng.float(1.4, 2.4);
-      const leaf = mesh(
-        new THREE.IcosahedronGeometry(size, 0),
-        i % 2 ? leafA : leafB,
-        Math.cos(a) * rad,
-        3.4 + rng.float(0, 1.9),
-        Math.sin(a) * rad
-      );
+      const rad = rng.float(0.3, 2.1);
+      const size = rng.float(1.5, 2.6);
+      const m = [leafA, leafB, leafC][i % 3];
+      const leaf = mesh(new THREE.IcosahedronGeometry(size, 0), m,
+        Math.cos(a) * rad, H * 0.95 + rng.float(-0.2, 2.1), Math.sin(a) * rad);
       leaf.rotation.set(rng.float(0, 3), rng.float(0, 3), rng.float(0, 3));
+      leaf.scale.set(1, rng.float(0.7, 0.95), 1);
       g.add(leaf);
     }
   }
@@ -145,13 +231,24 @@ export function makeTree(seed = 1, { kind = 'oak' } = {}) {
 export function makeBush(seed = 1) {
   const rng = new RNG(seed);
   const g = new THREE.Group();
-  const m = mat(rng.chance(0.5) ? '#4d7040' : '#5b8346', { rough: 0.96 });
-  const n = 2 + Math.floor(rng.float(0, 2));
+  const greens = ['#43663a', '#4f7a41', '#3a5a33'];
+  const n = 3 + Math.floor(rng.float(0, 3));
   for (let i = 0; i < n; i++) {
-    const s = rng.float(0.5, 0.95);
-    const b = mesh(new THREE.IcosahedronGeometry(s, 0), m, rng.float(-0.5, 0.5), s * 0.8, rng.float(-0.5, 0.5));
+    const m = mat(greens[i % greens.length], { rough: 0.97 });
+    const s = rng.float(0.45, 0.95);
+    const b = mesh(new THREE.IcosahedronGeometry(s, 0), m,
+      rng.float(-0.55, 0.55), s * 0.72, rng.float(-0.55, 0.55));
     b.rotation.set(rng.float(0, 3), rng.float(0, 3), rng.float(0, 3));
+    b.scale.y = rng.float(0.7, 0.95);
     g.add(b);
+  }
+  // kilka cienkich gałązek przebijających się przez liście
+  for (let i = 0; i < 2; i++) {
+    const a = rng.float(0, Math.PI * 2);
+    const twig = mesh(cyl(0.015, 0.035, rng.float(0.7, 1.2), 4), mat('#3c2e21'),
+      Math.cos(a) * 0.3, 0.55, Math.sin(a) * 0.3);
+    twig.rotation.set(rng.float(-0.4, 0.4), 0, Math.cos(a) * 0.5);
+    g.add(twig);
   }
   return g;
 }
@@ -159,36 +256,133 @@ export function makeBush(seed = 1) {
 export function makeGrassTuft(seed = 1) {
   const rng = new RNG(seed);
   const g = new THREE.Group();
-  const m = mat(rng.chance(0.4) ? '#84a257' : '#6d8f47', { rough: 1, flat: true });
-  const blades = 3 + Math.floor(rng.float(0, 3));
+  const m = mat(rng.chance(0.4) ? '#7f9c54' : '#688a45', { rough: 1, flat: true });
+  const blades = 5 + Math.floor(rng.float(0, 4));
   for (let i = 0; i < blades; i++) {
-    const h = rng.float(0.35, 0.7);
-    const blade = mesh(new THREE.ConeGeometry(0.07, h, 3), m, rng.float(-0.15, 0.15), h / 2, rng.float(-0.15, 0.15));
-    blade.rotation.z = rng.float(-0.35, 0.35);
-    blade.rotation.x = rng.float(-0.35, 0.35);
+    const h = rng.float(0.32, 0.72);
+    const blade = mesh(new THREE.ConeGeometry(0.06, h, 3), m,
+      rng.float(-0.18, 0.18), h / 2, rng.float(-0.18, 0.18));
+    blade.rotation.z = rng.float(-0.4, 0.4);
+    blade.rotation.x = rng.float(-0.4, 0.4);
     blade.castShadow = false;
     g.add(blade);
   }
   return g;
 }
 
+/** Paproć — wachlarz wąskich liści, rośnie w cieniu lasu. */
+export function makeFern(seed = 1) {
+  const rng = new RNG(seed);
+  const g = new THREE.Group();
+  const m = mat(rng.chance(0.5) ? '#3f6a37' : '#4d7a3f', { rough: 0.98 });
+  const fronds = 6 + Math.floor(rng.float(0, 3));
+  for (let i = 0; i < fronds; i++) {
+    const a = (i / fronds) * Math.PI * 2 + rng.float(-0.3, 0.3);
+    const len = rng.float(0.7, 1.15);
+    const tilt = rng.float(0.5, 1.0);
+    const frond = mesh(new THREE.ConeGeometry(0.13, len, 4), m, 0, len * 0.42, 0);
+    frond.scale.z = 0.28;
+    frond.rotation.set(tilt * Math.cos(a), a, tilt * Math.sin(a));
+    frond.position.x = Math.cos(a) * len * 0.28;
+    frond.position.z = Math.sin(a) * len * 0.28;
+    frond.castShadow = false;
+    g.add(frond);
+  }
+  return g;
+}
+
+/** Trzcina — pionowe źdźbła z wiechą na końcu; porasta brzegi. */
+export function makeReed(seed = 1) {
+  const rng = new RNG(seed);
+  const g = new THREE.Group();
+  const stem = mat('#6f7b3c', { rough: 1 });
+  const head = mat('#8a7a45', { rough: 1 });
+  const n = 4 + Math.floor(rng.float(0, 3));
+  for (let i = 0; i < n; i++) {
+    const h = rng.float(0.9, 1.9);
+    const yaw = rng.float(0, Math.PI * 2);
+    const r = rng.float(0, 0.28);
+    const x = Math.cos(yaw) * r;
+    const z = Math.sin(yaw) * r;
+    const blade = mesh(ocyl(0.012, 0.022, h, 3), stem, x, h / 2, z);
+    blade.rotation.z = rng.float(-0.12, 0.12);
+    blade.castShadow = false;
+    g.add(blade);
+    if (rng.chance(0.45)) {
+      const tip = mesh(new THREE.ConeGeometry(0.045, 0.26, 4), head, x, h + 0.1, z);
+      tip.castShadow = false;
+      g.add(tip);
+    }
+  }
+  return g;
+}
+
 export function makeRock(seed = 1, scale = 1) {
   const rng = new RNG(seed);
+  const g = new THREE.Group();
+  const rockMat = mat(rng.chance(0.5) ? '#8b8880' : '#78756e', { rough: 0.96 });
   const geo = new THREE.DodecahedronGeometry(1, 0);
   const pos = geo.attributes.position;
+  const sx = rng.float(0.7, 1.25);
+  const sy = rng.float(0.5, 1.0);
+  const sz = rng.float(0.7, 1.25);
   for (let i = 0; i < pos.count; i++) {
     pos.setXYZ(
       i,
-      pos.getX(i) * rng.float(0.7, 1.25),
-      pos.getY(i) * rng.float(0.55, 1.05),
-      pos.getZ(i) * rng.float(0.7, 1.25)
+      pos.getX(i) * sx * rng.float(0.85, 1.15),
+      pos.getY(i) * sy,
+      pos.getZ(i) * sz * rng.float(0.85, 1.15)
     );
   }
   geo.computeVertexNormals();
-  const m = mesh(geo, mat(rng.chance(0.5) ? '#8b8880' : '#77746d', { rough: 0.95 }));
-  m.scale.setScalar(scale);
-  m.rotation.set(rng.float(0, 0.4), rng.float(0, 6.28), rng.float(0, 0.4));
-  return m;
+  const body = mesh(geo, rockMat);
+  body.rotation.set(rng.float(-0.12, 0.12), rng.float(0, 6.28), rng.float(-0.12, 0.12));
+  g.add(body);
+  // odłamki u podstawy — skała nie stoi „na płasko”
+  const chips = Math.floor(rng.float(0, 2));
+  for (let i = 0; i < chips; i++) {
+    const a = rng.float(0, Math.PI * 2);
+    const s = rng.float(0.16, 0.4);
+    const chip = mesh(new THREE.DodecahedronGeometry(s, 0), rockMat,
+      Math.cos(a) * rng.float(0.6, 1.1), s * 0.4, Math.sin(a) * rng.float(0.6, 1.1));
+    chip.rotation.set(rng.float(0, 3), rng.float(0, 3), rng.float(0, 3));
+    g.add(chip);
+  }
+  // mech na wierzchu
+  if (rng.chance(0.45)) {
+    const mossGeo = new THREE.SphereGeometry(rng.float(0.35, 0.6), 5, 2, 0, Math.PI * 2, 0, Math.PI * 0.5);
+    const moss = mesh(mossGeo, mat('#54663a', { rough: 1 }), rng.float(-0.15, 0.15), sy * 0.72, rng.float(-0.15, 0.15));
+    moss.scale.y = 0.32;
+    g.add(moss);
+  }
+  g.scale.setScalar(scale);
+  return g;
+}
+
+/** Mewa — prosty, zdalny model do krążenia nad wybrzeżem. */
+export function makeGull() {
+  const g = new THREE.Group();
+  const white = mat('#e8e6df', { rough: 0.8 });
+  const grey = mat('#b9bcc0', { rough: 0.85 });
+  const body = mesh(new THREE.SphereGeometry(0.16, 6, 5), white, 0, 0, 0);
+  body.scale.set(1, 0.85, 2.1);
+  g.add(body);
+  const head = mesh(new THREE.SphereGeometry(0.1, 6, 5), white, 0, 0.03, 0.26);
+  g.add(head);
+  const beak = mesh(new THREE.ConeGeometry(0.03, 0.14, 4), mat('#c9a03e'), 0, 0.02, 0.4);
+  beak.rotation.x = Math.PI / 2;
+  g.add(beak);
+  for (const sx of [-1, 1]) {
+    const wing = mesh(new THREE.BoxGeometry(0.62, 0.03, 0.22), grey, sx * 0.34, 0.04, -0.02);
+    wing.rotation.z = sx * 0.12;
+    g.add(wing);
+    const tip = mesh(new THREE.BoxGeometry(0.22, 0.03, 0.16), mat('#4a4d52'), sx * 0.68, 0.04, -0.02);
+    g.add(tip);
+  }
+  const tail = mesh(new THREE.BoxGeometry(0.16, 0.03, 0.24), grey, 0, 0.02, -0.34);
+  g.add(tail);
+  g.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
+  return g;
 }
 
 // ---------------------------------------------------------------------------
@@ -269,34 +463,53 @@ export function makeHumanoid(opts = {}) {
     head.add(s);
   }
 
-  // ramiona
+  // ramiona — bark → łokieć → dłoń (stawy pozwalają na płynniejszą animację)
   const arms = [];
+  const forearms = [];
+  const hands = [];
   for (const sx of [-1, 1]) {
     const pivot = new THREE.Group();
     pivot.position.set(sx * (torsoW / 2 + 0.09), torsoY + torsoH / 2 - 0.08, 0);
-    const upper = mesh(new THREE.CylinderGeometry(0.075, 0.065, 0.36, 6), mat(tunic), 0, -0.18, 0);
+    const upper = mesh(ocyl(0.075, 0.065, 0.36, 6), mat(tunic), 0, -0.18, 0);
     pivot.add(upper);
-    const fore = mesh(new THREE.CylinderGeometry(0.065, 0.058, 0.34, 6), mat(skin), 0, -0.5, 0);
-    pivot.add(fore);
-    const hand = mesh(new THREE.SphereGeometry(0.075, 6, 5), mat(skin), 0, -0.7, 0);
-    pivot.add(hand);
+
+    const elbow = new THREE.Group();
+    elbow.position.y = -0.36;
+    pivot.add(elbow);
+    const fore = mesh(ocyl(0.065, 0.058, 0.34, 6), mat(skin), 0, -0.17, 0);
+    elbow.add(fore);
+    const hand = mesh(new THREE.SphereGeometry(0.075, 6, 5), mat(skin), 0, -0.36, 0);
+    elbow.add(hand);
+    const anchor = new THREE.Group();
+    anchor.position.set(0, -0.36, 0);
+    elbow.add(anchor);
+
     body.add(pivot);
     arms.push(pivot);
+    forearms.push(elbow);
+    hands.push(anchor);
   }
 
-  // nogi
+  // nogi — biodro → kolano → stopa
   const legs = [];
+  const shins = [];
   for (const sx of [-1, 1]) {
     const pivot = new THREE.Group();
     pivot.position.set(sx * 0.17, 0.78, 0);
-    const thigh = mesh(new THREE.CylinderGeometry(0.1, 0.09, 0.42, 6), mat(pants), 0, -0.21, 0);
+    const thigh = mesh(ocyl(0.1, 0.09, 0.42, 6), mat(pants), 0, -0.21, 0);
     pivot.add(thigh);
-    const shin = mesh(new THREE.CylinderGeometry(0.088, 0.075, 0.34, 6), mat(pants), 0, -0.58, 0);
-    pivot.add(shin);
-    const foot = mesh(box(0.17, 0.1, 0.28), mat(boots), 0, -0.78, 0.05);
-    pivot.add(foot);
+
+    const knee = new THREE.Group();
+    knee.position.y = -0.42;
+    pivot.add(knee);
+    const shin = mesh(ocyl(0.088, 0.075, 0.34, 6), mat(pants), 0, -0.17, 0);
+    knee.add(shin);
+    const foot = mesh(box(0.17, 0.1, 0.28), mat(boots), 0, -0.36, 0.05);
+    knee.add(foot);
+
     body.add(pivot);
     legs.push(pivot);
+    shins.push(knee);
   }
 
   let cloakMesh = null;
@@ -321,7 +534,7 @@ export function makeHumanoid(opts = {}) {
   }
 
   group.userData.height = 1.85 * Math.min(1.15, bulk);
-  return { group, parts: { body, head, arms, legs, torso, cloak: cloakMesh } };
+  return { group, parts: { body, head, arms, legs, forearms, hands, shins, torso, cloak: cloakMesh } };
 }
 
 export function makeSword({ blade = '#cdd6dd', guard = '#b08a3e', grip = '#3a2a1c', glow = null } = {}) {
@@ -1076,4 +1289,159 @@ export function scaleTo(obj, h) {
   box3.getSize(size);
   if (size.y > 0) obj.scale.multiplyScalar(clamp(h / size.y, 0.1, 10));
   return obj;
+}
+
+// ---------------------------------------------------------------------------
+// WYBRZEŻE — latarnia, wrak, suszarnia ryb
+// ---------------------------------------------------------------------------
+export function makeLighthouse({ h = 17 } = {}) {
+  const g = new THREE.Group();
+  const stone = mat('#8d8a80', { rough: 0.92 });
+  const white = mat('#d8d3c4', { rough: 0.88 });
+  const red = mat('#8c3b31', { rough: 0.9 });
+
+  const base = mesh(cyl(3.6, 4.3, 2.4, 10), stone, 0, 1.2, 0);
+  g.add(base);
+
+  // trzon w pasach — klasyczna latarnia
+  const bands = 6;
+  for (let i = 0; i < bands; i++) {
+    const y0 = 2.4 + (i * h) / bands;
+    const rTop = 3.0 - ((i + 1) / bands) * 1.15;
+    const rBottom = 3.0 - (i / bands) * 1.15;
+    const seg = mesh(cyl(rTop, rBottom, h / bands, 10), i % 2 ? white : red, 0, y0 + h / bands / 2, 0);
+    g.add(seg);
+  }
+
+  const topY = 2.4 + h;
+  // galeria
+  const gallery = mesh(cyl(2.5, 2.5, 0.28, 10), mat('#4a453c'), 0, topY + 0.14, 0);
+  g.add(gallery);
+  // balustrada
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    g.add(mesh(cyl(0.05, 0.05, 0.8, 4), mat('#3d3931'), Math.cos(a) * 2.36, topY + 0.66, Math.sin(a) * 2.36));
+  }
+  const rail = mesh(new THREE.TorusGeometry(2.36, 0.05, 4, 12), mat('#3d3931'), 0, topY + 1.05, 0);
+  rail.rotation.x = Math.PI / 2;
+  g.add(rail);
+
+  // izba świetlna
+  const glass = new THREE.MeshStandardMaterial({
+    color: '#ffd79a', emissive: '#ffbe63', emissiveIntensity: 1.6,
+    roughness: 0.25, transparent: true, opacity: 0.9,
+  });
+  const lantern = new THREE.Mesh(cyl(1.35, 1.35, 1.7, 8), glass);
+  lantern.position.y = topY + 1.1;
+  g.add(lantern);
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    g.add(mesh(box(0.09, 1.8, 0.09), mat('#3a362e'), Math.cos(a) * 1.32, topY + 1.1, Math.sin(a) * 1.32));
+  }
+  const roof = mesh(new THREE.ConeGeometry(1.75, 1.3, 8), mat('#4a3630'), 0, topY + 2.6, 0);
+  g.add(roof);
+  const knob = mesh(new THREE.SphereGeometry(0.16, 6, 5), mat('#6d5a2e', { metal: 0.7, rough: 0.35 }), 0, topY + 3.3, 0);
+  g.add(knob);
+
+  // drzwi
+  const door = mesh(box(1.0, 2.0, 0.16), mat('#3a281c'), 0, 3.4, 3.2);
+  g.add(door);
+
+  g.userData.lanternY = topY + 1.1;
+  return g;
+}
+
+export function makeShipwreck() {
+  const g = new THREE.Group();
+  const hullWood = mat('#4a3a2a', { rough: 0.95 });
+  const darkWood = mat('#33261b', { rough: 0.96 });
+
+  // przechylony kadłub — żebra i poszycie
+  const hull = new THREE.Group();
+  for (let i = 0; i < 7; i++) {
+    const z = -5.2 + i * 1.5;
+    const w = 3.6 - Math.abs(z) * 0.32;
+    const plank = mesh(box(w, 0.24, 1.5), i % 2 ? hullWood : darkWood, 0, -0.9 - Math.abs(z) * 0.06, z);
+    plank.rotation.z = 0.06;
+    hull.add(plank);
+  }
+  // burty
+  for (const sx of [-1, 1]) {
+    for (let i = 0; i < 5; i++) {
+      const z = -4 + i * 2;
+      const h = 1.9 - Math.abs(z) * 0.14;
+      hull.add(mesh(box(0.16, h, 2.0), darkWood, sx * (1.7 - Math.abs(z) * 0.14), -0.1 + h / 2, z));
+    }
+  }
+  // dziób
+  const prow = mesh(new THREE.ConeGeometry(0.9, 3.2, 5), hullWood, 0, 0.4, 5.6);
+  prow.rotation.x = Math.PI / 2.3;
+  hull.add(prow);
+
+  // złamany maszt
+  const mast = mesh(cyl(0.16, 0.26, 7.5, 6), darkWood, 0.3, 2.6, -0.4);
+  mast.rotation.z = 0.42;
+  hull.add(mast);
+  const yard = mesh(cyl(0.08, 0.1, 4.4, 5), darkWood, 1.1, 4.6, -0.9);
+  yard.rotation.z = Math.PI / 2.1;
+  hull.add(yard);
+  // resztki żagla
+  const sail = mesh(new THREE.PlaneGeometry(3.2, 2.2, 3, 2), mat('#b7ae95', { rough: 1, side: THREE.DoubleSide }), 0.9, 3.4, -0.7);
+  sail.rotation.y = 0.2;
+  sail.rotation.z = 0.15;
+  hull.add(sail);
+
+  hull.rotation.set(0.16, 0.5, -0.28);
+  g.add(hull);
+
+  // beczki i skrzynia wyrzucone na brzeg
+  const barrel = mesh(cyl(0.42, 0.46, 1.0, 8), mat('#5a4028'), 3.4, 0.5, 2.2);
+  barrel.rotation.z = Math.PI / 2.2;
+  g.add(barrel);
+  return g;
+}
+
+export function makeFishRack() {
+  const g = new THREE.Group();
+  const wood = mat('#4d3a26', { rough: 0.95 });
+  const rope = mat('#b8ab8c', { rough: 1 });
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      const post = mesh(cyl(0.08, 0.1, 2.1, 5), wood, sx * 1.1, 1.05, sz * 0.5);
+      post.rotation.z = sx * 0.04;
+      g.add(post);
+    }
+  }
+  const beamA = mesh(cyl(0.06, 0.06, 2.3, 5), wood, 0, 2.05, -0.5);
+  beamA.rotation.z = Math.PI / 2;
+  g.add(beamA);
+  const beamB = mesh(cyl(0.06, 0.06, 2.3, 5), wood, 0, 2.05, 0.5);
+  beamB.rotation.z = Math.PI / 2;
+  g.add(beamB);
+  // wiszące ryby
+  for (let i = 0; i < 6; i++) {
+    const x = -0.9 + i * 0.36;
+    const line = mesh(cyl(0.012, 0.012, 0.45, 3), rope, x, 1.83, i % 2 ? 0.5 : -0.5);
+    line.castShadow = false;
+    g.add(line);
+    const fish = mesh(new THREE.SphereGeometry(0.12, 5, 4), mat('#8d9aa0', { rough: 0.5, metal: 0.25 }), x, 1.5, i % 2 ? 0.5 : -0.5);
+    fish.scale.set(0.45, 1, 1.6);
+    g.add(fish);
+  }
+  return g;
+}
+
+export function makeNetFrame() {
+  const g = new THREE.Group();
+  const wood = mat('#4a3624', { rough: 0.95 });
+  for (const sx of [-1, 1]) {
+    const post = mesh(cyl(0.09, 0.11, 2.4, 5), wood, sx * 1.3, 1.2, 0);
+    g.add(post);
+  }
+  const bar = mesh(cyl(0.07, 0.07, 2.6, 5), wood, 0, 2.3, 0);
+  bar.rotation.z = Math.PI / 2;
+  g.add(bar);
+  const net = mesh(new THREE.PlaneGeometry(2.4, 1.9, 6, 5), mat('#7d7a63', { rough: 1, side: THREE.DoubleSide, transparent: true, opacity: 0.82 }), 0, 1.25, 0);
+  g.add(net);
+  return g;
 }

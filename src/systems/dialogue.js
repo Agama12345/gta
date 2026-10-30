@@ -45,6 +45,7 @@ export class DialogueSystem {
     const node = this.nodes[this.current];
     const def = NPCS[this.npcId];
     const choices = (node.choices ?? []).map((c, i) => ({ ...c, index: i }));
+    this.game.voice?.speak(node.text, this.npcId);
     this.game.ui.showDialogue({
       speaker: node.speaker ?? def.name,
       role: def.role,
@@ -118,6 +119,7 @@ export class DialogueSystem {
     this.open = false;
     this.npcId = null;
     this.nodes = null;
+    this.game.voice?.stop();
     this.game.ui?.hideDialogue();
     if (!this.game.ui?.anyPanelOpen?.()) this.game.resumeFromUi();
   }

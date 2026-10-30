@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { clamp, damp, dampAngle } from '../core/utils.js';
-import { heightAt, isWater, WATER_LEVEL, WORLD_RADIUS } from '../world/terrain.js';
+import {
+  heightAt, isWater, WATER_LEVEL, WORLD_RADIUS, WORLD_SCALE, waterDepth,
+  distanceToPath, slopeAt,
+} from '../world/terrain.js';
 import { makeHumanoid, makeSword, makeShield } from '../world/models.js';
 import { Inventory } from '../systems/inventory.js';
 import { ITEMS } from '../data/items.js';
@@ -38,7 +41,9 @@ export class Player {
     this.inventory = new Inventory();
 
     // pozycja startowa — brama Wilczej Doliny
-    this.pos = new THREE.Vector3(2, heightAt(2, 342), 342);
+    const startX = 2 * WORLD_SCALE;
+    const startZ = 342 * WORLD_SCALE;
+    this.pos = new THREE.Vector3(startX, heightAt(startX, startZ), startZ);
     this.vel = new THREE.Vector3();
     this.yaw = Math.PI;
     this.radius = 0.42;
@@ -99,17 +104,17 @@ export class Player {
     this._buildGear();
 
     const sword = makeSword({ blade: '#d9e2e8', guard: '#b08a3e', grip: '#3a2a1c' });
-    sword.position.set(0, -0.72, 0.06);
+    sword.position.set(0, -0.02, 0.06);
     sword.rotation.set(-0.35, 0, 0.12);
     sword.scale.setScalar(0.9);
     this.weaponMesh = sword;
-    this.parts.arms[1].add(sword);
+    this.parts.hands[1].add(sword);
 
     const shield = makeShield('#5d5341');
-    shield.position.set(0, -0.7, 0.02);
+    shield.position.set(0, -0.02, 0.02);
     shield.rotation.y = Math.PI / 2;
     shield.scale.setScalar(0.86);
-    this.parts.arms[0].add(shield);
+    this.parts.hands[0].add(shield);
 
     this.group.add(this.model);
     this.group.position.copy(this.pos);
@@ -257,7 +262,8 @@ export class Player {
     this.attackPower = 5 + a.str * 1.7 + this.level * 1.3 + eq.attack;
     this.armor = a.end * 0.55 + eq.armor;
     this.critChance = clamp(0.04 + a.agi * 0.014 + eq.crit * 0.01, 0, 0.65);
-    this.moveSpeed = 5.0 + a.agi * 0.045 + eq.speed;
+    // mapa jest duża — bohater porusza się żwawiej niż w oryginale
+    this.moveSpeed = 6.3 + a.agi * 0.055 + eq.speed;
     this.spellPower = 14 + a.foc * 2.6 + this.level * 1.6;
     this.hp = Math.min(this.hp, this.maxHP);
     this.mana = Math.min(this.mana, this.maxMana);
@@ -592,6 +598,16 @@ export class Player {
     // animacje i atak
     this._animate(dt, moving, speed);
 
+    // kroki w rytmie kroków — barwa zależna od podłoża
+    const speedNow = Math.hypot(this.vel.x, this.vel.z);
+    if (speedNow > 0.9) {
+      const contact = Math.floor(this.walkPhase / Math.PI);
+      if (contact !== this.lastFootstep) {
+        this.lastFootstep = contact;
+        this.game.audio?.step(this._surfaceUnderfoot());
+      }
+    }
+
     // pył spod stóp na twardym gruncie
     const horizontal = Math.hypot(this.vel.x, this.vel.z);
     if (moving && horizontal > 1.2) {
@@ -670,31 +686,62 @@ export class Player {
   _animate(dt, moving, speed) {
     const speedMag = Math.hypot(this.vel.x, this.vel.z);
     const norm = clamp(speedMag / Math.max(3, this.moveSpeed), 0, 2.2);
-    this.walkPhase += dt * (4.2 + norm * 6.5) * (moving ? 1 : 0.4);
+    // kadencja kroków zależy od prędkości — wolny marsz nie „biegnie w miejscu”
+    const cadence = moving ? 3.4 + norm * 4.6 : 1.1;
+    this.walkPhase += dt * cadence * (moving ? 1 : 0.5);
+    this.animPhase = (this.animPhase ?? 0) + dt;
 
     const { body, arms, legs, head, cloak } = this.parts;
+    const forearms = this.parts.forearms ?? [];
+    const shins = this.parts.shins ?? [];
 
-    // podstawowy oddech
-    body.position.y = Math.sin(this.walkPhase * 0.7) * 0.02;
+    // delikatne oddychanie i balans ciałem (zawsze)
+    const idleBreath = Math.sin(this.animPhase * 1.7) * 0.012;
+    let bodyY = idleBreath;
+    let bodyPitch = 0;
+    let bodyRoll = 0;
+    let bodyYaw = 0;
 
     if (this.state === 'attack') {
-      const t = clamp(this.stateTime / 0.52, 0, 1);
-      const swing = Math.sin(t * Math.PI);
+      // zamach → cięcie → wyhamowanie; łokieć i bark pracują razem
+      const T = 0.52;
+      const t = clamp(this.stateTime / T, 0, 1);
+      const wind = clamp(t / 0.28, 0, 1);            // 0..1 podniesienie broni
+      const strike = clamp((t - 0.28) / 0.34, 0, 1);  // 0..1 cięcie
+      const recover = clamp((t - 0.62) / 0.38, 0, 1);
       const dir = this.combo === 2 ? -1 : 1;
-      arms[1].rotation.x = -1.9 * swing + 0.4;
-      arms[1].rotation.z = -0.5 * swing * dir;
-      arms[0].rotation.x = 0.5 * swing;
-      body.rotation.y = -0.5 * swing * dir + (this.combo === 1 ? 0.35 * swing : 0);
-      legs[0].rotation.x = 0.25 * swing;
-      legs[1].rotation.x = -0.2 * swing;
-      head.rotation.y = 0.2 * swing * dir;
+      const swing = Math.sin(strike * Math.PI);
+
+      arms[1].rotation.x = -2.1 * wind + 3.1 * strike - 0.8 * recover;
+      arms[1].rotation.z = (-0.55 * wind + 0.25 * strike) * dir;
+      arms[1].rotation.y = 0.5 * wind * dir - 0.7 * strike * dir;
+      if (forearms[1]) forearms[1].rotation.x = -0.9 * wind + (0.35 - 0.9 * strike);
+      arms[0].rotation.x = 0.35 * wind + 0.5 * strike - 0.3 * recover;
+      arms[0].rotation.z = 0.35 * wind;
+      if (forearms[0]) forearms[0].rotation.x = -0.7 * wind - 0.2 * strike;
+
+      bodyYaw = -0.55 * swing * dir + (this.combo === 1 ? 0.3 * swing : 0);
+      bodyPitch = 0.12 * strike - 0.1 * wind;
+      bodyRoll = -0.12 * swing * dir;
+      bodyY = -0.03 * strike;
+
+      legs[0].rotation.x = 0.28 * wind - 0.15 * strike;
+      legs[1].rotation.x = -0.22 * wind + 0.2 * strike;
+      if (shins[0]) shins[0].rotation.x = -0.35 * strike;
+      if (shins[1]) shins[1].rotation.x = -0.2 * wind;
+      head.rotation.y = 0.25 * swing * dir;
+      head.rotation.x = -0.06 * wind;
     } else if (this.state === 'dodge') {
       const t = clamp(this.stateTime / 0.42, 0, 1);
       body.rotation.x = -t * Math.PI * 2;
       arms[0].rotation.x = -1.2;
       arms[1].rotation.x = -1.2;
-      legs[0].rotation.x = 0.8;
-      legs[1].rotation.x = 0.5;
+      if (forearms[0]) forearms[0].rotation.x = -1.0;
+      if (forearms[1]) forearms[1].rotation.x = -1.0;
+      legs[0].rotation.x = 0.9;
+      legs[1].rotation.x = 0.55;
+      if (shins[0]) shins[0].rotation.x = -1.3;
+      if (shins[1]) shins[1].rotation.x = -1.0;
       body.position.y = Math.sin(t * Math.PI) * 0.35;
     } else if (this.state === 'cast') {
       const t = clamp(this.stateTime / 0.42, 0, 1);
@@ -703,37 +750,70 @@ export class Player {
       arms[1].rotation.x = -2.4 * up;
       arms[0].rotation.z = 0.5 * up;
       arms[1].rotation.z = -0.5 * up;
-      body.rotation.x = -0.12 * up;
+      if (forearms[0]) forearms[0].rotation.x = -0.5 * up;
+      if (forearms[1]) forearms[1].rotation.x = -0.5 * up;
+      bodyPitch = -0.12 * up;
+      arms[0].rotation.x = -2.4 * up;
     } else if (this.state === 'hurt') {
       const t = clamp(this.stateTime / 0.3, 0, 1);
-      body.rotation.x = 0.35 * Math.sin(t * Math.PI);
+      bodyPitch = 0.35 * Math.sin(t * Math.PI);
       arms[0].rotation.x = -0.4;
       arms[1].rotation.x = -0.2;
+      if (shins[0]) shins[0].rotation.x = -0.3 * Math.sin(t * Math.PI);
+      legs[0].rotation.x = -0.2 * Math.sin(t * Math.PI);
     } else if (moving) {
-      const swing = Math.sin(this.walkPhase) * 0.9 * clamp(norm, 0.35, 1.7);
-      legs[0].rotation.x = swing;
-      legs[1].rotation.x = -swing;
-      arms[0].rotation.x = -swing * 0.65;
-      arms[1].rotation.x = swing * 0.65;
-      arms[0].rotation.z = 0.08;
-      arms[1].rotation.z = -0.08;
-      body.rotation.x = 0.05 + norm * 0.05;
-      body.rotation.y = 0;
-      body.position.y = Math.abs(Math.sin(this.walkPhase)) * 0.055;
-      head.rotation.y = 0;
+      // ---- chód / bieg -----------------------------------------------------
+      const amp = clamp(0.32 + norm * 0.5, 0.35, 1.15);
+      const ph = this.walkPhase;
+      const sinL = Math.sin(ph);
+      const sinR = Math.sin(ph + Math.PI);
+
+      legs[0].rotation.x = sinL * amp;
+      legs[1].rotation.x = sinR * amp;
+      // kolano zgina się tylko wtedy, gdy noga jest z tyłu (naturalny cykl)
+      if (shins[0]) shins[0].rotation.x = -Math.max(0, -Math.sin(ph - 0.5)) * amp * 1.25 - 0.06;
+      if (shins[1]) shins[1].rotation.x = -Math.max(0, -Math.sin(ph + Math.PI - 0.5)) * amp * 1.25 - 0.06;
+
+      // ręce w przeciwfazie do nóg, łokcie lekko zgięte
+      arms[0].rotation.x = sinR * amp * 0.62;
+      arms[1].rotation.x = sinL * amp * 0.62;
+      arms[0].rotation.z = 0.1 + Math.abs(sinR) * 0.04;
+      arms[1].rotation.z = -0.1 - Math.abs(sinL) * 0.04;
+      if (forearms[0]) forearms[0].rotation.x = -0.35 - Math.max(0, sinR) * 0.3;
+      if (forearms[1]) forearms[1].rotation.x = -0.35 - Math.max(0, sinL) * 0.3;
+
+      // biodra: podskok, kołysanie na boki, skręt tułowia
+      bodyY = Math.abs(Math.sin(ph)) * (0.03 + norm * 0.035) - 0.015;
+      bodyRoll = Math.sin(ph) * 0.035 * amp;
+      bodyYaw = -sinL * 0.09 * amp;
+      bodyPitch = 0.03 + norm * 0.07;
+      head.rotation.y = sinL * 0.05;
+      head.rotation.x = -0.02 - norm * 0.03;
     } else {
-      const idle = Math.sin(this.walkPhase * 0.55);
-      legs[0].rotation.x = damp(legs[0].rotation.x, 0, 10, dt);
-      legs[1].rotation.x = damp(legs[1].rotation.x, 0, 10, dt);
-      arms[0].rotation.x = damp(arms[0].rotation.x, idle * 0.06, 6, dt);
-      arms[1].rotation.x = damp(arms[1].rotation.x, -idle * 0.05, 6, dt);
-      arms[0].rotation.z = damp(arms[0].rotation.z, 0.1, 6, dt);
-      arms[1].rotation.z = damp(arms[1].rotation.z, -0.1, 6, dt);
-      body.rotation.x = damp(body.rotation.x, 0, 8, dt);
-      body.rotation.y = damp(body.rotation.y, 0, 8, dt);
-      head.rotation.y = damp(head.rotation.y, 0, 6, dt);
-      body.position.y = Math.sin(this.walkPhase * 0.9) * 0.012;
+      // ---- stanie ----------------------------------------------------------
+      const idle = Math.sin(this.animPhase * 1.15);
+      const shift = Math.sin(this.animPhase * 0.42);
+      legs[0].rotation.x = damp(legs[0].rotation.x, 0.02, 8, dt);
+      legs[1].rotation.x = damp(legs[1].rotation.x, -0.02, 8, dt);
+      if (shins[0]) shins[0].rotation.x = damp(shins[0].rotation.x, -0.04, 8, dt);
+      if (shins[1]) shins[1].rotation.x = damp(shins[1].rotation.x, -0.02, 8, dt);
+      arms[0].rotation.x = damp(arms[0].rotation.x, idle * 0.05 - 0.05, 5, dt);
+      arms[1].rotation.x = damp(arms[1].rotation.x, -idle * 0.04 - 0.05, 5, dt);
+      arms[0].rotation.z = damp(arms[0].rotation.z, 0.12 + shift * 0.02, 5, dt);
+      arms[1].rotation.z = damp(arms[1].rotation.z, -0.12 - shift * 0.02, 5, dt);
+      if (forearms[0]) forearms[0].rotation.x = damp(forearms[0].rotation.x, -0.22, 5, dt);
+      if (forearms[1]) forearms[1].rotation.x = damp(forearms[1].rotation.x, -0.18, 5, dt);
+      bodyRoll = shift * 0.018;
+      bodyYaw = damp(body.rotation.y, 0, 4, dt) * 0 + shift * 0.02;
+      head.rotation.y = damp(head.rotation.y, shift * 0.12, 3, dt);
+      head.rotation.x = damp(head.rotation.x, idle * 0.02, 3, dt);
     }
+
+    // wygładzenie tułowia — bez tego przejścia między stanami „strzelają”
+    body.rotation.y = damp(body.rotation.y, bodyYaw, 14, dt);
+    body.rotation.z = damp(body.rotation.z, bodyRoll, 14, dt);
+    if (this.state !== 'dodge') body.rotation.x = damp(body.rotation.x, bodyPitch, 14, dt);
+    body.position.y = bodyY;
 
     if (cloak) {
       const flutter = clamp(speedMag * 0.06, 0, 0.4);
@@ -743,8 +823,7 @@ export class Player {
 
     // peleryna — im szybciej biegniesz, tym mocniej odchyla się do tyłu
     if (this.cape) {
-      const speedMag2 = Math.hypot(this.vel.x, this.vel.z);
-      const flutter = clamp(speedMag2 * 0.075, 0, 0.5);
+      const flutter = clamp(speedMag * 0.075, 0, 0.5);
       const t = this.walkPhase * 0.8;
       const segs = this.cape.segments;
       for (let i = 0; i < segs.length; i++) {
@@ -759,7 +838,6 @@ export class Player {
       this.runeMesh.material.emissiveIntensity = pulse;
       this.runeMesh.rotation.z += dt * 0.6;
     }
-    if (head) head.rotation.x = Math.sin(this.walkPhase * 0.5) * 0.02;
 
     // migotanie nietykalności
     if (this.invuln > 0 && this.state !== 'dodge') {
@@ -767,6 +845,18 @@ export class Player {
     } else {
       this.model.visible = true;
     }
+  }
+
+  /** Rodzaj podłoża pod stopami — do barwy kroków. */
+  _surfaceUnderfoot() {
+    const { x, z } = this.pos;
+    const depth = waterDepth(x, z);
+    if (depth > 0.06) return 'water';
+    if (distanceToPath(x, z) < 5) return 'dirt';
+    const h = heightAt(x, z);
+    if (slopeAt(x, z) > 0.85) return 'stone';
+    if (h > 200) return 'snow';
+    return 'grass';
   }
 
   _animateDeath(dt) {

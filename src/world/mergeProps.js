@@ -11,11 +11,9 @@ const tmpColor = new THREE.Color();
 function prepare(geo, color) {
   let g = geo.index ? geo.toNonIndexed() : geo.clone();
   for (const key of Object.keys(g.attributes)) {
-    if (!['position', 'normal', 'uv'].includes(key)) g.deleteAttribute(key);
-  }
-  if (!g.attributes.uv) {
-    const n = g.attributes.position.count;
-    g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(n * 2), 2));
+    // UV nie są potrzebne — batcher rysuje wszystko kolorami wierzchołków,
+    // a każde odrzucone 8 bajtów na wierzchołek to kilkadziesiąt MB mniej.
+    if (!['position', 'normal'].includes(key)) g.deleteAttribute(key);
   }
   if (!g.attributes.normal) g.computeVertexNormals();
   const count = g.attributes.position.count;

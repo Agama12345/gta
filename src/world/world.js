@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import {
   heightAt, isWater, distanceToPath, slopeAt, forestMask,
-  LOCATIONS, WATER_LEVEL, WORLD_RADIUS, CHUNK_SIZE, TerrainManager, createWater,
+  LOCATIONS, WATER_LEVEL, WORLD_RADIUS, WORLD_SCALE, LAND_RADIUS, COAST_RADIUS,
+  CHUNK_SIZE, TerrainManager, createWater,
 } from './terrain.js';
 import { RNG, dist2 } from '../core/utils.js';
 import {
@@ -9,7 +10,8 @@ import {
   makeForgeFurnace, makeAnvil, makeTent, makeBarrel, makeCrate, makeChest,
   makeMenhir, makeStoneArch, makePillar, makeCrystal, makeOreNode, makeHerbPatch,
   makeBanner, makeBonePile, makeGrave, makePortal, makeShrine, makeBoat,
-  makeWolfTotem, makeSignpost, mat,
+  makeWolfTotem, makeSignpost, makeFern, makeReed, makeGull,
+  makeLighthouse, makeShipwreck, makeFishRack, makeNetFrame, mat,
 } from './models.js';
 import { PropBatcher, flattenGroup } from './mergeProps.js';
 
@@ -60,6 +62,7 @@ export class World {
     this._buildCrossroads();
     this._buildHighlands();
     this._buildRoadCamp();
+    this._buildCoast();
     this._scatterNature();
 
     this.batcher.finalize(true);
@@ -128,6 +131,12 @@ export class World {
 
   update(dt, time, playerPos) {
     this.water.update(dt);
+    this._updateGulls(dt);
+    if (this.beacon) {
+      const nightF = 1 - (time?.dayF ?? 1);
+      this.beacon.beamMat.opacity = Math.max(0, nightF - 0.22) * 0.38;
+      this.beacon.lamp.intensity = 1.2 + nightF * 7;
+    }
     if (time) this._updateFireflies(dt, 1 - (time.dayF ?? 1));
     for (const a of this.animated) a.update?.(dt);
     for (const n of this.nodes) {
@@ -639,6 +648,7 @@ export class World {
   _buildLake() {
     const cx = LOCATIONS.lake.x;
     const cz = LOCATIONS.lake.z;
+    const K = WORLD_SCALE; // odległości w tym miejscu rosną razem z mapą
     // pomost na wschodnim brzegu, skierowany w głąb jeziora
     const dock = new THREE.Group();
     for (let i = 0; i < 8; i++) {
@@ -649,20 +659,20 @@ export class World {
         dock.add(mesh(cyl(0.11, 0.11, 2.4, 5), mat('#42301f'), sx * 1.0, -0.6, zz));
       }
     }
-    const dx = cx + 92;
-    const dz = cz - 61;
+    const dx = cx + 92 * K;
+    const dz = cz - 61 * K;
     dock.position.set(dx, WATER_LEVEL + 0.55, dz);
     dock.rotation.y = -0.58 - Math.PI / 2;
     this.group.add(dock);
 
     const boat = makeBoat();
-    boat.position.set(cx + 77, WATER_LEVEL + 0.15, cz - 50);
+    boat.position.set(cx + 77 * K, WATER_LEVEL + 0.15, cz - 50 * K);
     boat.rotation.y = 0.8;
     this.group.add(boat);
 
     for (let i = 0; i < 14; i++) {
       const a = i * 0.45;
-      const r = 126 + (i % 3) * 9;
+      const r = 126 * K + (i % 3) * 20;
       const x = cx + Math.cos(a) * r;
       const z = cz + Math.sin(a) * r;
       if (!isWater(x, z) && distanceToPath(x, z) > 8) {
@@ -670,17 +680,17 @@ export class World {
       }
     }
     this.addInteractive({
-      id: 'lake_herbs', kind: 'resource', x: cx + 80, z: cz + 100, radius: 3,
+      id: 'lake_herbs', kind: 'resource', x: cx + 80 * K, z: cz + 100 * K, radius: 3,
       label: 'Zbierz zioła', mesh: makeHerbPatch(66), cooldown: 45,
       data: { item: 'herbs', qty: 3 },
     });
     this.addInteractive({
-      id: 'lake_fishing', kind: 'resource', x: cx + 102, z: cz - 67, radius: 3.2,
+      id: 'lake_fishing', kind: 'resource', x: cx + 102 * K, z: cz - 67 * K, radius: 3.2,
       label: 'Złów rybę (wędka rybacka)', mesh: null, cooldown: 40,
       data: { item: 'lake_fish', qty: 1 },
     });
     this.addInteractive({
-      id: 'lake_chest', kind: 'chest', x: cx + 120, z: cz + 51, radius: 3.2,
+      id: 'lake_chest', kind: 'chest', x: cx + 120 * K, z: cz + 51 * K, radius: 3.2,
       label: 'Zamulona skrzynia', mesh: makeChest(), rotY: 1.4,
       data: { loot: [['gold', 60], ['crystal_mana', 1], ['mana_potion', 2]] },
     });
@@ -1064,148 +1074,375 @@ export class World {
   // =========================================================================
   // ROŚLINNOŚĆ I SKAŁY
   // =========================================================================
+  // =========================================================================
+  // WYBRZEŻE — latarnia, wrak, chaty rybaków
+  // =========================================================================
+  _buildCoast() {
+    // ---- latarnia na cyplu -------------------------------------------------
+    const lx = LOCATIONS.lighthouse.x;
+    const lz = LOCATIONS.lighthouse.z;
+    const tower = makeLighthouse({ h: 17 });
+    tower.position.set(lx, heightAt(lx, lz) - 0.3, lz);
+    tower.rotation.y = Math.atan2(-lx, -lz);
+    this.group.add(tower);
+    this.colliders.push({ x: lx, z: lz, r: 4.4 });
+
+    const lanternY = heightAt(lx, lz) - 0.3 + (tower.userData.lanternY ?? 20);
+    const lamp = new THREE.PointLight('#ffcf8f', 5.5, 90, 2);
+    lamp.position.set(lx, lanternY, lz);
+    this.group.add(lamp);
+
+    // obracająca się smuga światła — widoczna z daleka nocą
+    const beamGeo = new THREE.ConeGeometry(7, 66, 12, 1, true);
+    beamGeo.translate(0, -33, 0);
+    beamGeo.rotateX(Math.PI / 2);
+    const beamMat = new THREE.MeshBasicMaterial({
+      color: '#ffe0a8', transparent: true, opacity: 0, depthWrite: false,
+      blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    });
+    const beam = new THREE.Mesh(beamGeo, beamMat);
+    beam.position.set(lx, lanternY, lz);
+    beam.rotation.x = -0.06;
+    this.group.add(beam);
+    this.beacon = { beam, beamMat, lamp };
+    this.animated.push({
+      update: (dt) => {
+        beam.rotation.y += dt * 0.55;
+      },
+    });
+
+    this.addInteractive({
+      id: 'lighthouse_chest', kind: 'chest', x: lx + 7, z: lz + 4, radius: 3.2,
+      label: 'Skrzynia latarnika', mesh: makeChest(), rotY: 0.7,
+      data: { loot: [['gold', 90], ['health_potion', 2], ['iron_ore', 3]] },
+    });
+    this.addStatic(makeFence(6, 12), lx - 9, lz + 8, 0.4);
+    this.addStatic(makeSignpost(), lx - 4, lz - 9, 1.1);
+
+    // ---- wrak na mieliźnie ------------------------------------------------
+    const wx = LOCATIONS.wreck.x;
+    const wz = LOCATIONS.wreck.z;
+    const wreck = makeShipwreck();
+    wreck.position.set(wx, heightAt(wx, wz) + 0.2, wz);
+    wreck.rotation.y = -0.9;
+    this.group.add(wreck);
+    this.colliders.push({ x: wx, z: wz, r: 5.0 });
+    this.addInteractive({
+      id: 'wreck_chest', kind: 'chest', x: wx + 4.5, z: wz - 3.2, radius: 3.2,
+      label: 'Skrzynia ze wraku', mesh: makeChest(), rotY: -0.5,
+      data: { loot: [['gold', 120], ['crystal_mana', 1], ['leather_vest', 1]] },
+    });
+    this.addInteractive({
+      id: 'wreck_flotsam', kind: 'resource', x: wx - 6, z: wz + 5, radius: 3.4,
+      label: 'Zbierz drewno z wraku', mesh: makeCrate(0.7), cooldown: 70,
+      data: { item: 'wood', qty: 4 },
+    });
+    for (let i = 0; i < 7; i++) {
+      const a = i * 1.7;
+      const x = wx + Math.cos(a) * (7 + i);
+      const z = wz + Math.sin(a) * (7 + i);
+      if (heightAt(x, z) > WATER_LEVEL - 0.5) this.batcher.add(makeRock(900 + i, 0.7 + (i % 3) * 0.4), x, heightAt(x, z), z, a);
+    }
+
+    // ---- chaty rybaków -----------------------------------------------------
+    const fx = LOCATIONS.fisherhut.x;
+    const fz = LOCATIONS.fisherhut.z;
+    const spots = [
+      { dx: -9, dz: 4, w: 6.2, d: 5.0, rot: 0.35, wall: '#a89a7c' },
+      { dx: 8, dz: 10, w: 5.0, d: 4.2, rot: -1.1, wall: '#9d9179' },
+      { dx: 3, dz: -12, w: 4.6, d: 4.0, rot: 2.2, wall: '#b0a184' },
+    ];
+    for (const s of spots) {
+      const house = makeHouse({ w: s.w, d: s.d, h: 2.7, wall: s.wall, roof: '#4a3a2e', rot: s.rot });
+      this.addStatic(house, fx + s.dx, fz + s.dz, s.rot, { collide: 3.6 });
+    }
+    this.addStatic(makeFishRack(), fx - 3, fz + 9, 0.2);
+    this.addStatic(makeFishRack(), fx + 11, fz - 2, 1.5);
+    this.addStatic(makeNetFrame(), fx - 12, fz - 6, 0.9);
+    this.addStatic(makeBarrel(), fx + 2.5, fz + 6, 0);
+    this.addStatic(makeCrate(0.8), fx - 1.5, fz + 5.5, 0.6);
+    const fire = makeCampfire();
+    this.addStatic(fire.group, fx + 6, fz + 3, 0, { whole: true });
+    this.animated.push(fire);
+    this.addInteractive({
+      id: 'fisher_rest', kind: 'rest', x: fx + 6, z: fz + 3, radius: 3.6,
+      label: 'Odpocznij przy ogniu rybaków', mesh: null,
+      data: {},
+    });
+    this.addInteractive({
+      id: 'fisher_fish', kind: 'resource', x: fx - 14, z: fz + 12, radius: 3.4,
+      label: 'Złów rybę z pomostu', mesh: null, cooldown: 40,
+      data: { item: 'lake_fish', qty: 1 },
+    });
+    this.addInteractive({
+      id: 'fisher_herbs', kind: 'resource', x: fx + 16, z: fz + 6, radius: 3,
+      label: 'Zbierz zioła nadmorskie', mesh: makeHerbPatch(88), cooldown: 45,
+      data: { item: 'herbs', qty: 2 },
+    });
+    // pomost wchodzący w morze
+    const pier = new THREE.Group();
+    for (let i = 0; i < 12; i++) {
+      pier.add(mesh(box(2.6, 0.16, 0.9), mat('#5a422a'), 0, 0.2, i * 0.95));
+    }
+    for (const sx of [-1, 1]) {
+      for (let i = 0; i < 4; i++) {
+        pier.add(mesh(cyl(0.13, 0.13, 3.2, 5), mat('#42301f'), sx * 1.15, -1.2, i * 3.2));
+      }
+    }
+    const px = fx - 16;
+    const pz = fz + 20;
+    pier.position.set(px, Math.max(heightAt(px, pz), WATER_LEVEL) + 0.5, pz);
+    pier.rotation.y = Math.atan2(fx - px, fz - pz);
+    this.group.add(pier);
+
+    // ---- samotna skała: ołtarz na wyspie ----------------------------------
+    const ix = LOCATIONS.island.x;
+    const iz = LOCATIONS.island.z;
+    if (heightAt(ix, iz) > WATER_LEVEL) {
+      this.addStatic(makeMenhir(3.4, 21), ix, iz, 0.4);
+      this.addStatic(makeMenhir(2.6, 33), ix + 4, iz + 3, 1.7);
+      this.addInteractive({
+        id: 'island_chest', kind: 'chest', x: ix + 2, z: iz - 3, radius: 3.2,
+        label: 'Zamknięta skrzynia', mesh: makeChest({ locked: false }), rotY: 2.4,
+        data: { loot: [['gold', 180], ['ancient_metal', 1], ['mana_potion', 2]] },
+      });
+    }
+  }
+
   _scatterNature() {
+    const S = WORLD_SCALE;
     const rng = new RNG(424242);
     const clearR = {
       village: 64, trading: 46, forge: 30, bandits: 30, barrow: 34, ruins: 40,
       quarry: 26, castle: 44, hermit: 26, swamp: 24, pass: 30, circle: 24,
       mine: 24, crossroads: 18, lake: 0, highlands: 0,
+      lighthouse: 30, wreck: 26, fisherhut: 40, island: 20,
     };
     const blocked = Object.entries(LOCATIONS)
       .filter(([k]) => (clearR[k] ?? 24) > 0)
-      .map(([k, l]) => ({ x: l.x, z: l.z, r: clearR[k] ?? 24 }));
-    blocked.push({ x: 2, z: 342, r: 14 });
+      .map(([k, l]) => ({ x: l.x, z: l.z, r: (clearR[k] ?? 24) * 1.45 }));
+    blocked.push({ x: 2 * S, z: 342 * S, r: 14 * 1.45 });
     const isBlocked = (x, z, pad = 0) => {
       for (const b of blocked) if (dist2(x, z, b.x, b.z) < b.r + pad) return true;
       return false;
     };
+    const landR = LAND_RADIUS;
+    const pick = (arr) => arr[Math.floor(rng.next() * arr.length)];
 
     // warianty drzew (gotowe geometrie — szybkie kopiowanie)
     const treeVariants = [];
-    for (let i = 0; i < 7; i++) {
-      const kind = i < 3 ? 'pine' : i < 5 ? 'oak' : i < 6 ? 'oak' : 'pine';
+    for (let i = 0; i < 8; i++) {
+      const kind = i < 3 ? 'pine' : i < 5 ? 'oak' : i < 7 ? 'birch' : 'pine';
       const g = makeTree(1100 + i * 37, { kind });
       const geo = flattenGroup(g);
       if (geo) treeVariants.push({ geo, pine: kind === 'pine', dead: false });
     }
     const deadGeo = flattenGroup(makeTree(999, { kind: 'dead' }));
     if (deadGeo) treeVariants.push({ geo: deadGeo, pine: false, dead: true });
+    const broadleaf = treeVariants.filter((v) => !v.dead && !v.pine);
+    const conifers = treeVariants.filter((v) => !v.dead && v.pine);
 
     const rockVariants = [];
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 7; i++) {
       const geo = flattenGroup(makeRock(2000 + i, 1));
       if (geo) rockVariants.push(geo);
     }
     const bushVariants = [];
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 5; i++) {
       const geo = flattenGroup(makeBush(3000 + i));
       if (geo) bushVariants.push(geo);
     }
+    const fernVariants = [];
+    for (let i = 0; i < 3; i++) {
+      const geo = flattenGroup(makeFern(3500 + i));
+      if (geo) fernVariants.push(geo);
+    }
+    const reedVariants = [];
+    for (let i = 0; i < 3; i++) {
+      const geo = flattenGroup(makeReed(4000 + i));
+      if (geo) reedVariants.push(geo);
+    }
 
+    // ---- lasy -------------------------------------------------------------
     let trees = 0;
-    const targetTrees = 5200;
-    for (let attempt = 0; attempt < targetTrees * 5 && trees < targetTrees; attempt++) {
+    const targetTrees = 7000;
+    for (let attempt = 0; attempt < targetTrees * 6 && trees < targetTrees; attempt++) {
       const a = rng.float(0, Math.PI * 2);
-      const r = 70 + Math.pow(rng.next(), 0.62) * 690;
+      const r = 90 + Math.pow(rng.next(), 0.6) * (landR - 90);
       const x = Math.cos(a) * r;
       const z = Math.sin(a) * r;
-      if (isWater(x, z) || distanceToPath(x, z) < 6) continue;
-      if (dist2(x, z, LOCATIONS.lake.x, LOCATIONS.lake.z) < 132 && heightAt(x, z) < WATER_LEVEL + 3.4) continue;
+      if (isWater(x, z) || distanceToPath(x, z) < 9) continue;
       if (isBlocked(x, z)) continue;
-      if (slopeAt(x, z) > 1.15) continue;
+      if (slopeAt(x, z) > 1.6) continue;
       const h = heightAt(x, z);
-      if (h > 135) continue; // powyżej granicy lasu
+      if (h > 182) continue; // powyżej granicy lasu
       const forest = forestMask(x, z);
-      const nearSwamp = dist2(x, z, LOCATIONS.swamp.x, LOCATIONS.swamp.z) < 210;
-      if (forest < 0.3 && !nearSwamp && rng.next() > 0.06) continue;
+      const nearSwamp = dist2(x, z, LOCATIONS.swamp.x, LOCATIONS.swamp.z) < 210 * S;
+      if (forest < 0.3 && !nearSwamp && rng.next() > 0.055) continue;
+      // sosny wyżej i na suchym gruncie, liściaste w dolinach
+      const usePine = h > 95 || (h > 55 && rng.chance(0.45));
       const variant = nearSwamp
-        ? treeVariants[treeVariants.length - 1]
-        : treeVariants[Math.floor(rng.next() * treeVariants.length)];
-      const scale = rng.float(1.0, 1.85);
+        ? (rng.chance(0.7) ? treeVariants[treeVariants.length - 1] : pick(broadleaf))
+        : (usePine ? pick(conifers) : pick(broadleaf));
+      if (!variant) continue;
+      const scale = rng.float(1.0, 1.95);
       this.batcher.addGeometry(variant.geo, x, h, z, rng.float(0, Math.PI * 2), scale);
       if (scale > 1.3) this.colliders.push({ x, z, r: 0.5 * scale });
       trees += 1;
     }
 
+    // ---- głazy i skalne żebra --------------------------------------------
     let rocks = 0;
-    for (let attempt = 0; attempt < 5200 && rocks < 1500; attempt++) {
+    for (let attempt = 0; attempt < 11000 && rocks < 2000; attempt++) {
       const a = rng.float(0, Math.PI * 2);
-      const r = 60 + Math.pow(rng.next(), 0.6) * 700;
+      const r = 70 + Math.pow(rng.next(), 0.55) * (landR - 70);
       const x = Math.cos(a) * r;
       const z = Math.sin(a) * r;
-      if (isWater(x, z) || distanceToPath(x, z) < 5) continue;
+      if (isWater(x, z) || distanceToPath(x, z) < 8) continue;
       if (isBlocked(x, z)) continue;
       const h = heightAt(x, z);
       const steep = slopeAt(x, z);
-      if (steep < 0.5 && h < 90 && rng.next() > 0.16) continue;
-      const geo = rockVariants[Math.floor(rng.next() * rockVariants.length)];
-      const scale = rng.float(0.8, 2.2);
+      if (steep < 0.6 && h < 120 && rng.next() > 0.16) continue;
+      const geo = pick(rockVariants);
+      const scale = rng.float(0.8, 2.4);
       this.batcher.addGeometry(geo, x, h, z, rng.float(0, 6.28), scale);
       if (scale > 1.6) this.colliders.push({ x, z, r: scale * 0.55 });
       rocks += 1;
     }
 
-    // Skalne żebra: skupiska 3–7 głazów rosnących z jednego miejsca — zmieniają sylwetkę gór
     let outcrops = 0;
-    for (let attempt = 0; attempt < 1400 && outcrops < 190; attempt++) {
+    for (let attempt = 0; attempt < 2800 && outcrops < 340; attempt++) {
       const a = rng.float(0, Math.PI * 2);
-      const r = 90 + Math.pow(rng.next(), 0.55) * 680;
+      const r = 100 + Math.pow(rng.next(), 0.5) * (landR - 100);
       const cx = Math.cos(a) * r;
       const cz = Math.sin(a) * r;
-      if (isWater(cx, cz) || distanceToPath(cx, cz) < 8) continue;
-      if (isBlocked(cx, cz, 6)) continue;
+      if (isWater(cx, cz) || distanceToPath(cx, cz) < 12) continue;
+      if (isBlocked(cx, cz, 8)) continue;
       const ch = heightAt(cx, cz);
       const steep = slopeAt(cx, cz);
-      if (steep < 0.35 && ch < 80) continue;
+      if (steep < 0.45 && ch < 110) continue;
       const piles = 3 + Math.floor(rng.next() * 5);
       for (let i = 0; i < piles; i++) {
-        const spread = 1.2 + rng.float(0, 4.2);
+        const spread = 1.5 + rng.float(0, 5.5);
         const ox = cx + rng.float(-spread, spread);
         const oz = cz + rng.float(-spread, spread);
         if (isWater(ox, oz)) continue;
-        const geo = rockVariants[Math.floor(rng.next() * rockVariants.length)];
-        const scale = rng.float(0.7, 2.6) * (i === 0 ? 1.35 : 1);
+        const geo = pick(rockVariants);
+        const scale = rng.float(0.7, 2.9) * (i === 0 ? 1.35 : 1);
         this.batcher.addGeometry(geo, ox, heightAt(ox, oz) - 0.15, oz, rng.float(0, 6.28), scale);
         if (scale > 1.5) this.colliders.push({ x: ox, z: oz, r: scale * 0.6 });
       }
       outcrops += 1;
     }
 
-    // Uschłe drzewa na wysokościach — przełamują monotonne zbocza
+    // ---- uschłe drzewa na wysokościach ------------------------------------
     let deadTrees = 0;
-    for (let attempt = 0; attempt < 900 && deadTrees < 110; attempt++) {
+    for (let attempt = 0; attempt < 2200 && deadTrees < 260; attempt++) {
       const a = rng.float(0, Math.PI * 2);
-      const r = 120 + Math.pow(rng.next(), 0.5) * 640;
+      const r = 150 + Math.pow(rng.next(), 0.5) * (landR - 150);
       const x = Math.cos(a) * r;
       const z = Math.sin(a) * r;
-      if (isWater(x, z) || distanceToPath(x, z) < 6) continue;
+      if (isWater(x, z) || distanceToPath(x, z) < 9) continue;
       if (isBlocked(x, z)) continue;
       const h = heightAt(x, z);
-      if (h < 96) continue;
+      if (h < 130) continue;
       const dead = treeVariants.find((v) => v.dead);
       if (!dead) break;
-      const scale = rng.float(0.9, 1.6);
+      const scale = rng.float(0.9, 1.7);
       this.batcher.addGeometry(dead.geo, x, h, z, rng.float(0, 6.28), scale);
       if (scale > 1.25) this.colliders.push({ x, z, r: 0.35 * scale });
       deadTrees += 1;
     }
 
+    // ---- krzewy, paprocie, trzciny ---------------------------------------
     let bushes = 0;
-    for (let attempt = 0; attempt < 2500 && bushes < 950; attempt++) {
+    for (let attempt = 0; attempt < 8000 && bushes < 2200; attempt++) {
       const a = rng.float(0, Math.PI * 2);
-      const r = 60 + Math.pow(rng.next(), 0.6) * 660;
+      const r = 70 + Math.pow(rng.next(), 0.55) * (landR - 70);
       const x = Math.cos(a) * r;
       const z = Math.sin(a) * r;
-      if (isWater(x, z) || distanceToPath(x, z) < 4) continue;
+      if (isWater(x, z) || distanceToPath(x, z) < 6) continue;
       if (isBlocked(x, z, -12)) continue;
-      if (slopeAt(x, z) > 0.9) continue;
-      const geo = bushVariants[Math.floor(rng.next() * bushVariants.length)];
-      this.batcher.addGeometry(geo, x, heightAt(x, z), z, rng.float(0, 6.28), rng.float(0.8, 1.7));
+      if (slopeAt(x, z) > 1.2) continue;
+      const geo = pick(bushVariants);
+      this.batcher.addGeometry(geo, x, heightAt(x, z), z, rng.float(0, 6.28), rng.float(0.8, 1.8));
       bushes += 1;
+    }
+
+    let ferns = 0;
+    for (let attempt = 0; attempt < 6000 && ferns < 1600; attempt++) {
+      const a = rng.float(0, Math.PI * 2);
+      const r = 90 + Math.pow(rng.next(), 0.55) * (landR - 90);
+      const x = Math.cos(a) * r;
+      const z = Math.sin(a) * r;
+      if (isWater(x, z) || distanceToPath(x, z) < 5) continue;
+      if (isBlocked(x, z, -10)) continue;
+      if (forestMask(x, z) < 0.45) continue;
+      if (slopeAt(x, z) > 1.3) continue;
+      const geo = pick(fernVariants);
+      this.batcher.addGeometry(geo, x, heightAt(x, z), z, rng.float(0, 6.28), rng.float(0.7, 1.5));
+      ferns += 1;
+    }
+
+    // trzciny: pas przybrzeżny morza, jeziora i bagna
+    let reeds = 0;
+    for (let attempt = 0; attempt < 8000 && reeds < 1300; attempt++) {
+      const a = rng.float(0, Math.PI * 2);
+      const r = 200 + Math.pow(rng.next(), 0.5) * (landR - 200);
+      const x = Math.cos(a) * r;
+      const z = Math.sin(a) * r;
+      const h = heightAt(x, z);
+      if (h > WATER_LEVEL + 1.9 || h < WATER_LEVEL - 1.4) continue;
+      if (isBlocked(x, z, -20)) continue;
+      const geo = pick(reedVariants);
+      this.batcher.addGeometry(geo, x, h, z, rng.float(0, 6.28), rng.float(0.8, 1.6));
+      reeds += 1;
     }
 
     this._scatterGrass();
     this._buildFireflies();
+    this._buildGulls();
+  }
+
+  /** Mewy krążące nad wybrzeżem — ożywiają horyzont. */
+  _buildGulls() {
+    const rng = new RNG(555);
+    this.gulls = [];
+    const gullsGroup = new THREE.Group();
+    gullsGroup.name = 'gulls';
+    for (let i = 0; i < 26; i++) {
+      const a = rng.float(0, Math.PI * 2);
+      const r = COAST_RADIUS * rng.float(0.72, 1.02);
+      const cx = Math.cos(a) * r;
+      const cz = Math.sin(a) * r;
+      const g = makeGull();
+      g.position.set(cx, WATER_LEVEL + rng.float(16, 46), cz);
+      g.scale.setScalar(rng.float(0.8, 1.3));
+      gullsGroup.add(g);
+      this.gulls.push({
+        mesh: g,
+        cx, cz,
+        radius: rng.float(24, 80),
+        speed: rng.float(0.12, 0.3) * (rng.chance(0.5) ? 1 : -1),
+        phase: rng.float(0, Math.PI * 2),
+        y: g.position.y,
+      });
+    }
+    this.group.add(gullsGroup);
+  }
+
+  _updateGulls(dt) {
+    if (!this.gulls) return;
+    this.gullTime = (this.gullTime ?? 0) + dt;
+    const t = this.gullTime;
+    for (const g of this.gulls) {
+      const a = g.phase + t * g.speed;
+      const x = g.cx + Math.cos(a) * g.radius;
+      const z = g.cz + Math.sin(a) * g.radius;
+      g.mesh.position.set(x, g.y + Math.sin(t * 0.7 + g.phase) * 2.4, z);
+      g.mesh.rotation.y = -a + (g.speed > 0 ? Math.PI : 0);
+      g.mesh.rotation.z = Math.sin(t * 1.6 + g.phase) * 0.22;
+    }
   }
 
   /** Świetliki nad łąkami i skrajem lasu — widoczne tylko nocą. */
@@ -1213,14 +1450,14 @@ export class World {
     const rng = new RNG(77123);
     const positions = [];
     const phases = [];
-    for (let i = 0; i < 520; i++) {
+    for (let i = 0; i < 1100; i++) {
       const a = rng.float(0, Math.PI * 2);
-      const r = 40 + Math.pow(rng.next(), 0.7) * 640;
+      const r = 60 + Math.pow(rng.next(), 0.7) * (LAND_RADIUS - 60);
       const x = Math.cos(a) * r;
       const z = Math.sin(a) * r;
       const h = heightAt(x, z);
       if (h < WATER_LEVEL + 1) continue;
-      if (heightAt(x, z) > 120) continue;
+      if (heightAt(x, z) > 150) continue;
       positions.push(x, h + 0.6 + rng.float(0, 1.6), z);
       phases.push(rng.float(0, Math.PI * 2));
     }
@@ -1294,12 +1531,12 @@ export class World {
     for (const spot of spots) {
       for (let i = 0; i < perSpot; i++) {
         const a = rng.float(0, Math.PI * 2);
-        const r = rng.float(10, 95);
+        const r = rng.float(10 * WORLD_SCALE, 105 * WORLD_SCALE);
         const x = spot.x + Math.cos(a) * r;
         const z = spot.z + Math.sin(a) * r;
         if (Math.abs(x) > WORLD_RADIUS - 10 || Math.abs(z) > WORLD_RADIUS - 10) continue;
-        if (isWater(x, z) || distanceToPath(x, z) < 3.4) continue;
-        if (slopeAt(x, z) > 0.9) continue;
+        if (isWater(x, z) || distanceToPath(x, z) < 8) continue;
+        if (slopeAt(x, z) > 1.2) continue;
         dummy.position.set(x, heightAt(x, z) - 0.04, z);
         dummy.rotation.set(0, rng.float(0, 6.28), 0);
         dummy.scale.setScalar(rng.float(0.8, 1.7));

@@ -61,7 +61,7 @@ const { QuestSystem } = await import('../src/systems/quests.js');
 const { DialogueSystem } = await import('../src/systems/dialogue.js');
 const { UI } = await import('../src/ui/ui.js');
 const { DayNight } = await import('../src/core/time.js');
-const { heightAt, WORLD_RADIUS, LOCATIONS } = await import('../src/world/terrain.js');
+const { heightAt, WORLD_RADIUS, LOCATIONS, WATER_LEVEL, COAST_RADIUS, WORLD_SCALE } = await import('../src/world/terrain.js');
 const { NPCS } = await import('../src/data/dialogue.js');
 const { ITEMS } = await import('../src/data/items.js');
 const { QUESTS } = await import('../src/data/quests.js');
@@ -141,7 +141,24 @@ const game = {
 console.log('▸ teren');
 check('heightAt zwraca liczbę', Number.isFinite(heightAt(0, 32)));
 check('teren wioski jest płaski', Math.abs(heightAt(2, 32) - heightAt(-2, 32)) < 0.6);
-check('góry na skraju mapy są wysokie', heightAt(WORLD_RADIUS - 2, 0) > 12);
+check('skraj mapy to ocean', heightAt(WORLD_RADIUS - 40, 0) < WATER_LEVEL - 3);
+check('ocean otacza krainę z każdej strony', [
+  heightAt(WORLD_RADIUS - 60, 0), heightAt(-WORLD_RADIUS + 60, 0),
+  heightAt(0, WORLD_RADIUS - 60), heightAt(0, -WORLD_RADIUS + 60),
+].every((h) => h < WATER_LEVEL - 2));
+check('góry w głębi krainy są wysokie', heightAt(1250, -300) > 90);
+// promień lądu mierzony w czterech kierunkach — linia brzegowa jest nieregularna
+const landRadius = (() => {
+  const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1], [0.7, 0.7], [-0.7, 0.7]];
+  let sum = 0;
+  for (const [dx, dz] of dirs) {
+    for (let r = WORLD_RADIUS; r > 0; r -= 5) {
+      if (heightAt(dx * r, dz * r) > WATER_LEVEL + 0.5) { sum += r; break; }
+    }
+  }
+  return sum / dirs.length;
+})();
+check('mapa jest co najmniej 5× większa niż pierwotna', (landRadius * landRadius) / (780 * 780) > 5);
 check('deterministyczność', heightAt(11.3, -44.2) === heightAt(11.3, -44.2));
 
 console.log('▸ świat');

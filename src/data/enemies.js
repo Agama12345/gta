@@ -101,8 +101,10 @@ export const ENEMY_TYPES = {
   },
 };
 
-// Punkty pojawiania się — [x, z, typ, poziom]
-export const SPAWNS = [
+import { WORLD_SCALE as WS } from '../world/terrain.js';
+
+// Punkty pojawiania się — [x, z, typ, poziom] (metry autorskie, przeliczane niżej)
+const RAW_SPAWNS = [
   // okolice wioski (pierwsze kroki)
   [-78, 300, 'wolf', 1], [-120, 250, 'wolf', 1], [96, 270, 'wolf', 1], [60, 440, 'wolf', 2],
   [-60, 470, 'wolf', 1], [130, 400, 'wolf', 2], [-150, 400, 'wolf', 2], [40, 250, 'wolf', 2],
@@ -164,20 +166,23 @@ export const SPAWNS = [
   [-620, -420, 'bog_lurker', 6],
 ];
 
+export const SPAWNS = RAW_SPAWNS.map(([x, z, t, lv]) => [x * WS, z * WS, t, lv]);
+
 export const REGION_BY_POINT = (x, z) => {
-  if (Math.hypot(x, z - 360) < 70) return 'village';
-  if (Math.hypot(x - 175, z - 250) < 44) return 'trading';
-  if (Math.hypot(x + 420, z + 60) < 40) return 'bandits';
-  if (Math.hypot(x - 430, z + 330) < 44) return 'barrow';
-  if (Math.hypot(x + 150, z + 560) < 50) return 'ruins';
-  if (Math.hypot(x - 330, z - 40) < 40) return 'forge';
-  if (Math.hypot(x + 330, z - 330) < 40) return 'quarry';
-  if (Math.hypot(x + 40, z + 220) < 46) return 'castle';
-  if (Math.hypot(x + 200, z + 430) < 90) return 'swamp';
-  if (Math.hypot(x - 250, z + 150) < 46) return 'pass';
-  if (Math.hypot(x - 205, z + 430) < 35) return 'mine';
-  if (Math.hypot(x - 470, z - 250) < 35) return 'circle';
-  if (Math.hypot(x + 560, z + 200) < 36) return 'hermit';
-  if (Math.hypot(x + 500, z - 330) < 100) return 'lake';
+  const W = WS;
+  if (Math.hypot(x, z - 360 * W) < 70 * W) return 'village';
+  if (Math.hypot(x - 175 * W, z - 250 * W) < 44 * W) return 'trading';
+  if (Math.hypot(x + 420 * W, z + 60 * W) < 40 * W) return 'bandits';
+  if (Math.hypot(x - 430 * W, z + 330 * W) < 44 * W) return 'barrow';
+  if (Math.hypot(x + 150 * W, z + 560 * W) < 50 * W) return 'ruins';
+  if (Math.hypot(x - 330 * W, z - 40 * W) < 40 * W) return 'forge';
+  if (Math.hypot(x + 330 * W, z - 330 * W) < 40 * W) return 'quarry';
+  if (Math.hypot(x + 40 * W, z + 220 * W) < 46 * W) return 'castle';
+  if (Math.hypot(x + 200 * W, z + 430 * W) < 90 * W) return 'swamp';
+  if (Math.hypot(x - 250 * W, z + 150 * W) < 46 * W) return 'pass';
+  if (Math.hypot(x - 205 * W, z + 430 * W) < 35 * W) return 'mine';
+  if (Math.hypot(x - 470 * W, z - 250 * W) < 35 * W) return 'circle';
+  if (Math.hypot(x + 560 * W, z + 200 * W) < 36 * W) return 'hermit';
+  if (Math.hypot(x + 500 * W, z - 330 * W) < 100 * W) return 'lake';
   return 'wild';
 };

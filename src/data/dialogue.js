@@ -1,6 +1,8 @@
 // Mieszkańcy Wilczej Doliny — wygląd, pozycje i dialogi.
 // Drzewka dialogowe reagują na stan zadań, poziom gracza i porę dnia.
 
+import { WORLD_SCALE } from '../world/terrain.js';
+
 const erynTree = (ctx) => {
   const nodes = {
     start: {
@@ -351,3 +353,11 @@ export const TIPS = [
   'Zbieraj zioła i rudę — rzemiosło bywa cenniejsze niż złoto.',
   'Krytyczne trafienia zależą od zręczności, ale każde ostrze ma swoją wagę.',
 ];
+
+// Pozycje w danych podajemy w metrach „autorskich” (czytelne liczby), a gra
+// dostaje je już przeliczone na metry świata — dzięki temu powiększenie mapy
+// nie wymaga poprawiania każdej współrzędnej w dialogach.
+for (const def of Object.values(NPCS)) {
+  if (Array.isArray(def.pos)) def.pos = [def.pos[0] * WORLD_SCALE, def.pos[1] * WORLD_SCALE];
+  if (Array.isArray(def.home)) def.home = [def.home[0] * WORLD_SCALE, def.home[1] * WORLD_SCALE];
+}

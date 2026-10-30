@@ -2,20 +2,32 @@ import * as THREE from 'three';
 import { clamp, fbm, lerp, smoothstep, dist2 } from '../core/utils.js';
 
 // ---------------------------------------------------------------------------
-// Skala świata — duża, otwarta kraina w stylu klasycznych RPG.
-// 1560 × 1560 m (ok. 2,4 km²): góry, przełęcze, lasy, polany, bagno i jezioro.
+// Skala świata.
+// Autorska mapa (780 m promienia) jest rozciągnięta 2,6× w poziomie i 1,35×
+// w pionie — daje to krainę 3,6 × 3,6 km (13 km², ponad 5× większą niż
+// poprzednia), a góry pozostają strome. Wszystkie współrzędne w kodzie
+// (lokacje, ścieżki, dialogi) podajemy w metrach świata.
 // ---------------------------------------------------------------------------
-export const WORLD_RADIUS = 780;
-export const WORLD_SIZE = WORLD_RADIUS * 2;
-export const WATER_LEVEL = 19.5;
-export const CHUNK_SIZE = 130;
-export const CHUNK_COUNT = Math.round(WORLD_SIZE / CHUNK_SIZE); // 12 × 12
+export const WORLD_SCALE = 2.6;
+export const HEIGHT_SCALE = 1.35;
+const AUTHOR_RADIUS = 780;
 
-// Siatka wysokości: 5 m między próbkami (313 × 313 punktów).
-const GRID_SEG = 312;
+export const WORLD_RADIUS = 2500;
+export const WORLD_SIZE = WORLD_RADIUS * 2;
+export const WATER_LEVEL = 19.5 * HEIGHT_SCALE;
+export const CHUNK_SIZE = 250;
+export const CHUNK_COUNT = Math.round(WORLD_SIZE / CHUNK_SIZE); // 24 × 24
+
+// Siatka wysokości: 8 m między próbkami (451 × 451 punktów).
+const GRID_SEG = Math.round(WORLD_SIZE / 8); // 550
 const GRID_N = GRID_SEG + 1;
 
-export const LOCATIONS = {
+// Linia brzegowa (w metrach autorskich) — dalej zaczyna się ocean.
+const COAST_BASE = 640;
+export const COAST_RADIUS = COAST_BASE * WORLD_SCALE;      // ~1485 m
+export const LAND_RADIUS = (COAST_BASE - 40) * WORLD_SCALE; // bezpieczny ląd
+
+const AUTHOR_LOCATIONS = {
   village: { x: 0, z: 360, name: 'Wilcza Dolina', sub: 'Wioska pod Mgłą' },
   trading: { x: 175, z: 250, name: 'Kotlina Kupców', sub: 'Targ na starym trakcie' },
   crossroads: { x: 0, z: 150, name: 'Rozdroże Trzech Dróg', sub: '' },
@@ -32,10 +44,22 @@ export const LOCATIONS = {
   circle: { x: 470, z: 250, name: 'Kamienny Krąg', sub: 'Polana szeptów' },
   mine: { x: 205, z: -430, name: 'Kopalnia Żelazna', sub: 'Zawalona sztolnia' },
   highlands: { x: 470, z: -60, name: 'Wyżyny Kalmoru', sub: '' },
+  // nowe miejsca nad morzem
+  lighthouse: { x: 430, z: 470, name: 'Latarnia na Cyplu', sub: 'Ostatnie światło przed morzem' },
+  wreck: { x: 640, z: 250, name: 'Wrak „Zimnej Fali”', sub: 'Resztki statku na mieliźnie' },
+  fisherhut: { x: 0, z: 620, name: 'Chaty Rybaków', sub: 'Drewno, sieci i sól' },
+  island: { x: 700, z: -430, name: 'Samotna Skała', sub: 'Wyspa na horyzoncie' },
 };
 
-// Drogi łączące krainy — [x1, z1, x2, z2]
-export const PATHS = [
+export const LOCATIONS = Object.fromEntries(
+  Object.entries(AUTHOR_LOCATIONS).map(([k, v]) => [
+    k,
+    { ...v, x: v.x * WORLD_SCALE, z: v.z * WORLD_SCALE },
+  ])
+);
+
+// Drogi łączące krainy — [x1, z1, x2, z2] (autorskie, przeliczane niżej)
+const AUTHOR_PATHS = [
   [0, 360, 0, 150],
   [0, 150, 175, 250],
   [0, 150, 330, 40],
@@ -53,9 +77,17 @@ export const PATHS = [
   [430, -330, 205, -430],
   [175, 250, -330, 330],
   [-540, 420, -330, 330],
+  // trakty nadmorskie
+  [175, 250, 430, 470],
+  [430, 470, 640, 250],
+  [0, 360, 0, 620],
 ];
 
-// Grzbiety górskie: łamane z wysokością i szerokością.
+export const PATHS = AUTHOR_PATHS.map(([ax, az, bx, bz]) => [
+  ax * WORLD_SCALE, az * WORLD_SCALE, bx * WORLD_SCALE, bz * WORLD_SCALE,
+]);
+
+// Grzbiety górskie: łamane z wysokością i szerokością (przestrzeń autorska).
 const RIDGES = [
   { pts: [[360, -520], [400, -300], [392, -60], [352, 120], [420, 300]], h: 128, w: 130, seed: 1.7 },
   { pts: [[470, -560], [520, -300], [500, -60], [560, 220]], h: 150, w: 140, seed: 4.2 },
@@ -63,25 +95,53 @@ const RIDGES = [
   { pts: [[-640, 210], [-500, 80], [-380, -40], [-300, -140]], h: 96, w: 115, seed: 2.9 },
   { pts: [[-620, -420], [-420, -520], [-180, -570], [0, -520]], h: 92, w: 125, seed: 5.1 },
   { pts: [[120, 60], [40, -80], [-40, -200]], h: 52, w: 80, seed: 9.4 },
+  // grzbiety nadmorskie — klify nad zatoką
+  { pts: [[300, 470], [430, 560], [540, 600]], h: 78, w: 92, seed: 3.3 },
+  { pts: [[-470, 380], [-600, 460], [-680, 540]], h: 64, w: 86, seed: 6.6 },
 ];
 
-// Miejsca wyrównane (osady, obozy, plateau kuźni).
-const FLAT_SPOTS = [
-  { ...LOCATIONS.village, r: 62, inner: 40, lift: 0.2 },
-  { ...LOCATIONS.trading, r: 48, inner: 30, lift: 0.3 },
-  { ...LOCATIONS.forge, r: 34, inner: 16, lift: 16 },
-  { ...LOCATIONS.barrow, r: 40, inner: 20, lift: 6 },
-  { ...LOCATIONS.ruins, r: 48, inner: 26, lift: 2.5 },
-  { ...LOCATIONS.bandits, r: 34, inner: 18, lift: 0 },
-  { ...LOCATIONS.quarry, r: 36, inner: 18, lift: -4 },
-  { ...LOCATIONS.castle, r: 44, inner: 24, lift: 12 },
-  { ...LOCATIONS.hermit, r: 34, inner: 16, lift: 0 },
-  { ...LOCATIONS.swamp, r: 70, inner: 40, lift: -9 },
-  { ...LOCATIONS.pass, r: 46, inner: 26, lift: 0 },
-  { ...LOCATIONS.circle, r: 34, inner: 16, lift: 3 },
-  { ...LOCATIONS.mine, r: 30, inner: 14, lift: 2 },
-  { ...LOCATIONS.highlands, r: 28, inner: 13, lift: 1 },
+// Wyspy na oceanie (przestrzeń autorska).
+const ISLANDS = [
+  { x: 700, z: -430, r: 46, h: 44, seed: 2.1 },
+  { x: 690, z: 330, r: 30, h: 34, seed: 8.4 },
+  { x: -690, z: -520, r: 26, h: 30, seed: 5.7 },
 ];
+
+// Mielizna łącząca brzeg z największą wyspą.
+const SHOAL = [[540, -360], [610, -392], [660, -412], [700, -430]];
+
+// Miejsca wyrównane (osady, obozy, plateau kuźni) — w metrach świata.
+const AUTHOR_FLATS = [
+  { ...AUTHOR_LOCATIONS.village, r: 62, inner: 40, lift: 0.2 },
+  { ...AUTHOR_LOCATIONS.trading, r: 48, inner: 30, lift: 0.3 },
+  { ...AUTHOR_LOCATIONS.forge, r: 34, inner: 16, lift: 16 },
+  { ...AUTHOR_LOCATIONS.barrow, r: 40, inner: 20, lift: 6 },
+  { ...AUTHOR_LOCATIONS.ruins, r: 48, inner: 26, lift: 2.5 },
+  { ...AUTHOR_LOCATIONS.bandits, r: 34, inner: 18, lift: 0 },
+  { ...AUTHOR_LOCATIONS.quarry, r: 36, inner: 18, lift: -4 },
+  { ...AUTHOR_LOCATIONS.castle, r: 44, inner: 24, lift: 12 },
+  { ...AUTHOR_LOCATIONS.hermit, r: 34, inner: 16, lift: 0 },
+  { ...AUTHOR_LOCATIONS.swamp, r: 70, inner: 40, lift: 9.5 },
+  { ...AUTHOR_LOCATIONS.pass, r: 46, inner: 26, lift: 0 },
+  { ...AUTHOR_LOCATIONS.circle, r: 34, inner: 16, lift: 3 },
+  { ...AUTHOR_LOCATIONS.mine, r: 30, inner: 14, lift: 2 },
+  { ...AUTHOR_LOCATIONS.highlands, r: 28, inner: 13, lift: 1 },
+  { ...AUTHOR_LOCATIONS.lighthouse, r: 44, inner: 24, lift: 5 },
+  { ...AUTHOR_LOCATIONS.wreck, r: 40, inner: 22, lift: -1.4 },
+  { ...AUTHOR_LOCATIONS.fisherhut, r: 52, inner: 30, lift: 0.4 },
+];
+
+// Miejsca (wioski, obozy) są większe niż w oryginale, ale nie 2,6× — zabudowa
+// i ścieżki w ich wnętrzu powstały w metrach autorskich, więc skala 1,45
+// zostawia wokół nich sensowny, płaski plac.
+const SITE_SCALE = 1.45;
+const FLAT_SPOTS = AUTHOR_FLATS.map((s) => ({
+  x: s.x * WORLD_SCALE,
+  z: s.z * WORLD_SCALE,
+  r: s.r * SITE_SCALE,
+  inner: s.inner * SITE_SCALE,
+  lift: s.lift,
+}));
 
 function distToSegment(px, pz, ax, az, bx, bz) {
   const vx = bx - ax;
@@ -99,6 +159,8 @@ function distToPolyline(x, z, pts) {
   return best;
 }
 
+// Wysokość w metrach autorskich (bez skalowania) — cała rzeźba liczona jest
+// w jednej, spójnej przestrzeni, więc zmiana skali mapy nie psuje proporcji.
 function rawHeight(x, z) {
   const big = fbm(x * 0.0026 + 11.3, z * 0.0026 - 7.1, 4);
   const mid = fbm(x * 0.0105 - 3.7, z * 0.0105 + 5.2, 3);
@@ -129,38 +191,65 @@ function rawHeight(x, z) {
     h += crag * smoothstep(96, 150, h) * 34;
   }
 
-  // pierścień gór na skraju krainy — nieregularny, żeby kraina nie była misą
+  // ---- linia brzegowa: kraina opada do oceanu -----------------------------
   const r = Math.hypot(x, z);
-  const rimNoise = fbm(x * 0.0035 + 50.2, z * 0.0035 - 21.7, 2) * 0.5 + 0.5;
-  const rimStart = 560 + rimNoise * 120;
-  const rim = smoothstep(rimStart, 772, r);
-  if (rim > 0) h += Math.pow(rim, 1.35) * (150 + rimNoise * 84) + rim * 9;
-  // gwarantowany wał na samej krawędzi mapy — gracz nie zobaczy końca świata
-  const edge = smoothstep(700, 776, r);
-  if (edge > 0) h = Math.max(h, edge * 195);
+  const coastNoise = fbm(x * 0.0035 + 50.2, z * 0.0035 - 21.7, 3) * 0.5 + 0.5;
+  const coast = COAST_BASE + coastNoise * 62;
+
+  // plaża i klif, potem dno morskie
+  if (r > coast - 40) {
+    const shallow = smoothstep(coast - 40, coast + 26, r);
+    const deep = smoothstep(coast, coast + 150, r);
+    const coastal = lerp(h, 21 + coastNoise * 6 + (fbm(x * 0.03, z * 0.03, 2) * 2.2), shallow);
+    h = lerp(coastal, -30 + coastNoise * 9, deep);
+  }
+
+  // wyspy wynurzają się z morza (po obniżeniu dna, inaczej fala by je zmyła)
+  for (let i = 0; i < ISLANDS.length; i++) {
+    const isl = ISLANDS[i];
+    const d = dist2(x, z, isl.x, isl.z);
+    if (d < isl.r * 2.2) {
+      const t = 1 - smoothstep(isl.r * 0.3, isl.r * 1.85, d);
+      const bump = isl.h * Math.pow(t, 1.4) * (0.75 + 0.45 * (fbm(x * 0.05 + isl.seed, z * 0.05, 2) * 0.5 + 0.5));
+      h = Math.max(h, -16 + bump);
+    }
+  }
+
+  // mielizna do Samotnej Skały — można przejść suchą nogą przy odpływie
+  const shoal = distToPolyline(x, z, SHOAL);
+  if (shoal < 18) {
+    const t = 1 - smoothstep(0, 18, shoal);
+    const crest = 20.6 + (fbm(x * 0.06 + 7.1, z * 0.06 - 3.3, 2) * 0.5 + 0.5) * 2.6;
+    h = Math.max(h, lerp(h, crest, t));
+  }
 
   // niecka jeziora — płaskie dno i łagodny brzeg
-  const dl = dist2(x, z, LOCATIONS.lake.x, LOCATIONS.lake.z);
+  const dl = dist2(x, z, AUTHOR_LOCATIONS.lake.x, AUTHOR_LOCATIONS.lake.z);
   if (dl < 152) {
     const basin = 1 - smoothstep(94, 150, dl);
     h = lerp(h, 12.4, basin * 0.94);
   }
 
   // bagno — wilgotna, niska kotlina
-  const ds = dist2(x, z, LOCATIONS.swamp.x, LOCATIONS.swamp.z);
-  if (ds < 220) h -= 11 * smoothstep(220, 60, ds);
+  const ds = dist2(x, z, AUTHOR_LOCATIONS.swamp.x, AUTHOR_LOCATIONS.swamp.z);
+  if (ds < 220) h -= 3.5 * smoothstep(220, 60, ds);
 
   // dolina wokół wioski
-  const dv = dist2(x, z, LOCATIONS.village.x, LOCATIONS.village.z);
+  const dv = dist2(x, z, AUTHOR_LOCATIONS.village.x, AUTHOR_LOCATIONS.village.z);
   h -= 4.5 * smoothstep(230, 70, dv) * smoothstep(18, 62, dv);
 
-  return Math.max(h, 1.4);
+  return Math.max(h, -34);
 }
 
-const flats = FLAT_SPOTS.map((s) => ({ ...s, target: Math.max(3.2, rawHeight(s.x, s.z) + s.lift) }));
+const flats = FLAT_SPOTS.map((s) => {
+  const target = Math.max(3.2, rawHeight(s.x / WORLD_SCALE, s.z / WORLD_SCALE) + s.lift);
+  return { ...s, target: target * HEIGHT_SCALE };
+});
 
 function exactHeight(x, z) {
-  let h = rawHeight(x, z);
+  const ax = x / WORLD_SCALE;
+  const az = z / WORLD_SCALE;
+  let h = rawHeight(ax, az) * HEIGHT_SCALE;
   for (let i = 0; i < flats.length; i++) {
     const f = flats[i];
     const d = dist2(x, z, f.x, f.z);
@@ -186,6 +275,11 @@ for (let j = 0; j < GRID_N; j++) {
 }
 export const terrainBuildTime = performance.now() - gridStart;
 
+/**
+ * Wysokość terenu — interpolacja po DOKŁADNIE tych samych trójkątach, z których
+ * zbudowana jest siatka. Dzięki temu stopy, koła i kolizje siedzą na ziemi,
+ * a nie 20 cm nad nią (wcześniej: interpolacja dwuliniowa ≠ triangulacja).
+ */
 export function heightAt(x, z) {
   const fx = ((x + WORLD_RADIUS) / WORLD_SIZE) * GRID_SEG;
   const fz = ((z + WORLD_RADIUS) / WORLD_SIZE) * GRID_SEG;
@@ -201,21 +295,31 @@ export function heightAt(x, z) {
   const h10 = heightGrid[j * GRID_N + i + 1];
   const h01 = heightGrid[(j + 1) * GRID_N + i];
   const h11 = heightGrid[(j + 1) * GRID_N + i + 1];
-  const a = h00 + (h10 - h00) * tx;
-  const b = h01 + (h11 - h01) * tx;
-  return a + (b - a) * tz;
+  if (tx + tz <= 1) {
+    return h00 + tx * (h10 - h00) + tz * (h01 - h00);
+  }
+  return h11 + (1 - tx) * (h01 - h11) + (1 - tz) * (h10 - h11);
 }
 
 export function slopeAt(x, z) {
-  const e = 3.4;
+  const e = 6;
   const hx = heightAt(x + e, z) - heightAt(x - e, z);
   const hz = heightAt(x, z + e) - heightAt(x, z - e);
   return Math.hypot(hx, hz) / (2 * e);
 }
 
+/** Czy w tym miejscu jest woda (jezioro, bagno albo morze). */
 export function isWater(x, z) {
-  if (dist2(x, z, LOCATIONS.lake.x, LOCATIONS.lake.z) > 118) return false;
   return heightAt(x, z) < WATER_LEVEL - 0.05;
+}
+
+/** Głębokość wody (0 = sucho). */
+export function waterDepth(x, z) {
+  return Math.max(0, WATER_LEVEL - heightAt(x, z));
+}
+
+export function isSea(x, z) {
+  return Math.hypot(x, z) > COAST_RADIUS - 60 && isWater(x, z);
 }
 
 export function distanceToPath(x, z) {
@@ -249,12 +353,15 @@ const C = {
   sand: new THREE.Color('#9c8f68'),
   mud: new THREE.Color('#55503a'),
   ash: new THREE.Color('#5c5a55'),
+  seaFloor: new THREE.Color('#3b4a4a'),
 };
 
 const tmpC = new THREE.Color();
 const tmpC2 = new THREE.Color();
 
 export function terrainColorAt(x, z, h, slope, out = tmpC) {
+  const S = WORLD_SCALE;
+  const H = HEIGHT_SCALE;
   const forest = forestMask(x, z);
   const n = fbm(x * 0.09 + 5, z * 0.09 - 2, 3) * 0.5 + 0.5;
   const n2 = fbm(x * 0.028 - 9, z * 0.03 + 3, 2) * 0.5 + 0.5;
@@ -266,27 +373,33 @@ export function terrainColorAt(x, z, h, slope, out = tmpC) {
   if (forest > 0.42) out.lerp(C.forest, smoothstep(0.42, 0.85, forest) * 0.8);
 
   const pathD = distanceToPath(x, z);
-  if (pathD < 3.4) out.lerp(C.dirt, smoothstep(3.4, 0.9, pathD) * 0.72);
+  if (pathD < 7.8) out.lerp(C.dirt, smoothstep(7.8, 2.0, pathD) * 0.72);
 
   // bagno
   const ds = dist2(x, z, LOCATIONS.swamp.x, LOCATIONS.swamp.z);
-  if (ds < 220) out.lerp(C.mud, smoothstep(220, 70, ds) * 0.72);
+  if (ds < 220 * S) out.lerp(C.mud, smoothstep(220 * S, 70 * S, ds) * 0.72);
 
-  // skały i śnieg
-  if (slope > 0.45) out.lerp(C.rock, smoothstep(0.45, 1.2, slope));
-  if (slope > 1.0) out.lerp(C.rockDark, smoothstep(1.0, 2.0, slope) * 0.6);
-  if (h > 104) out.lerp(C.rock, smoothstep(104, 148, h) * 0.75);
+  // skały i śnieg (progi przeliczone na nową skalę pionową)
+  if (slope > 0.6) out.lerp(C.rock, smoothstep(0.6, 1.6, slope));
+  if (slope > 1.35) out.lerp(C.rockDark, smoothstep(1.35, 2.7, slope) * 0.6);
+  const rockLine = 104 * H;
+  if (h > rockLine) out.lerp(C.rock, smoothstep(rockLine, 148 * H, h) * 0.75);
   // popiół wokół starożytnej kuźni
   const df = dist2(x, z, LOCATIONS.forge.x, LOCATIONS.forge.z);
-  if (df < 30) out.lerp(C.ash, smoothstep(30, 10, df) * 0.55);
-  const snowLine = 152 + n2 * 26;
-  if (h > snowLine) out.lerp(C.snow, smoothstep(snowLine, snowLine + 26, h) * (1 - smoothstep(1.5, 2.4, slope)));
-  if (h > snowLine + 22) out.lerp(C.snow, 0.4 * (1 - smoothstep(1.8, 2.6, slope)));
+  if (df < 30 * S) out.lerp(C.ash, smoothstep(30 * S, 10 * S, df) * 0.55);
+  const snowLine = (152 + n2 * 26) * H;
+  if (h > snowLine) out.lerp(C.snow, smoothstep(snowLine, snowLine + 26 * H, h) * (1 - smoothstep(2.0, 3.2, slope)));
+  if (h > snowLine + 22 * H) out.lerp(C.snow, 0.42 * (1 - smoothstep(2.4, 3.4, slope)));
 
-  // piach i muł tylko przy brzegu jeziora (bagno ma własny, ciemny grunt)
-  if (h < WATER_LEVEL + 2.2) {
-    const lakeD = dist2(x, z, LOCATIONS.lake.x, LOCATIONS.lake.z);
-    if (lakeD < 132) out.lerp(C.sand, smoothstep(WATER_LEVEL + 2.2, WATER_LEVEL - 1.2, h) * 0.8 * smoothstep(150, 110, lakeD));
+  // ---- wybrzeże: piach, mokry piach i dno morskie --------------------------
+  const beachTop = WATER_LEVEL + 2.6;
+  if (h < beachTop) {
+    const t = smoothstep(beachTop, WATER_LEVEL - 1.4, h);
+    out.lerp(C.sand, t * 0.88);
+  }
+  if (h < WATER_LEVEL - 2.5) {
+    const t = smoothstep(WATER_LEVEL - 2.5, WATER_LEVEL - 22, h);
+    out.lerp(C.seaFloor, t * 0.92);
   }
 
   // lekka wariacja, by uniknąć plam
@@ -303,7 +416,7 @@ function buildChunkGeometry(cx, cz, res) {
   const step = CHUNK_SIZE / res;
   const n = res + 1;
   const vertCount = n * n;
-  const skirtDrop = step * 2.4 + 4;
+  const skirtDrop = step * 1.05 + 2.5;
   const skirtVerts = res * 8; // 4 krawędzie × res segmentów × 2 wierzchołki
 
   const positions = new Float32Array((vertCount + skirtVerts) * 3);
@@ -458,7 +571,7 @@ export class TerrainManager {
     this.chunks = new Map();
     this.queue = [];
     this.lastLodPos = new THREE.Vector2(1e9, 1e9);
-    this.updatesPerFrame = 3;
+    this.updatesPerFrame = 2;
     this.stats = { built: 0, triangles: 0 };
 
     for (let cz = 0; cz < CHUNK_COUNT; cz++) {
@@ -473,9 +586,9 @@ export class TerrainManager {
   }
 
   lodForDistance(d) {
-    if (d < 190) return 26; // 5 m
-    if (d < 420) return 13; // 10 m
-    return 7; // 18,6 m
+    if (d < 260) return 50; // 5 m
+    if (d < 560) return 25; // 10 m
+    return 12; // 20 m
   }
 
   ensureChunk(chunk, res) {
@@ -502,7 +615,7 @@ export class TerrainManager {
     for (const chunk of this.chunks.values()) {
       if (chunk.centerX < -WORLD_RADIUS || chunk.centerZ < -WORLD_RADIUS) continue;
       const d = Math.hypot(chunk.centerX - pos.x, chunk.centerZ - pos.z);
-      this.ensureChunk(chunk, d < 260 ? 26 : 7);
+      this.ensureChunk(chunk, d < 340 ? 50 : 12);
     }
   }
 
@@ -542,103 +655,119 @@ export function createTerrain() {
 }
 
 // ---------------------------------------------------------------------------
-// Woda: jezioro + oczka na bagnie.
-// Powierzchnia jeziora jest wycinana według rzeczywistego zarysu niecki,
-// więc linia brzegowa zgadza się z terenem co do kilku metrów.
-const WATER_CELL = 4;
+// WODA
+// Jedna wielka tafla pokrywa całą krainę: morze opasujące ląd, jezioro i oczka
+// na bagnie są częścią tej samej powierzchni, więc nie ma szwów ani z-fightingu.
+// Fale liczone są na CPU (kilkanaście tysięcy wierzchołków), a normalne
+// odświeżane co kilka klatek — wygląda jak woda, a nie jak lustro.
+// ---------------------------------------------------------------------------
+const SEA_SEGMENTS = 112;
 
-function buildLakeSurface() {
-  const cx = LOCATIONS.lake.x;
-  const cz = LOCATIONS.lake.z;
-  const span = 150;
-  const n = Math.ceil((span * 2) / WATER_CELL) + 1;
-  const x0 = cx - span;
-  const z0 = cz - span;
+function buildSeaGeometry() {
+  const span = WORLD_RADIUS * 2.9;
+  const geo = new THREE.PlaneGeometry(span, span, SEA_SEGMENTS, SEA_SEGMENTS);
+  geo.rotateX(-Math.PI / 2);
+  return geo;
+}
 
-  const submerged = new Uint8Array(n * n);
-  for (let j = 0; j < n; j++) {
-    for (let i = 0; i < n; i++) {
-      // margines: woda zachodzi minimalnie na brzeg, więc nie ma prześwitów
-      const x = x0 + i * WATER_CELL;
-      const z = z0 + j * WATER_CELL;
-      submerged[j * n + i] = heightAt(x, z) < WATER_LEVEL + 0.55 ? 1 : 0;
+/**
+ * Piana przy linii brzegowej morza i wysp.
+ * Promienie idą z zewnątrz do środka — pierwsze zetknięcie z lądem to brzeg.
+ */
+function buildCoastFoam() {
+  const RAYS = 620;
+  const positions = [];
+  const colors = [];
+  const indices = [];
+  const white = new THREE.Color('#eaf6f8');
+  const foam = new THREE.Color('#9fc6cd');
+  const tmp = new THREE.Color();
+  const ring = [];
+
+  for (let k = 0; k < RAYS; k++) {
+    const a = (k / RAYS) * Math.PI * 2;
+    const dx = Math.cos(a);
+    const dz = Math.sin(a);
+    let hit = -1;
+    let prev = WATER_LEVEL - 8;
+    for (let r = WORLD_RADIUS * 0.99; r > 60; r -= 7) {
+      const h = heightAt(dx * r, dz * r);
+      if (h > WATER_LEVEL - 0.35) {
+        // doprecyzowanie metodą połowienia
+        let lo = r;
+        let hi = r + 7;
+        for (let it = 0; it < 6; it++) {
+          const mid = (lo + hi) * 0.5;
+          if (heightAt(dx * mid, dz * mid) > WATER_LEVEL - 0.35) lo = mid;
+          else hi = mid;
+        }
+        hit = lo;
+        prev = hi;
+        break;
+      }
     }
+    if (hit < 0) {
+      ring.push(null);
+      continue;
+    }
+    const inner = hit - 2.2;
+    const outer = prev + 13;
+    const base = positions.length / 3;
+    positions.push(dx * outer, 0, dz * outer, dx * inner, 0, dz * inner);
+    tmp.copy(white).lerp(foam, 0.15);
+    colors.push(tmp.r, tmp.g, tmp.b);
+    tmp.copy(foam).multiplyScalar(0.82);
+    colors.push(tmp.r, tmp.g, tmp.b);
+    ring.push({ outer, inner, base });
   }
 
-  const positions = [];
-  const uvs = [];
-  const indices = [];
-  const map = new Int32Array(n * n).fill(-1);
-  const addVert = (i, j) => {
-    const k = j * n + i;
-    if (map[k] >= 0) return map[k];
-    const idx = positions.length / 3;
-    positions.push(x0 + i * WATER_CELL, 0, z0 + j * WATER_CELL);
-    uvs.push((x0 + i * WATER_CELL) / 18, (z0 + j * WATER_CELL) / 18);
-    map[k] = idx;
-    return idx;
-  };
-  for (let j = 0; j < n - 1; j++) {
-    for (let i = 0; i < n - 1; i++) {
-      const a = submerged[j * n + i];
-      const b = submerged[j * n + i + 1];
-      const c = submerged[(j + 1) * n + i];
-      const d = submerged[(j + 1) * n + i + 1];
-      if (!(a || b || c || d)) continue;
-      const v00 = addVert(i, j);
-      const v10 = addVert(i + 1, j);
-      const v01 = addVert(i, j + 1);
-      const v11 = addVert(i + 1, j + 1);
-      if (a && b && c) indices.push(v00, v01, v10);
-      if (b && c && d) indices.push(v10, v01, v11);
-      if (b && d) indices.push(v10, v01, v11);
-    }
+  for (let k = 0; k < RAYS; k++) {
+    const a = ring[k];
+    const b = ring[(k + 1) % RAYS];
+    if (!a || !b) continue;
+    indices.push(a.base, a.base + 1, b.base, b.base, a.base + 1, b.base + 1);
   }
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   geo.setIndex(indices);
   geo.computeVertexNormals();
   geo.computeBoundingSphere();
   return geo;
 }
 
-// Piana przy brzegu: pas wody w miejscach, gdzie głębokość jest mała.
-// Kolor wierzchołków przechodzi od bieli (brzeg) do koloru wody (głębiej),
-// więc piana wtapia się w taflę bez ostrej krawędzi.
-function buildLakeFoam() {
-  const cx = LOCATIONS.lake.x;
-  const cz = LOCATIONS.lake.z;
-  const span = 150;
-  const n = Math.ceil((span * 2) / WATER_CELL) + 1;
+/** Piana wokół jeziora i mokradeł — lokalna siatka wokół środka zbiornika. */
+function buildBasinFoam(cx, cz, span, cell) {
+  const n = Math.ceil((span * 2) / cell) + 1;
   const x0 = cx - span;
   const z0 = cz - span;
-  const shallow = 1.5;
-
+  const shallow = 1.8;
   const depth = new Float32Array(n * n);
   for (let j = 0; j < n; j++) {
     for (let i = 0; i < n; i++) {
-      depth[j * n + i] = WATER_LEVEL - heightAt(x0 + i * WATER_CELL, z0 + j * WATER_CELL);
+      depth[j * n + i] = WATER_LEVEL - heightAt(x0 + i * cell, z0 + j * cell);
     }
   }
-
   const positions = [];
   const colors = [];
   const indices = [];
   const water = new THREE.Color('#2f6579');
   const white = new THREE.Color('#e8f6f8');
   const tmp = new THREE.Color();
-
+  const map = new Int32Array(n * n).fill(-1);
   const pushVert = (i, j) => {
-    const d = depth[j * n + i];
+    const k = j * n + i;
+    if (map[k] >= 0) return map[k];
+    const d = depth[k];
     const t = Math.max(0, Math.min(1, d / shallow));
     tmp.copy(white).lerp(water, t);
-    positions.push(x0 + i * WATER_CELL, 0, z0 + j * WATER_CELL);
+    const idx = positions.length / 3;
+    positions.push(x0 + i * cell, 0, z0 + j * cell);
     colors.push(tmp.r, tmp.g, tmp.b);
-    return positions.length / 3 - 1;
+    map[k] = idx;
+    return idx;
   };
-
   for (let j = 0; j < n - 1; j++) {
     for (let i = 0; i < n - 1; i++) {
       const d00 = depth[j * n + i];
@@ -647,8 +776,7 @@ function buildLakeFoam() {
       const d11 = depth[(j + 1) * n + i + 1];
       const maxD = Math.max(d00, d10, d01, d11);
       const minD = Math.min(d00, d10, d01, d11);
-      if (maxD <= 0 || minD > shallow) continue;
-
+      if (maxD <= 0.02 || minD > shallow) continue;
       const a = pushVert(i, j);
       const b = pushVert(i + 1, j);
       const c = pushVert(i, j + 1);
@@ -656,84 +784,100 @@ function buildLakeFoam() {
       indices.push(a, c, b, b, c, d);
     }
   }
-
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   geo.setIndex(indices);
   geo.computeVertexNormals();
+  geo.computeBoundingSphere();
   return geo;
 }
 
 export function createWater() {
   const group = new THREE.Group();
   group.name = 'water';
-  const mat = new THREE.MeshStandardMaterial({
-    color: '#27586c',
+
+  const seaMat = new THREE.MeshStandardMaterial({
+    color: '#28576e',
     transparent: true,
-    opacity: 0.94,
-    roughness: 0.28,
-    metalness: 0.16,
+    opacity: 0.9,
+    roughness: 0.2,
+    metalness: 0.22,
     flatShading: false,
   });
-  mat.side = THREE.DoubleSide;
+  seaMat.side = THREE.DoubleSide;
 
-  const lakeGeo = buildLakeSurface();
-  const lake = new THREE.Mesh(lakeGeo, mat);
-  lake.position.set(0, WATER_LEVEL, 0);
-  lake.name = 'lake';
-  group.add(lake);
+  const seaGeo = buildSeaGeometry();
+  const sea = new THREE.Mesh(seaGeo, seaMat);
+  sea.position.y = WATER_LEVEL;
+  sea.name = 'sea';
+  sea.receiveShadow = false;
+  group.add(sea);
 
   const foamMat = new THREE.MeshBasicMaterial({
     color: '#ffffff',
     vertexColors: true,
     transparent: true,
-    opacity: 0.5,
+    opacity: 0.46,
     depthWrite: false,
   });
-  const foamMesh = new THREE.Mesh(buildLakeFoam(), foamMat);
-  foamMesh.position.set(0, WATER_LEVEL + 0.07, 0);
-  foamMesh.name = 'lake-foam';
-  group.add(foamMesh);
+  const coastFoam = new THREE.Mesh(buildCoastFoam(), foamMat);
+  coastFoam.position.y = WATER_LEVEL + 0.09;
+  coastFoam.name = 'coast-foam';
+  group.add(coastFoam);
 
-  const pooled = [];
+  const lakeFoam = new THREE.Mesh(
+    buildBasinFoam(LOCATIONS.lake.x, LOCATIONS.lake.z, 190 * WORLD_SCALE, 12),
+    foamMat
+  );
+  lakeFoam.position.y = WATER_LEVEL + 0.1;
+  group.add(lakeFoam);
+
   const swampBase = heightAt(LOCATIONS.swamp.x, LOCATIONS.swamp.z);
-  for (let i = 0; i < 7; i++) {
-    const a = (i / 7) * Math.PI * 2 + 0.6;
-    const r = 22 + (i % 3) * 16;
-    const x = LOCATIONS.swamp.x + Math.cos(a) * r;
-    const z = LOCATIONS.swamp.z + Math.sin(a) * r;
-    const level = Math.max(swampBase + 0.3, heightAt(x, z) + 0.22);
-    const geo = new THREE.CircleGeometry(8 + (i % 4) * 3, 12);
-    const m = new THREE.Mesh(geo, mat);
-    m.rotation.x = -Math.PI / 2;
-    m.rotation.z = a;
-    m.position.set(x, level, z);
-    group.add(m);
-    pooled.push({ mesh: m, level });
-  }
+  const swampFoam = new THREE.Mesh(
+    buildBasinFoam(LOCATIONS.swamp.x, LOCATIONS.swamp.z, 150 * WORLD_SCALE, 14),
+    foamMat
+  );
+  swampFoam.position.y = Math.max(swampBase + 0.3, WATER_LEVEL + 0.06);
+  group.add(swampFoam);
 
-  const pos = lake.geometry.attributes.position;
-  const base = Float32Array.from(pos.array);
+  // ---- fale ---------------------------------------------------------------
+  const base = Float32Array.from(seaGeo.attributes.position.array);
+  const pos = seaGeo.attributes.position;
+  const wave = (x, z, t) =>
+    Math.sin(x * 0.055 + t * 0.85) * 0.19 +
+    Math.cos(z * 0.071 + t * 0.62) * 0.15 +
+    Math.sin((x + z) * 0.021 + t * 1.31) * 0.24;
+
+  for (let i = 0; i < pos.count; i++) {
+    pos.array[i * 3 + 1] = wave(base[i * 3], base[i * 3 + 2], 0);
+  }
+  pos.needsUpdate = true;
+  seaGeo.computeVertexNormals();
+
   let t = 0;
+  let frame = 0;
+
   return {
     mesh: group,
+    sea,
+    level: WATER_LEVEL,
     update(dt) {
       t += dt;
+      frame += 1;
       const arr = pos.array;
       for (let i = 0; i < pos.count; i++) {
-        const x = base[i * 3];
-        const z = base[i * 3 + 2];
-        arr[i * 3 + 1] = Math.sin(x * 0.06 + t * 0.9) * 0.13 + Math.cos(z * 0.08 + t * 0.7) * 0.1;
+        arr[i * 3 + 1] = wave(base[i * 3], base[i * 3 + 2], t);
       }
       pos.needsUpdate = true;
-      lake.geometry.computeVertexNormals();
-      for (let i = 0; i < pooled.length; i++) {
-        pooled[i].mesh.position.y = pooled[i].level + Math.sin(t * 0.8 + i) * 0.012;
-      }
-      // piana delikatnie faluje i rozjaśnia się przy uderzeniu fali
-      foamMat.opacity = 0.40 + Math.sin(t * 0.9) * 0.10 + Math.sin(t * 2.3) * 0.04;
-      foamMesh.position.y = WATER_LEVEL + 0.07 + Math.sin(t * 0.9) * 0.02;
+      if (frame % 3 === 0) seaGeo.computeVertexNormals();
+
+      foamMat.opacity = 0.4 + Math.sin(t * 0.9) * 0.1 + Math.sin(t * 2.3) * 0.04;
+      const lift = Math.sin(t * 0.9) * 0.03;
+      coastFoam.position.y = WATER_LEVEL + 0.09 + lift;
+      lakeFoam.position.y = WATER_LEVEL + 0.1 + lift;
+      swampFoam.position.y = Math.max(swampBase + 0.3, WATER_LEVEL + 0.06) + lift;
+      seaMat.opacity = 0.88 + Math.sin(t * 0.4) * 0.02;
     },
   };
 }

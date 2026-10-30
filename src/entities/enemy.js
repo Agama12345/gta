@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { clamp, damp, dampAngle, dist2, TAU } from '../core/utils.js';
-import { heightAt, LOCATIONS } from '../world/terrain.js';
+import { heightAt, LOCATIONS, WORLD_SCALE } from '../world/terrain.js';
 import { makeHumanoid, makeSword, makeSkeleton, makeWolf, makeGolem, makeLurker } from '../world/models.js';
 import { ENEMY_TYPES, SPAWNS } from '../data/enemies.js';
 
-const VILLAGE_SAFE = { x: LOCATIONS.village.x, z: LOCATIONS.village.z, r: 48 };
+const VILLAGE_SAFE = { x: LOCATIONS.village.x, z: LOCATIONS.village.z, r: 48 * WORLD_SCALE };
 
 function buildKaldras() {
   const built = makeHumanoid({
@@ -38,9 +38,9 @@ function buildKaldras() {
 
   const blade = makeSword({ blade: '#6e7681', guard: '#2b2f36', grip: '#1e2126', glow: '#ff5b3a' });
   blade.scale.setScalar(1.85);
-  blade.position.set(0, -0.72, 0.1);
+  blade.position.set(0, -0.02, 0.1);
   blade.rotation.set(-0.3, 0, 0.1);
-  parts.arms[1].add(blade);
+  (parts.hands?.[1] ?? parts.arms[1]).add(blade);
 
   const aura = new THREE.PointLight('#ff5b3a', 4.5, 9, 2);
   aura.position.y = 1.6;
@@ -128,9 +128,9 @@ export function buildEnemyModel(typeId) {
     const s = makeSkeleton();
     const sword = makeSword({ blade: '#b9b29d', guard: '#6b6250', grip: '#3a332a' });
     sword.scale.setScalar(0.85);
-    sword.position.set(0, -0.75, 0.05);
+    sword.position.set(0, -0.02, 0.05);
     sword.rotation.x = -0.3;
-    s.parts.arms[1].add(sword);
+    (s.parts.hands?.[1] ?? s.parts.arms[1]).add(sword);
     return { group: s.group, parts: s.parts };
   }
   if (def.model === 'wraith') return buildWraith();
@@ -143,15 +143,15 @@ export function buildEnemyModel(typeId) {
     ? makeSword({ blade: '#b9c2c9', guard: '#6a5a3a', grip: '#3a2a1c' })
     : makeSword({ blade: '#c9d2d9', guard: '#8a7440', grip: '#3a2a1c' });
   weaponDef.scale.setScalar(def.weapon === 'axe' ? 1.15 : 1);
-  weaponDef.position.set(0, -0.74, 0.05);
+  weaponDef.position.set(0, -0.02, 0.05);
   weaponDef.rotation.x = -0.3;
-  if (def.weapon !== 'bow') built.parts.arms[1].add(weaponDef);
+  if (def.weapon !== 'bow') (built.parts.hands?.[1] ?? built.parts.arms[1]).add(weaponDef);
 
   if (def.weapon === 'bow') {
     const bow = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.03, 4, 12, Math.PI * 1.2), new THREE.MeshStandardMaterial({ color: '#6a4a2a', roughness: 0.9 }));
-    bow.position.set(0, -0.7, 0.1);
+    bow.position.set(0, -0.02, 0.1);
     bow.rotation.set(0, Math.PI / 2, Math.PI / 2);
-    built.parts.arms[0].add(bow);
+    (built.parts.hands?.[0] ?? built.parts.arms[0]).add(bow);
   }
   return built;
 }
@@ -626,9 +626,18 @@ export class Enemy {
     }
 
     const swing = Math.sin(this.walkPhase) * 0.8 * speedNorm;
+    const shins = this.parts.shins ?? [];
     if (legs[0] && legs[1]) {
       legs[0].rotation.x = moving ? swing : damp(legs[0].rotation.x, 0, 8, dt);
       legs[1].rotation.x = moving ? -swing : damp(legs[1].rotation.x, 0, 8, dt);
+    }
+    // kolana — bez nich przeciwnik „jeździ” na sztywnych nogach
+    if (shins[0] && shins[1]) {
+      const ph = this.walkPhase;
+      const bendA = -Math.max(0, -Math.sin(ph - 0.5)) * 1.1 * speedNorm - 0.05;
+      const bendB = -Math.max(0, -Math.sin(ph + Math.PI - 0.5)) * 1.1 * speedNorm - 0.05;
+      shins[0].rotation.x = moving ? bendA : damp(shins[0].rotation.x, 0, 8, dt);
+      shins[1].rotation.x = moving ? bendB : damp(shins[1].rotation.x, 0, 8, dt);
     }
     if (moving) {
       arms[0].rotation.x = -swing * 0.5;
@@ -643,6 +652,8 @@ export class Enemy {
       const raise = Math.sin(t * Math.PI * 0.9);
       arms[1].rotation.x = -2.5 * raise;
       arms[1].rotation.z = -0.4 * raise;
+      const forearms = this.parts.forearms ?? [];
+      if (forearms[1]) forearms[1].rotation.x = -1.1 * raise;
       if (this.pendingSlam) {
         body.rotation.x = -0.2 * raise;
         arms[0].rotation.x = -1.6 * raise;
