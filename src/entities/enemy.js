@@ -309,7 +309,11 @@ export class Enemy {
     const p = this.game.player;
     if (!p || p.dead) return false;
     const d = dist2(this.pos.x, this.pos.z, p.pos.x, p.pos.z);
-    return d < this.def.aggro;
+    // w ulewie i we mgle zwierzęta trudniej wytropią gracza (mniejszy zasięg)
+    const weather = this.game.weather;
+    const visibility = weather ? 1 + (1 - weather.fogScale) * 0.35 : 1;
+    const rainPenalty = weather ? 1 - Math.min(1, weather.rain) * 0.22 : 1;
+    return d < this.def.aggro * visibility * rainPenalty;
   }
 
   _playerInVillage() {

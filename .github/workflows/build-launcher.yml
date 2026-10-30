@@ -239,8 +239,8 @@ jobs:
              albo od razu RunyPrzeznaczenia.exe
           2. Gra otwiera sie we wlasnym oknie Windows - bez paska adresu,
              bez kart przegladarki, z wlasna ikona na pasku zadan.
-          3. Sterowanie: WASD - ruch, Spacja - atak, Shift - sprint,
-             E - interakcja, Tab - ekwipunek, M - mapa, Esc - menu.
+          3. Sterowanie: WASD - ruch, LPM - atak, Spacja - unik, Shift - sprint,
+             F - interakcja, Tab - ekwipunek, M - mapa, V - glosy, Esc - menu.
 
           Wymagania: Windows 10/11. Silnik okna (WebView2) jest czescia
           systemu razem z Edge; jesli go brak, gra otworzy sie w przegladarce.

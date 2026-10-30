@@ -273,6 +273,31 @@ const kupiecTree = () => ({
   },
 });
 
+const rybakTree = (ctx) => ({
+  start: {
+    speaker: 'Rybak Tobiasz',
+    text: ctx.active
+      ? '„Wracaj do swoich spraw, chłopcze. Morze nie czeka, a sieci trzeba łatać.”'
+      : '„Całe życie na tej wodzie i wciąż mnie zaskakuje. Raz oddaje połów, raz zabiera dom. Usiądź przy ogniu, jeśli chcesz posłuchać.”',
+    choices: [
+      { label: '„Co to za wrak na mieliźnie?”', next: 'wreck' },
+      { label: '„Po co latarnia na cyplu?”', next: 'light' },
+      { label: '„Czym handlujesz?”', action: 'shop:fisher' },
+      { label: '„Muszę iść.”', action: 'close' },
+    ],
+  },
+  wreck: {
+    speaker: 'Rybak Tobiasz',
+    text: '„„Zimna Fala”. Płynęła z ładunkiem, którego nikt nie chciał odprawić w porcie. Zderzyła się z mielizną podczas sztormu — trzy noce przed twoim przyjściem. Nikt z załogi nie wypłynął. Skrzynię, którą widzisz we wraku, zostawili dla siebie. Weź ją, jeśli masz odwagę.”',
+    choices: [{ label: '„Sprawdzę.”', next: 'start' }],
+  },
+  light: {
+    speaker: 'Rybak Tobiasz',
+    text: '„Latarnik zniknął zimą. Od tamtej pory światło pali się samo — nikt go nie zapala, a jednak płonie. Mówią, że dopóki się pali, morze nie zabierze Wilczej Doliny. Ja tam nie chodzę po zmroku.”',
+    choices: [{ label: '„Dziwne.”', next: 'start' }],
+  },
+});
+
 export const NPCS = {
   eryn: {
     name: 'Stary Eryn', role: 'Starosta Wilczej Doliny',
@@ -322,6 +347,12 @@ export const NPCS = {
     visual: { tunic: '#5b4636', pants: '#3a3026', hair: '#2d2119', skin: '#c08a5e', bulk: 1.08, cloak: '#6a4a3a', hood: '#4a3628' },
     tree: kupiecTree,
   },
+  rybak: {
+    name: 'Rybak Tobiasz', role: 'Rybak z nadmorskich chat',
+    pos: [-8, 610], rot: 2.7, radius: 4.4,
+    visual: { tunic: '#4c5a5e', pants: '#333c40', hair: '#5a4a33', beard: true, skin: '#c09468', bulk: 1.05, cloak: '#3b4a4e', hood: '#33403f' },
+    tree: rybakTree,
+  },
   duch: {
     name: 'Cień pod Łukiem', role: 'Zjawisko',
     pos: [-148, -534], rot: 0.4, radius: 5.0, ghost: true, hidden: true,
@@ -331,6 +362,10 @@ export const NPCS = {
 };
 
 export const SHOPS = {
+  fisher: {
+    name: 'Rybak Tobiasz',
+    stock: ['lake_fish', 'lake_fish', 'lake_fish', 'bread', 'health_potion', 'herbs'],
+  },
   zorzan: {
     name: 'Kupiec Zorzan',
     stock: ['health_potion', 'mana_potion', 'bread', 'leather_hood', 'leather_vest', 'hunter_bow', 'iron_ore', 'herbs', 'health_potion'],
@@ -352,6 +387,10 @@ export const TIPS = [
   'Odpoczynek przy ognisku leczy rany i przesuwa czas do świtu.',
   'Zbieraj zioła i rudę — rzemiosło bywa cenniejsze niż złoto.',
   'Krytyczne trafienia zależą od zręczności, ale każde ostrze ma swoją wagę.',
+  'Krainę otacza morze — na horyzoncie pali się latarnia, a przez mieliznę można dojść do Samotnej Skały.',
+  'Postacie mówią na głos. Klawisz V wyłącza i włącza głosy, jeśli przeszkadzają.',
+  'W chacie rybaków na północnym brzegu kupisz ryby i usłyszysz, co spotkało „Zimną Falę”.',
+  'Pogoda zmienia się sama: słońce, chmury, deszcz, mgła. W ulewie wilki trudniej cię wytropią.',
 ];
 
 // Pozycje w danych podajemy w metrach „autorskich” (czytelne liczby), a gra

@@ -19,9 +19,31 @@ Alternatywy: [paczka ZIP](https://github.com/Agama12345/gta/raw/arena/68dc2b6a-g
 (rozpakuj → `Uruchom-gre.cmd`) albo launcher **Arcane Spire**
 ([`ArcaneSpire.exe`](https://github.com/Agama12345/gta/releases/download/launcher-latest/ArcaneSpire.exe)).
 
+## Co jest w świecie (wersja 1.1)
+
+- **Mapa 5 × 5 km (25 km², ~5× więcej lądu niż wcześniej)** — góry, przełęcze, lasy,
+  bagno, jezioro i wybrzeże. Wszystkie odległości w grze są liczone w metrach.
+- **Ocean dokoła krainy** — linia brzegowa z plażami i klifami, fale, piana przybrzeżna,
+  wyspy, mielizna do Samotnej Skały, mewy nad zatoką. Nie ma już niewidzialnej ściany na
+  skraju mapy: dalej jest po prostu morze.
+- **Nowe miejsca:** Latarnia na Cyplu (obraca smuga światła nocą), wrak „Zimnej Fali”,
+  Chaty Rybaków z pomostem, suszarniami i rybakiem Tobiaszem (handel + własne dialogi).
+- **Modele natury w stylu Gothica:** sosny z piętrami korony i sękami, dęby z korzeniami,
+  brzozy z czarnymi pasami kory, uschłe drzewa, głazy z mchem i odłamkami, paprocie,
+  trzciny, kępy trawy — wszystkie z ręcznie ułożoną sylwetką i stonowaną paletą.
+- **Animacje ze stawami:** kolana, łokcie, kołysanie bioder, skręt tułowia, przeciwfaza
+  rąk i nóg, zamach i wyhamowanie ciosu, peleryna z segmentów.
+- **Dźwięk otoczenia w stereo:** wiatr, fale, ptaki, świerszcze, sowa, wilki w oddali,
+  trzask ognia, kroki zależne od podłoża (trawa / ziemia / kamień / woda / śnieg),
+  pogłos otwartej przestrzeni.
+- **Postacie mówią na głos** — dialogi czytane syntezą mowy systemu, każda postać ma
+  własną barwę (wysokość i tempo). Klawisz **V** włącza/wyłącza głosy.
+- **Pogoda:** słońce, zachmurzenie, deszcz, burza i mgła zmieniają się same; deszcz
+  realnie zmniejsza zasięg, z jakiego wrogowie cię zauważają.
+
 ## Co to jest
 
-Pełna, samodzielna gra RPG 3D działająca w przeglądarce. Cały świat, modele, animacje
+Pełna, samodzielna gra RPG 3D — działa jako program na PC (własne okno) i w przeglądarce. Cały świat, modele, animacje
 i dźwięk są generowane proceduralnie w kodzie — projekt nie potrzebuje żadnych
 zewnętrznych assetów ani serwera gry. Wystarczy otworzyć stronę.
 
