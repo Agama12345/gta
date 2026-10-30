@@ -73,6 +73,22 @@ jobs:
           $info = [System.Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $exe))
           Write-Host ("Produkt: " + $info.ProductName + " " + $info.ProductVersion)
 
+          # nagłówek PE: MZ + podsystem GUI (2)
+          $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path $exe))
+          $magic = [System.Text.Encoding]::ASCII.GetString($bytes[0..1])
+          $peOffset = [BitConverter]::ToInt32($bytes, 0x3C)
+          $subsystem = [BitConverter]::ToUInt16($bytes, $peOffset + 0x5C)
+          Write-Host "Nagłówek: $magic, podsystem: $subsystem (2 = aplikacja okienkowa)"
+          if ($magic -ne 'MZ') { throw 'To nie jest plik wykonywalny Windows' }
+          if ($subsystem -ne 2) { throw "Zły podsystem: $subsystem" }
+
+          # ikona wbudowana w plik
+          Add-Type -AssemblyName System.Drawing
+          $icon = [System.Drawing.Icon]::ExtractAssociatedIcon((Resolve-Path $exe))
+          if ($null -eq $icon) { throw 'Brak ikony w pliku exe' }
+          Write-Host ("Ikona: " + $icon.Width + "x" + $icon.Height)
+          $icon.Dispose()
+
       - name: Artefakt
         uses: actions/upload-artifact@v4
         with:

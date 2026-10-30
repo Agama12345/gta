@@ -14,27 +14,33 @@ zewnętrznych assetów ani serwera gry. Wystarczy otworzyć stronę.
 
 ## Pobranie i uruchomienie na komputerze
 
-Gra jest rozpowszechniana przez launcher **Arcane Spire** (folder `launcher/`)
-— biblioteka gier z automatycznymi aktualizacjami z GitHuba, w stylu Steama.
+Gra jest rozpowszechniana przez launcher **Arcane Spire** — bibliotekę i sklep z grami
+w stylu Steama, z automatycznymi aktualizacjami z GitHuba.
 
-**Najprościej — pobierz jeden plik:**
+### Gotowy plik do pobrania (Windows 10/11)
+
+**[ArcaneSpire.exe](https://github.com/Agama12345/gta/releases/download/launcher-latest/ArcaneSpire.exe)**
+(~145 kB, jeden plik, .NET Framework 4.8 jest już w systemie)
+
+1. Pobierz plik i uruchom go (jeśli SmartScreen ostrzega: *Więcej informacji → Uruchom mimo to*).
+2. Ustawienia → **„Zainstaluj launcher w systemie”** — skrót na pulpicie i w menu Start.
+3. W sklepie wybierz grę → **ZAINSTALUJ** → pasek pobierania → **GRAJ**.
+
+W bibliotece czekają dwie gry:
+
+| Gra | Co to jest |
+| --- | --- |
+| **Runy Przeznaczenia** | RPG akcji 3D, świat 1560 × 1560 m, 15 krain, góry, jezioro, fabuła |
+| **OreRush** | zręcznościówka w przeglądarce: kop, zbieraj rudę, uciekaj przed kamieniami |
+
+Każda zmiana kodu w repozytorium to nowy commit — launcher wykrywa go przy starcie
+i podmienia pliki gry (i sam siebie) przed uruchomieniem.
+
+### Wersja skryptowa / awaryjna
+
 [`ArcaneSpire-launcher.zip`](https://github.com/Agama12345/gta/raw/arena/68dc2b6a-gta/downloads/ArcaneSpire-launcher.zip)
-(23 kB) → rozpakuj → kliknij dwa razy `ArcaneSpire.bat`.
-Wydanie: [spire-1.0.0](https://github.com/Agama12345/gta/releases/tag/spire-1.0.0).
-
-**Albo jedno polecenie** (Windows PowerShell):
-
-```powershell
-irm https://raw.githubusercontent.com/Agama12345/gta/arena/68dc2b6a-gta/launcher/install.ps1 | iex
-```
-
-Instaluje launcher, tworzy skrót na pulpicie i uruchamia bibliotekę.
-
-**Albo ręcznie:** pobierz repozytorium jako ZIP → rozpakuj → wejdź w `launcher\`
-→ kliknij dwa razy `ArcaneSpire.bat`.
-
-Po każdej zmianie kodu w repozytorium launcher wykrywa nowy commit i sam
-pobiera świeżą paczkę gry przed uruchomieniem. Szczegóły: [`launcher/README.md`](launcher/README.md).
+— PowerShell + WinForms, ta sama logika, gdyby .exe nie wystartował.
+Szczegóły w [`launcher/README.md`](launcher/README.md).
 
 ## Uruchomienie (wersja dla programistów)
 

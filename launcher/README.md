@@ -1,83 +1,78 @@
-# Arcane Spire — launcher gier
+# Arcane Spire 1.1 — launcher gier (Windows)
 
-Launcher w stylu Steama dla gier z GitHuba. Zero instalacji: **Windows 10/11 ma
-wszystko, czego potrzebuje** (PowerShell 5.1 + WinForms).
+Gotowy plik `.exe` do pobrania, bez instalowania .NET i bez budowania czegokolwiek:
 
-```
-launcher/
-├── ArcaneSpire.bat     ← kliknij dwa razy, żeby uruchomić
-├── ArcaneSpire.ps1     ← główny program (biblioteka, aktualizacje, UI)
-├── serve.ps1           ← lokalny serwer plików gry (tylko 127.0.0.1)
-├── install.ps1         ← instalator jednolinijkowy (skróty na pulpicie)
-├── ArcaneSpire.ico     ← ikona (fioletowa runa)
-└── ui/icon-128.png     ← logo w oknie
-```
+**https://github.com/Agama12345/gta/releases/download/launcher-latest/ArcaneSpire.exe**
 
-## Jak to działa
+- system: Windows 10 (1903+) / Windows 11 — .NET Framework 4.8 jest wbudowany,
+- rozmiar: ~145 kB, jeden plik, bez zależności,
+- link `launcher-latest` jest **stały** — zawsze prowadzi do najnowszego builda.
 
-1. **Biblioteka** — lista gier w `%LOCALAPPDATA%\ArcaneSpire\library.json`.
-   Domyślnie: *Runy Przeznaczenia* (gotowa) i *OreRush* (dodaj repozytorium).
-2. **Wykrywanie zmian** — launcher pyta GitHub API o ostatni commit gałęzi.
-   Inny SHA niż zapisany lokalnie ⇒ jest nowa wersja.
-3. **Pobieranie** — jeden plik ZIP z `codeload.github.com` (nie limituje API),
-   rozpakowywany tylko z katalogu `releases/<gra>`.
-4. **Uruchomienie** — lokalny serwer HTTP na `127.0.0.1` (własny `TcpListener`,
-   bez uprawnień administratora) + Edge/Chrome w trybie `--app` — gra wygląda
-   jak osobna aplikacja, bez pasków przeglądarki.
-5. **Auto-aktualizacja** — przy starcie, przy kliknięciu GRAJ i co 5 minut.
-   Każda zmiana linijki kodu w repozytorium to nowy commit ⇒ launcher sam
-   pobiera nową paczkę przed uruchomieniem gry.
+Pierwsze uruchomienie: Ustawienia → **„Zainstaluj launcher w systemie”** (kopiuje plik do
+`%LOCALAPPDATA%\ArcaneSpire\app`, robi skróty na pulpicie i w menu Start, dodaje autostart
+— dzięki temu samoaktualizacja ma zapisywalny katalog).
 
-## Instalacja u użytkownika
+## Co jest w środku
 
-**Wariant A — jeden plik, jedno polecenie** (PowerShell):
+| Element | Opis |
+| --- | --- |
+| **Sklep** | kafelki gier, ceny, „Dodaj do biblioteki”, wyszukiwanie po bibliotece |
+| **Biblioteka** | lista gier, karta gry, duży przycisk GRAJ/ZAINSTALUJ, czas gry, wersja, commit |
+| **Pobierania** | kolejka jak w Steamie: postęp, prędkość, ETA, anulowanie, czyszczenie |
+| **Konto** | rejestracja i logowanie lokalne (PBKDF2-SHA256, 60 000 iteracji), biblioteka i statystyki per konto |
+| **Ustawienia** | auto-aktualizacje, autostart z Windows, folder danych, log, instalacja do systemu |
+| **Aktualizacje** | wykrywanie nowego commitu na GitHubie + podmiana plików przed uruchomieniem gry; launcher aktualizuje też siebie |
 
-```powershell
-irm https://raw.githubusercontent.com/Agama12345/gta/arena/68dc2b6a-gta/launcher/install.ps1 | iex
-```
+Dwie gry w bibliotece: **Runy Przeznaczenia** (RPG 3D, świat 1560 m) i **OreRush**
+(zręcznościówka w przeglądarce). Obie instalują się z GitHuba jednym kliknięciem,
+z paskiem pobierania i automatycznymi aktualizacjami.
 
-Instaluje launcher w `%LOCALAPPDATA%\ArcaneSpire\app`, tworzy skrót na pulpicie
-i w menu Start, potem go uruchamia.
+## Jak działa instalacja
 
-**Wariant B — ZIP z GitHuba**: pobierz repozytorium jako ZIP, rozpakuj,
-wejdź w `launcher\` i kliknij dwa razy `ArcaneSpire.bat`.
+1. Klik **ZAINSTALUJ** → launcher pyta GitHub API o ostatni commit gałęzi.
+2. Pobiera ZIP paczki z `codeload.github.com` (bez limitów API), z postępem i prędkością.
+3. Rozpakowuje **tylko** katalog `releases/<gra>/`, podmienia go atomowo (`www.new` → `www`).
+4. Zapisuje `state.json` (SHA, wersja, rozmiar, data) — to podstawa wykrywania zmian.
+5. **GRAJ** → lokalny serwer HTTP na `127.0.0.1` (TcpListener, bez uprawnień administratora)
+   i Edge/Chrome w trybie `--app` z osobnym profilem, więc gra wygląda jak osobna aplikacja.
 
-**Autotest** (diagnostyka połączenia i rozpakowywania, bez okna):
+Auto-aktualizacja: przy starcie, po kliknięciu „Sprawdź aktualizacje” i co 5 minut
+w tle. Każdy nowy commit w repozytorium = nowa wersja do pobrania.
+
+## Dodawanie własnych gier
+
+Biblioteka → **Właściwości** (albo przycisk „Dodaj grę”):
+
+| Typ źródła | Kiedy |
+| --- | --- |
+| `web` | repozytorium GitHub + katalog z `index.html` — pełne aktualizacje |
+| `file` | bezpośredni link do pliku (np. instalator) — pobierany z postępem |
+| `external` | istniejąca strona/gra w internecie — otwierana w oknie aplikacji |
+
+## Autotest
 
 ```cmd
-ArcaneSpire.bat -SelfTest
+ArcaneSpire.exe --selftest
 ```
 
-Wynik trafia do `%LOCALAPPDATA%\ArcaneSpire\launcher.log`.
+Sprawdza: katalogi, JSON, GitHub API, pobranie i rozpakowanie paczki, lokalny serwer HTTP,
+wykrycie przeglądarki i możliwość samoaktualizacji. Wynik pokazuje w okienku i zapisuje
+w `%LOCALAPPDATA%\ArcaneSpire\launcher.log`.
 
-## Dodawanie gry (np. OreRush)
+## Wersja skryptowa (awaryjna)
 
-Przycisk **DODAJ GRĘ**:
+Zostawiona na wypadek, gdyby .exe nie wystartował na starym systemie: `ArcaneSpire.bat`
+uruchamia `ArcaneSpire.ps1` (PowerShell 5.1, ta sama logika biblioteki i aktualizacji,
+skromniejszy interfejs).
 
-| Pole | Znaczenie |
-| --- | --- |
-| Nazwa gry | cokolwiek, np. `OreRush` |
-| Repozytorium GitHub | `twoj-nick/OreRush` |
-| Gałąź | `main` |
-| Katalog paczki w repo | np. `releases/orerush` (katalog z `index.html`) |
-| Link bezpośredni | wypełnij **zamiast** repo, jeśli gra to pojedynczy plik/instalator |
+## Kompilacja
 
-Gra przeglądarkowa = `kind: web` (repo + katalog). Duży plik do pobrania
-(np. build z Unreala) = `kind: file` (sam link) — launcher pobiera go z paskiem
-postępu i uruchamia z dysku.
+Launcher buduje GitHub Actions na `windows-latest` (`.github/workflows/build-launcher.yml`):
+`dotnet build` → `dotnet publish` (net48, WinForms) → plik trafia do wydania `launcher-latest`.
+Ikona jest generowana z `launcher/assets/launcher-source.png` przez `python3 tools/make_icons.py`.
 
-## Bezpieczeństwo
-
-* serwer HTTP słucha **wyłącznie** na `127.0.0.1` i tylko w obrębie katalogu gry
-  (ochrona przed `..`),
-* launcher nie wysyła nigdzie danych poza zapytaniami do `api.github.com`
-  i `codeload.github.com`,
-* cała logika jest w czytelnych skryptach `.ps1` — można sprawdzić każdą linię.
-
-## Znane ograniczenia
-
-* Windows-only (używa WinForms). Na Linuksie/macu tę samą grę uruchomisz
-  w przeglądarce: `npm run dev` albo `npm run preview`.
-* Bez Edge/Chrome gra otworzy się w domyślnej przeglądarce (bez trybu okna).
-* Limit GitHub API bez logowania to 60 zapytań/godzinę — launcher zużywa jedno
-  na grę przy sprawdzaniu, więc jest daleko poniżej.
+```bash
+npm run icons          # ikony gry i launchera (PNG 16–512 + .ico)
+npm run launcher-pack  # ZIP z wersją skryptową (downloads/)
+npm run release        # paczki gier do releases/ (Runy + OreRush)
+```
