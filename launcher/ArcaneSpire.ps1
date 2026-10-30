@@ -251,6 +251,81 @@ function Expand-Subfolder {
   return $count
 }
 
+# ---------------------------------------------------------------- sam aktualizacja
+$Script:SelfRepo = 'Agama12345/gta'
+$Script:SelfBranch = 'arena/68dc2b6a-gta'
+$Script:SelfSubPath = 'launcher'
+$Script:SelfVersionFile = Join-Path $Script:AppDir 'launcher-version.json'
+
+function Get-LocalLauncherSha {
+  if (Test-Path -LiteralPath $Script:SelfVersionFile) {
+    try {
+      $data = Get-Content -LiteralPath $Script:SelfVersionFile -Raw | ConvertFrom-Json
+      return [string]$data.sha
+    } catch { }
+  }
+  return $null
+}
+
+function Test-SelfUpdateAllowed {
+  # uruchomiony prosto z repozytorium (tryb pracy nad kodem) — nie nadpisujemy plikow
+  $normalized = $Script:AppDir.TrimEnd('\')
+  $expected = (Join-Path $Script:DataDir 'app').TrimEnd('\')
+  return ($normalized -ieq $expected)
+}
+
+function Restart-Launcher {
+  try {
+    $exe = (Get-Process -Id $PID).Path
+    $script = Join-Path $Script:AppDir 'ArcaneSpire.ps1'
+    Start-Process -FilePath $exe -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', $script)
+    Write-Log 'Restart launchera po aktualizacji.'
+  } catch {
+    Write-Log "Restart nieudany: $($_.Exception.Message)"
+  }
+  if ($Script:HasUI) { $Script:Form.Close() }
+}
+
+function Invoke-LauncherSelfUpdate {
+  if (-not (Test-SelfUpdateAllowed)) { return $false }
+  $sha = Get-RemoteSha $Script:SelfRepo $Script:SelfBranch
+  if (-not $sha) { return $false }
+  $localSha = Get-LocalLauncherSha
+  if ($localSha -eq $sha) { return $false }
+
+  Write-Log "Aktualizacja launchera: $localSha -> $sha"
+  Set-Status 'Aktualizacja launchera…'
+  $zip = Join-Path ([System.IO.Path]::GetTempPath()) ('as-self-' + [guid]::NewGuid().ToString('N') + '.zip')
+  $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ('as-self-' + [guid]::NewGuid().ToString('N'))
+  $changed = 0
+  try {
+    Save-RemoteFile ("https://codeload.github.com/$($Script:SelfRepo)/zip/$sha") $zip 'Launcher'
+    $count = Expand-Subfolder $zip $Script:SelfSubPath $tmp
+    if ($count -lt 1) { throw 'Pusta paczka launchera.' }
+    foreach ($file in (Get-ChildItem -LiteralPath $tmp -Recurse -File)) {
+      $rel = $file.FullName.Substring($tmp.Length).TrimStart('\', '/')
+      if ($rel -ieq 'launcher-version.json') { continue }
+      $target = Join-Path $Script:AppDir $rel
+      $parent = [System.IO.Path]::GetDirectoryName($target)
+      if ($parent -and -not (Test-Path -LiteralPath $parent)) {
+        New-Item -ItemType Directory -Force -Path $parent | Out-Null
+      }
+      Copy-Item -LiteralPath $file.FullName -Destination $target -Force
+      $changed = $changed + 1
+    }
+    $info = [ordered]@{ sha = $sha; updated = (Get-Date).ToString('o') }
+    ($info | ConvertTo-Json) | Set-Content -LiteralPath $Script:SelfVersionFile -Encoding UTF8
+    Write-Log "Launcher zaktualizowany ($changed plikow)."
+    return ($changed -gt 0)
+  } catch {
+    Write-Log "Aktualizacja launchera nieudana: $($_.Exception.Message)"
+    return $false
+  } finally {
+    Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
+  }
+}
+
 # ---------------------------------------------------------------- serwer HTTP
 function Test-Port {
   param([int]$Port)
@@ -908,6 +983,12 @@ $btnOpenData.Add_Click({
 
 $btnCheck.Add_Click({
   Invoke-Action -Name 'check' -Action {
+    if (Invoke-LauncherSelfUpdate) {
+      Set-Status 'Launcher zaktualizowany — uruchamiam ponownie…'
+      Start-Sleep -Milliseconds 600
+      Restart-Launcher
+      return
+    }
     $found = 0
     foreach ($game in $Script:Library) {
       if ($game.kind -ne 'web' -or [string]::IsNullOrWhiteSpace($game.repo)) { continue }
@@ -1056,6 +1137,12 @@ $form.Add_Shown({
   # cicha kontrola aktualizacji zaraz po otwarciu okna
   $Script:Form.BeginInvoke([System.Action]{
     Invoke-Action -Name 'startup-check' -Action {
+      if (Invoke-LauncherSelfUpdate) {
+        Set-Status 'Launcher zaktualizowany — uruchamiam ponownie…'
+        Start-Sleep -Milliseconds 600
+        Restart-Launcher
+        return
+      }
       foreach ($game in $Script:Library) {
         if ($game.kind -ne 'web' -or [string]::IsNullOrWhiteSpace($game.repo)) { continue }
         if (-not (Test-GameInstalled $game)) { continue }
@@ -1099,6 +1186,11 @@ $timer.Add_Tick({
       }
     }
     Update-GameInfo
+    if (Invoke-LauncherSelfUpdate) {
+      Set-Status 'Launcher zaktualizowany — uruchamiam ponownie…'
+      Start-Sleep -Milliseconds 600
+      Restart-Launcher
+    }
   }
 })
 $timer.Start()

@@ -83,6 +83,13 @@ if ($count -lt 1) {
 }
 Write-Host "  Zainstalowano $count plikow w $appDir" -ForegroundColor Green
 
+# zapis wersji - launcher wie, ktorej wersji jest i sam sie potem aktualizuje
+if ($sha) {
+  $versionFile = Join-Path $appDir 'launcher-version.json'
+  $info = [ordered]@{ sha = $sha; updated = (Get-Date).ToString('o') }
+  ($info | ConvertTo-Json) | Set-Content -LiteralPath $versionFile -Encoding UTF8
+}
+
 $ps1 = Join-Path $appDir 'ArcaneSpire.ps1'
 $ico = Join-Path $appDir 'ArcaneSpire.ico'
 $exe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
