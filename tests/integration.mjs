@@ -258,6 +258,34 @@ for (let i = 0; i < 60; i++) {
 }
 check('boss walczy bez błędów', true);
 
+console.log('▸ menu');
+game.state = 'playing';
+game.ui.openHero('inventory');
+game.ui.closePanels();
+check('zamknięcie panelu wraca do gry', game.state === 'playing');
+game.pauseGame();
+check('pauza zatrzymuje grę', game.state === 'ui' && !game.ui.pauseScreen.classList.contains('hidden'));
+check('pauza pokazuje stan wyprawy', /Poziom/.test(document.getElementById('pause-sub').textContent));
+check('karta pauzy ma zadanie', /Zadanie/.test(document.getElementById('pause-info').innerHTML));
+check('menu ma 5 przycisków', document.querySelectorAll('#title-buttons button').length === 5);
+game.ui.showSettings();
+check('ustawienia otwarte', game.ui.infoOpen === true);
+check('ustawienia mają suwak muzyki', !!document.getElementById('set-music-vol'));
+document.querySelector('#info-panel [data-close]')?.click();
+check('zamknięcie ustawień nie wznowiło gry spod pauzy', game.state === 'ui');
+game.resumeFromUi();
+check('powrót z pauzy', game.state === 'playing');
+game.returnToTitle();
+check('powrót do menu', game.state === 'title' && !game.ui.titleScreen.classList.contains('hidden'));
+check('w menu HUD schowany', game.ui.hud.style.display === 'none');
+check('karta menu pokazuje zapis', /Poziom/.test(document.getElementById('title-foot').innerHTML));
+check('kontynuacja aktywna po zapisie', document.getElementById('btn-continue').disabled === false);
+game.ui.moveMenuFocus(1);
+check('nawigacja klawiaturą działa', document.activeElement?.tagName === 'BUTTON');
+check('wskazówka w karcie menu', document.getElementById('title-tip').textContent.length > 10);
+game.loadGame();
+check('kontynuacja z menu wczytuje grę', game.state === 'playing');
+
 console.log('');
 if (failures > 0) {
   console.error(`✘ ${failures} test(ów) nie przeszło.`);

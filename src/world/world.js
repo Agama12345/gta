@@ -4,6 +4,7 @@ import {
   LOCATIONS, WATER_LEVEL, WORLD_RADIUS, WORLD_SCALE, LAND_RADIUS, COAST_RADIUS,
   CHUNK_SIZE, TerrainManager, createWater,
   RIVER_SURFACES, LAKE_SURFACES, pathRiverCrossings, riverSurfaceAt, isInRiver,
+  distanceToRiver,
 } from './terrain.js';
 import { RNG, dist2 } from '../core/utils.js';
 import {
@@ -71,11 +72,21 @@ export class World {
     this._buildBridges();
     this._buildRiverProps();
     this._buildLakeShores();
+    this._buildWildSites();
     this._buildAssetProps();
     this._buildBoard();
     this._scatterNature();
 
     this.batcher.finalize(true);
+
+    // Światła punktowe (ogniska, pochodnie, kapliczki) liczą się w shaderze
+    // tylko gdy są włączone — dlatego trzymamy je na liście i wygaszamy
+    // te, które są daleko od gracza. Bez tego kilkadziesiąt latarni
+    // obciąża każdy piksel ekranu.
+    this.lights = [];
+    this.group.traverse((o) => {
+      if (o.isPointLight) this.lights.push(o);
+    });
 
     game.scene.add(this.group);
     this.terrain.buildInitial(game.player?.pos ?? new THREE.Vector3(0, 0, 360));
@@ -141,6 +152,16 @@ export class World {
 
   update(dt, time, playerPos) {
     this.water.update(dt);
+    if (playerPos && this.lights?.length) {
+      const nightF = 1 - (time?.dayF ?? 1);
+      const range = 95 + nightF * 55;
+      for (const l of this.lights) {
+        if (l.userData.alwaysOn) continue;
+        const d = dist2(l.position.x, l.position.z, playerPos.x, playerPos.z);
+        const want = d < range;
+        if (l.visible !== want) l.visible = want;
+      }
+    }
     this._updateGulls(dt);
     if (this.beacon) {
       const nightF = 1 - (time?.dayF ?? 1);
@@ -168,6 +189,228 @@ export class World {
     if (node.mesh) node.mesh.visible = false;
     return true;
   }
+
+  // =========================================================================
+  // DZIKIE MIEJSCA — obozowiska, kapliczki, strażnice i jamy rozsiane po mapie
+  // =========================================================================
+  _buildWildSites() {
+    const rng = new RNG(31337);
+    const taken = [];
+    const tooClose = (x, z, r) => taken.some((t) => dist2(t.x, t.z, x, z) < r);
+    const nearLocation = (x, z, r) => Object.values(LOCATIONS).some(
+      (l) => l && l.x !== undefined && dist2(l.x, l.z, x, z) < r
+    );
+    for (const b of this.bridges) taken.push({ x: b.x, z: b.z });
+
+    const siteKinds = ['camp', 'shrine', 'watchtower', 'den', 'grove', 'cart', 'charcoal', 'fisher'];
+    let placed = 0;
+    for (let attempt = 0; attempt < 2600 && placed < 22; attempt++) {
+      const a = rng.float(0, Math.PI * 2);
+      const rad = rng.float(230, WORLD_RADIUS * 0.82);
+      const x = Math.cos(a) * rad;
+      const z = Math.sin(a) * rad;
+      if (isWater(x, z)) continue;
+      if (heightAt(x, z) < WATER_LEVEL + 1.6) continue;
+      if (slopeAt(x, z) > 0.5) continue;
+      if (distanceToPath(x, z) < 14) continue;
+      if (nearLocation(x, z, 150)) continue;
+      if (tooClose(x, z, 210)) continue;
+      if (distanceToRiver(x, z) < 12) continue;
+      taken.push({ x, z });
+      placed += 1;
+      const kind = siteKinds[Math.floor(rng.float(0, siteKinds.length))];
+      this._buildWildSite(kind, x, z, rng);
+    }
+  }
+
+  _buildWildSite(kind, x, z, rng) {
+    const rot = rng.float(0, Math.PI * 2);
+    const y = heightAt(x, z);
+    const spread = (r) => {
+      const a = rng.float(0, Math.PI * 2);
+      const rr = rng.float(0, r);
+      return [x + Math.cos(a) * rr, z + Math.sin(a) * rr];
+    };
+
+    if (kind === 'camp') {
+      this.addStatic(makeTent(rng.chance(0.5) ? '#5b4a35' : '#4a3d2f'), x, z, rot, { collide: 1.6 });
+      const [fx, fz] = spread(2.6);
+      const fire = makeCampfire();
+      fire.light.intensity = 5;
+      fire.light.distance = 11;
+      fire.group.position.set(fx, heightAt(fx, fz), fz);
+      this.group.add(fire.group);
+      this.animated.push(fire);
+      for (let i = 0; i < 3; i++) {
+        const [px, pz] = spread(4);
+        const prop = i === 0 ? makeCrate(0.7) : i === 1 ? makeBarrel() : makeChest();
+        this.addStatic(prop, px, pz, rng.float(0, 6.28), { collide: 0.7 });
+      }
+      // palenisko z kamieni
+      for (let i = 0; i < 7; i++) {
+        const a = (i / 7) * Math.PI * 2;
+        this.addStatic(makeRock(rng.int(1, 997), 0.32), fx + Math.cos(a) * 1.25, fz + Math.sin(a) * 1.25, a, {});
+      }
+      return;
+    }
+
+    if (kind === 'shrine') {
+      const shrine = makeShrine();
+      shrine.group.position.set(x, y, z);
+      shrine.group.rotation.y = rot;
+      this.group.add(shrine.group);
+      this.animated.push(shrine);
+      this.colliders.push({ x, z, r: 1.4 });
+      this.addStatic(makeMenhir(2.6, rng.int(1, 99)), x + Math.cos(rot + 1.2) * 3.4, z + Math.sin(rot + 1.2) * 3.4, rot, { collide: 0.7 });
+      this.addStatic(makeMenhir(1.8, rng.int(1, 99)), x + Math.cos(rot - 1.6) * 3.1, z + Math.sin(rot - 1.6) * 3.1, rot, { collide: 0.6 });
+      this.addInteractive({
+        id: `wild_shrine_${Math.round(x)}_${Math.round(z)}`,
+        kind: 'shrine', x, z, radius: 3.4,
+        label: 'Leśna kapliczka — złóż ofiarę (15 złota)', mesh: null,
+        data: { cost: 15 },
+      });
+      for (let i = 0; i < 5; i++) {
+        const [px, pz] = spread(7);
+        if (isWater(px, pz) || slopeAt(px, pz) > 0.7) continue;
+        this.addStatic(makeRock(rng.int(1, 997), rng.float(0.4, 1.1)), px, pz, rng.float(0, 6.28), {});
+      }
+      return;
+    }
+
+    if (kind === 'watchtower') {
+      const stone = mat('#6d675d');
+      const wood = mat('#4f3c28', { rough: 0.95 });
+      const g = new THREE.Group();
+      const base = mesh(box(4.4, 5.6, 4.4), stone, 0, 2.8, 0);
+      g.add(base);
+      const broken = mesh(box(1.6, 2.2, 1.5), stone, 1.1, 6.6, -1.0);
+      broken.rotation.y = 0.6;
+      g.add(broken);
+      const deck = mesh(box(5.2, 0.28, 5.2), wood, 0, 5.7, 0);
+      g.add(deck);
+      for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+        const post = mesh(box(0.22, 2.0, 0.22), wood, sx * 2.2, 6.7, sz * 2.2);
+        g.add(post);
+      }
+      this.addStatic(g, x, z, rot, { collide: 2.6, whole: true });
+      this.addStatic(makeSignpost(), x + 3.4, z + 1.2, rot + 0.7, { collide: 0.5 });
+      for (let i = 0; i < 4; i++) {
+        const [px, pz] = spread(9);
+        if (isWater(px, pz)) continue;
+        this.addStatic(makeBush(rng.int(1, 999)), px, pz, rng.float(0, 6.28), {});
+      }
+      return;
+    }
+
+    if (kind === 'den') {
+      const g = new THREE.Group();
+      const earth = mat('#5a4a38', { rough: 1 });
+      const mound = mesh(new THREE.SphereGeometry(3.4, 9, 7, 0, Math.PI * 2, 0, Math.PI * 0.55), earth, 0, 0.1, 0);
+      mound.scale.y = 0.72;
+      mound.receiveShadow = true;
+      g.add(mound);
+      const mouth = mesh(new THREE.SphereGeometry(1.15, 8, 6), mat('#241d16', { rough: 1 }), 0, 0.55, 2.9);
+      mouth.scale.set(1.15, 0.85, 0.5);
+      g.add(mouth);
+      g.add(makeWolfTotem());
+      this.addStatic(g, x, z, rot, { whole: true, collide: 3.2 });
+      for (let i = 0; i < 4; i++) {
+        const [px, pz] = spread(5.5);
+        this.addStatic(makeBonePile(rng.int(1, 99)), px, pz, rng.float(0, 6.28), {});
+      }
+      return;
+    }
+
+    if (kind === 'grove') {
+      for (let i = 0; i < 7; i++) {
+        const a = (i / 7) * Math.PI * 2 + rng.float(-0.2, 0.2);
+        const r = rng.float(7, 10);
+        const px = x + Math.cos(a) * r;
+        const pz = z + Math.sin(a) * r;
+        if (isWater(px, pz)) continue;
+        this.addStatic(makeTree(rng.int(1, 9999)), px, pz, rng.float(0, 6.28), { collide: 0.75 });
+      }
+      this.addStatic(makeMenhir(3.0, rng.int(1, 99)), x, z, rot, { collide: 0.8 });
+      this.addStatic(makeHerbPatch(rng.int(1, 99)), x + 1.8, z + 1.4, 0.4, {});
+      for (let i = 0; i < 8; i++) {
+        const [px, pz] = spread(6);
+        if (isWater(px, pz)) continue;
+        this.addStatic(makeBush(rng.int(1, 999)), px, pz, rng.float(0, 6.28), {});
+      }
+      return;
+    }
+
+    if (kind === 'cart') {
+      const wood = mat('#5b4329', { rough: 0.95 });
+      const g = new THREE.Group();
+      const bed = mesh(box(2.6, 0.24, 1.5), wood, 0, 0.72, 0);
+      bed.rotation.z = 0.06;
+      g.add(bed);
+      for (const sx of [-1, 1]) {
+        const wheel = mesh(new THREE.TorusGeometry(0.52, 0.08, 5, 12), mat('#42301f'), sx * 1.05, 0.54, sx > 0 ? 0.62 : -0.62);
+        wheel.rotation.y = Math.PI / 2;
+        wheel.rotation.z = sx > 0 ? 0.25 : 0;
+        g.add(wheel);
+      }
+      const shaft = mesh(box(2.2, 0.12, 0.12), wood, 1.9, 0.55, 0);
+      shaft.rotation.z = -0.24;
+      g.add(shaft);
+      const load = mesh(box(1.4, 0.7, 1.1), mat('#7a6a4c'), 0, 1.1, 0);
+      g.add(load);
+      this.addStatic(g, x, z, rot, { whole: true, collide: 1.8 });
+      for (let i = 0; i < 3; i++) {
+        const [px, pz] = spread(3);
+        this.addStatic(makeCrate(0.6), px, pz, rng.float(0, 6.28), { collide: 0.6 });
+      }
+      this.addStatic(makeChest(), x - 1.6, z + 1.1, rot + 0.4, { collide: 0.8 });
+      return;
+    }
+
+    if (kind === 'charcoal') {
+      const g = new THREE.Group();
+      const mound = mesh(new THREE.ConeGeometry(2.4, 2.1, 9), mat('#3d3a34', { rough: 1 }), 0, 1.0, 0);
+      g.add(mound);
+      const cap = mesh(new THREE.ConeGeometry(1.3, 1.0, 9), mat('#565049', { rough: 1 }), 0, 2.3, 0);
+      g.add(cap);
+      this.addStatic(g, x, z, rot, { whole: true, collide: 2.4 });
+      const fire = makeCampfire();
+      fire.group.position.set(x + 3.2, heightAt(x + 3.2, z + 0.8), z + 0.8);
+      this.group.add(fire.group);
+      this.animated.push(fire);
+      for (let i = 0; i < 4; i++) {
+        const [px, pz] = spread(5);
+        this.addStatic(makeBarrel(), px, pz, rng.float(0, 6.28), { collide: 0.6 });
+      }
+      return;
+    }
+
+    // fisher — mały pomost nad rzeką albo nad jeziorem
+    const surf = riverSurfaceAt(x, z);
+    const lake = LAKE_SURFACES.reduce((best, l) => {
+      const d = dist2(l.x, l.z, x, z) - l.r;
+      return !best || d < best.d ? { l, d } : best;
+    }, null);
+    const waterY = surf ? surf.y : (lake ? lake.l.level : WATER_LEVEL);
+    const g = new THREE.Group();
+    const wood = mat('#4b3826', { rough: 0.96 });
+    for (let i = 0; i < 5; i++) {
+      const plank = mesh(box(3.0, 0.09, 0.34), wood, 0, 0.62 - i * 0.02, -i * 0.42);
+      g.add(plank);
+    }
+    for (const sx of [-1, 1]) {
+      for (const sz of [0, -1.6]) {
+        const post = mesh(cyl(0.08, 0.1, 2.0, 5), wood, sx * 1.3, 0.1, sz);
+        g.add(post);
+      }
+    }
+    g.position.set(x, waterY - 0.45, z);
+    g.rotation.y = rot;
+    g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    this.group.add(g);
+    this.addStatic(makeNetFrame(), x + Math.cos(rot) * 2.6, z + Math.sin(rot) * 2.6, rot + 1.2, { collide: 0.8 });
+    this.addStatic(makeCrate(0.55), x - 1.2, z + 1.4, rot, { collide: 0.5 });
+  }
+
 
   // =========================================================================
   // RZEKI I JEZIORA — mosty, trzciny, kamienie, łodzie

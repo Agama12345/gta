@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { clamp, damp, dampAngle } from '../core/utils.js';
+import { clamp, damp, dampAngle, angleDelta } from '../core/utils.js';
 import {
   heightAt, isWater, WATER_LEVEL, WORLD_RADIUS, WORLD_SCALE, waterDepth, waterLevelAt, isInRiver,
   distanceToPath, slopeAt,
@@ -708,7 +708,12 @@ export class Player {
     }
 
     const ground = heightAt(this.pos.x, this.pos.z);
+    const fallSpeed = (this.pos.y - ground) / Math.max(dt, 1e-3);
     this.pos.y = damp(this.pos.y, ground, 18, dt);
+    // lądowanie po zejściu ze zbocza: krótkie ugięcie kolan i kompresja tułowia
+    if (fallSpeed > 4.5) {
+      this._land = Math.max(this._land ?? 0, Math.min(1, (fallSpeed - 4.5) / 9));
+    }
 
     // granice obozowiska bandytów itp. — prosta kolizja z domami
     this._resolveBuildingCollisions();
@@ -1006,6 +1011,44 @@ export class Player {
       bodyPitch += 0.3 * c;
       bodyY -= 0.24 * c;
       head.rotation.x -= 0.12 * c;
+    }
+
+    // ---- adaptacja do terenu, przechył w zakręcie, lądowanie --------------
+    // Bohater „stoi” na zboczu: przód/tył i boki regulują pochylenie tułowia.
+    const fwdX = Math.sin(this.yaw);
+    const fwdZ = Math.cos(this.yaw);
+    const sideX = Math.cos(this.yaw);
+    const sideZ = -Math.sin(this.yaw);
+    const probe = 1.15;
+    const slopeF = (heightAt(this.pos.x + fwdX * probe, this.pos.z + fwdZ * probe)
+      - heightAt(this.pos.x - fwdX * probe, this.pos.z - fwdZ * probe)) / (probe * 2);
+    const slopeR = (heightAt(this.pos.x + sideX * probe, this.pos.z + sideZ * probe)
+      - heightAt(this.pos.x - sideX * probe, this.pos.z - sideZ * probe)) / (probe * 2);
+    this._slopeF = damp(this._slopeF ?? 0, clamp(slopeF, -0.55, 0.55), 6, dt);
+    this._slopeR = damp(this._slopeR ?? 0, clamp(slopeR, -0.45, 0.45), 6, dt);
+    bodyPitch += -this._slopeF * 0.75;
+    bodyRoll += this._slopeR * 0.6;
+
+    // przechył w zakręcie — ciało „idzie” za kierunkiem, zamiast się teleportować
+    const yawRate = angleDelta(this._prevYaw ?? this.yaw, this.yaw) / Math.max(dt, 1e-4);
+    this._prevYaw = this.yaw;
+    const bankTarget = clamp(-yawRate * 0.075, -0.3, 0.3) * clamp(norm, 0, 1.2);
+    this._bank = damp(this._bank ?? 0, bankTarget, 7, dt);
+    bodyRoll += this._bank;
+
+    // sprint: wyraźny skłon do przodu
+    if (this.sprinting && moving) bodyPitch += 0.1 + norm * 0.04;
+
+    // lądowanie: kolana amortyzują, tułów opada
+    if (this._land > 0) {
+      this._land = Math.max(0, this._land - dt * 2.6);
+      const k = Math.sin(clamp(this._land, 0, 1) * Math.PI);
+      bodyY -= 0.18 * k;
+      bodyPitch += 0.14 * k;
+      legs[0].rotation.x += 0.3 * k;
+      legs[1].rotation.x += 0.24 * k;
+      if (shins[0]) shins[0].rotation.x -= 0.55 * k;
+      if (shins[1]) shins[1].rotation.x -= 0.45 * k;
     }
 
     // wygładzenie tułowia — bez tego przejścia między stanami „strzelają”

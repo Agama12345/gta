@@ -2,7 +2,10 @@ import * as THREE from 'three';
 import { ITEMS, RARITY, EQUIP_SLOTS, RECIPES, itemStatSummary } from '../data/items.js';
 import { SPELLS, ATTRS } from '../entities/player.js';
 import { QUESTS, QUEST_ORDER, LORE } from '../data/quests.js';
-import { LOCATIONS, WORLD_RADIUS, heightAt, WATER_LEVEL, PATHS, forestMask } from '../world/terrain.js';
+import {
+  LOCATIONS, WORLD_RADIUS, heightAt, WATER_LEVEL, PATHS, forestMask,
+  RIVER_SURFACES, LAKE_SURFACES,
+} from '../world/terrain.js';
 import { TIPS } from '../data/dialogue.js';
 import { clamp, dist2, fbm } from '../core/utils.js';
 import { SHOPS } from '../data/dialogue.js';
@@ -32,6 +35,8 @@ const POI_LABELS = [
   { ...LOCATIONS.pass, short: 'Przełęcz Kalmoru', color: '#b0a898' },
   { ...LOCATIONS.circle, short: 'Kamienny Krąg', color: '#9f7cf0' },
   { ...LOCATIONS.mine, short: 'Kopalnia', color: '#a89a80' },
+  { name: 'Jezioro Mgliste', x: LAKE_SURFACES[3]?.x ?? 315, z: LAKE_SURFACES[3]?.z ?? -215, short: 'Jezioro Mgliste', color: '#7fb8cc' },
+  { name: 'Jezioro Kamienne', x: LAKE_SURFACES[4]?.x ?? 269, z: LAKE_SURFACES[4]?.z ?? -377, short: 'Jezioro Kamienne', color: '#7fb8cc' },
 ];
 
 // Kolor terenu w danym punkcie świata — wspólny dla mapy i minimapy.
@@ -39,7 +44,19 @@ function terrainSample(wx, wz) {
   const h = heightAt(wx, wz);
   const lakeD = Math.hypot(wx - LOCATIONS.lake.x, wz - LOCATIONS.lake.z);
   const swampD = Math.hypot(wx - LOCATIONS.swamp.x, wz - LOCATIONS.swamp.z);
-  if (lakeD < 118 && h < WATER_LEVEL + 0.2) return [42, 70, 88];
+  // jeziora (także te w górach) — woda widoczna na mapie i minimapie
+  for (const l of LAKE_SURFACES) {
+    const d = Math.hypot(wx - l.x, wz - l.z);
+    if (d < l.r && h < l.level) {
+      const depth = clamp01((l.level - h) / 4);
+      return [34 + depth * 8, 74 + depth * 18, 96 + depth * 26];
+    }
+    if (d < l.r * 1.16 && h < l.level + 1.6) return [116, 108, 82];
+  }
+  if (h < WATER_LEVEL - 0.05) {
+    const depth = clamp01((WATER_LEVEL - h) / 14);
+    return [30 + depth * 10, 66 + depth * 26, 88 + depth * 30];
+  }
   if (lakeD < 126 && h < WATER_LEVEL + 1.8) return [122, 112, 82];
   if (swampD < 200) return [74, 82, 58];
   if (h > 196) return [226, 229, 231];
@@ -442,18 +459,29 @@ export class UI {
     title.className = 'menu-screen';
     title.id = 'title-screen';
     title.innerHTML = `
-      <div class="menu-inner">
-        <div class="menu-sigil"><img class="rune-icon" src="./icon-128.png" alt="" /></div>
-        <h1 class="menu-title">Runy Przeznaczenia</h1>
-        <div class="menu-tagline">RPG · Wilcza Dolina · Mgliste Wrota</div>
-        <div class="menu-buttons" id="title-buttons">
-          <button class="primary" data-menu="new">Nowa wyprawa</button>
-          <button data-menu="continue" id="btn-continue">Kontynuuj</button>
-          <button data-menu="settings">Ustawienia</button>
-          <button data-menu="controls">Sterowanie</button>
-          <button data-menu="about">O grze</button>
+      <div class="menu-shell">
+        <div class="menu-hero">
+          <div class="menu-sigil"><img class="rune-icon" src="./icon-128.png" alt="" /></div>
+          <h1 class="menu-title">Runy Przeznaczenia</h1>
+          <div class="menu-tagline">RPG · Wilcza Dolina · Mgliste Wrota</div>
+          <div class="menu-buttons" id="title-buttons">
+            <button class="primary" data-menu="new">Nowa wyprawa</button>
+            <button data-menu="continue" id="btn-continue">Kontynuuj</button>
+            <button data-menu="settings">Ustawienia</button>
+            <button data-menu="controls">Sterowanie</button>
+            <button data-menu="about">O grze</button>
+          </div>
+          <div class="menu-hint"><b>↑ ↓</b> wybór · <b>Enter</b> zatwierdź · <b>Esc</b> powrót</div>
         </div>
-        <div class="menu-foot" id="title-foot"></div>
+        <aside class="menu-card">
+          <div class="card-head"><span class="card-dot"></span>Kronika wyprawy</div>
+          <div class="card-body" id="title-foot"></div>
+          <div class="card-tip" id="title-tip"></div>
+          <div class="card-foot">
+            <span>wersja 1.2</span>
+            <span id="menu-clock">—</span>
+          </div>
+        </aside>
       </div>`;
     this.root.appendChild(title);
     this.titleScreen = title;
@@ -463,18 +491,27 @@ export class UI {
     pause.className = 'menu-screen hidden';
     pause.id = 'pause-screen';
     pause.innerHTML = `
-      <div class="menu-inner">
-        <div class="menu-sigil">❖</div>
-        <h1 class="menu-title" style="font-size:clamp(26px,4.5vw,40px)">Pauza</h1>
-        <div class="menu-tagline" id="pause-sub">Wilcza Dolina czeka</div>
-        <div class="menu-buttons" id="pause-buttons">
-          <button class="primary" data-pause="resume">Powrót do gry</button>
-          <button data-pause="save">Zapisz grę</button>
-          <button data-pause="settings">Ustawienia</button>
-          <button data-pause="controls">Sterowanie</button>
-          <button data-pause="mute" id="btn-mute">Dźwięk: wł.</button>
-          <button data-pause="title">Wyjdź do menu</button>
+      <div class="menu-shell">
+        <div class="menu-hero">
+          <div class="menu-sigil">❖</div>
+          <h1 class="menu-title pause-title">Pauza</h1>
+          <div class="menu-tagline" id="pause-sub">Wilcza Dolina czeka</div>
+          <div class="menu-buttons" id="pause-buttons">
+            <button class="primary" data-pause="resume">Powrót do gry</button>
+            <button data-pause="save">Zapisz grę</button>
+            <button data-pause="settings">Ustawienia</button>
+            <button data-pause="controls">Sterowanie</button>
+            <button data-pause="mute" id="btn-mute">Dźwięk: wł.</button>
+            <button data-pause="title">Wyjdź do menu</button>
+          </div>
+          <div class="menu-hint"><b>Esc</b> wracasz do gry</div>
         </div>
+        <aside class="menu-card" id="pause-card">
+          <div class="card-head"><span class="card-dot"></span>Stan wyprawy</div>
+          <div class="card-body" id="pause-info"></div>
+          <div class="card-tip" id="pause-tip"></div>
+          <div class="card-foot"><span id="pause-save-time"></span><span id="pause-clock">—</span></div>
+        </aside>
       </div>`;
     this.root.appendChild(pause);
     this.pauseScreen = pause;
@@ -603,7 +640,7 @@ export class UI {
     }
   }
 
-  /** Odświeża stan ekranu tytułowego: czy jest zapis, co pokazać w stopce. */
+  /** Jedno miejsce, które opisuje stan obu menu (tytuł i pauza). */
   refreshMenuState() {
     const save = this._readSave();
     const btn = this.titleScreen?.querySelector('#btn-continue');
@@ -611,23 +648,66 @@ export class UI {
       btn.disabled = !save;
       btn.title = save ? 'Wczytaj ostatni zapis' : 'Brak zapisu — zacznij nową wyprawę';
     }
+
     const foot = this.titleScreen?.querySelector('#title-foot');
     if (foot) {
       if (save?.player) {
-        const lvl = save.player.level ?? 1;
-        const gold = save.player.gold ?? 0;
-        const when = save.savedAt ? new Date(save.savedAt).toLocaleString('pl-PL') : '';
-        foot.innerHTML = `Zapis: poziom <b>${lvl}</b> · ${fmt(gold)} szt. złota<br/><small>${when}</small>`;
+        const pl = save.player;
+        const when = save.savedAt ? new Date(save.savedAt).toLocaleString('pl-PL') : '—';
+        const quests = save.quests ? Object.keys(save.quests.progress ?? {}).length : 0;
+        foot.innerHTML = `
+          <div class="card-row"><span>Poziom</span><b>${pl.level ?? 1}</b></div>
+          <div class="card-row"><span>Złoto</span><b>${fmt(pl.gold ?? pl.inventory?.gold ?? 0)}</b></div>
+          <div class="card-row"><span>Zadania</span><b>${quests}</b></div>
+          <div class="card-row"><span>Dzień</span><b>${save.day ?? 1}</b></div>
+          <div class="card-when">Ostatni zapis: ${when}</div>`;
       } else {
-        foot.textContent = 'Nowa gra — zacznij wyprawę';
+        foot.innerHTML = `
+          <div class="card-row"><span>Poziom</span><b>1</b></div>
+          <div class="card-row"><span>Złoto</span><b>0</b></div>
+          <div class="card-row"><span>Zadania</span><b>0</b></div>
+          <div class="card-when">Brak zapisu — zacznij nową wyprawę.</div>`;
       }
     }
+
+    const tip = this.titleScreen?.querySelector('#title-tip');
+    if (tip) tip.innerHTML = `<span>Wskazówka</span>${this._nextTip()}`;
+    const pauseTip = this.pauseScreen?.querySelector('#pause-tip');
+    if (pauseTip) pauseTip.innerHTML = `<span>Wskazówka</span>${this._nextTip()}`;
+
     const mute = this.pauseScreen?.querySelector('#btn-mute');
     if (mute) mute.textContent = `Dźwięk: ${this.game.audio?.enabled ? 'wł.' : 'wył.'}`;
+
     const sub = this.pauseScreen?.querySelector('#pause-sub');
-    if (sub && this.game.player) {
-      sub.textContent = `Poziom ${this.game.player.level} · ${fmt(this.game.player.inventory.gold)} szt. złota`;
+    const info = this.pauseScreen?.querySelector('#pause-info');
+    const player = this.game.player;
+    if (sub && player) {
+      sub.textContent = `Poziom ${player.level} · ${fmt(player.inventory.gold)} szt. złota`;
     }
+    if (info && player) {
+      const quest = this.game.quests?.activeQuest?.name ?? 'brak';
+      const region = this._biomeLabel();
+      const saveTime = save?.savedAt ? new Date(save.savedAt).toLocaleTimeString('pl-PL') : '—';
+      info.innerHTML = `
+        <div class="card-row"><span>Bohater</span><b>Kael</b></div>
+        <div class="card-row"><span>Poziom</span><b>${player.level} · ${fmt(player.xp ?? 0)} PD</b></div>
+        <div class="card-row"><span>Zadanie</span><b>${quest}</b></div>
+        <div class="card-row"><span>Okolica</span><b>${region || 'bez nazwy'}</b></div>
+        <div class="card-row"><span>Zapis</span><b>${saveTime}</b></div>`;
+    }
+    const saveTime = this.pauseScreen?.querySelector('#pause-save-time');
+    if (saveTime) saveTime.textContent = save ? 'zapis aktualny' : 'brak zapisu';
+  }
+
+  /** Losowa wskazówka do karty menu (bez powtarzania tej samej dwa razy). */
+  _nextTip() {
+    const pool = Array.isArray(TIPS) && TIPS.length ? TIPS : ['Rozmawiaj z mieszkańcami — każdy ma własny głos.'];
+    let pick = pool[Math.floor(Math.random() * pool.length)];
+    for (let guard = 0; guard < 6 && pick === this._lastTip; guard++) {
+      pick = pool[Math.floor(Math.random() * pool.length)];
+    }
+    this._lastTip = pick;
+    return typeof pick === 'string' ? pick : pick.text ?? '';
   }
 
   /** Klawiatura w menu: strzałki przełączają przyciski, Enter wybiera. */
@@ -1534,21 +1614,34 @@ export class UI {
   showTitle() {
     this.refreshMenuState();
     this.titleScreen.classList.remove('hidden');
-    const hasSave = !!localStorage.getItem('runy-przeznaczenia-save') || !!localStorage.getItem('ostrze-switu-save');
-    const btn = qs('#btn-continue');
-    btn.disabled = !hasSave;
-    qs('#title-foot').innerHTML = hasSave
-      ? 'Zapis znaleziony · <b>Kontynuuj</b> wróci do ostatniego ogniska'
-      : 'Gra tworzy zapis automatycznie. <b>Nowa wyprawa</b> zaczyna się w Wilczej Dolinie.';
+    clearInterval(this._menuTimer);
+    // zegar świata i rotacja wskazówek — menu żyje, zamiast stać w miejscu
+    this._menuTimer = setInterval(() => {
+      if (this.titleScreen.classList.contains('hidden')) return;
+      const clock = this.titleScreen.querySelector('#menu-clock');
+      if (clock) clock.textContent = this.game.dayNight?.clockString ?? '—';
+      if (Math.random() < 0.35) {
+        const tip = this.titleScreen.querySelector('#title-tip');
+        if (tip) tip.innerHTML = `<span>Wskazówka</span>${this._nextTip()}`;
+      }
+    }, 4000);
+    // fokus na pierwszym przycisku — Enter od razu działa
+    const first = this.titleScreen.querySelector('.menu-buttons button.primary:not([disabled])')
+      ?? this.titleScreen.querySelector('.menu-buttons button:not([disabled])');
+    first?.focus();
   }
 
   hideTitle() {
+    clearInterval(this._menuTimer);
+    this._menuTimer = null;
     this.titleScreen.classList.add('hidden');
   }
 
   showPause() {
     this.refreshMenuState();
     this.pauseScreen.classList.remove('hidden');
+    const first = this.pauseScreen.querySelector('.menu-buttons button.primary:not([disabled])');
+    first?.focus();
   }
 
   hidePause() {
@@ -1779,6 +1872,42 @@ export class UI {
       }
     }
     ctx.putImageData(img, 0, 0);
+
+    // ---- rzeki i jeziora -------------------------------------------------
+    const toMap = (x, z) => ({
+      x: ((x + WORLD_RADIUS) / (2 * WORLD_RADIUS)) * size,
+      y: ((z + WORLD_RADIUS) / (2 * WORLD_RADIUS)) * size,
+    });
+    const waterScale = size / (2 * WORLD_RADIUS);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const r of RIVER_SURFACES) {
+      ctx.beginPath();
+      r.points.forEach((pt, i) => {
+        const m = toMap(pt.x, pt.z);
+        if (i === 0) ctx.moveTo(m.x, m.y);
+        else ctx.lineTo(m.x, m.y);
+      });
+      ctx.strokeStyle = 'rgba(28,58,74,0.95)';
+      ctx.lineWidth = Math.max(2, r.width * 1.25 * waterScale);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(96,168,196,0.95)';
+      ctx.lineWidth = Math.max(1.2, r.width * 0.85 * waterScale);
+      ctx.stroke();
+    }
+    for (const l of LAKE_SURFACES) {
+      if (l.level <= WATER_LEVEL + 1.5) continue;
+      const m = toMap(l.x, l.z);
+      const rad = l.r * waterScale;
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, rad, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(38,86,108,0.95)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(150,206,220,0.75)';
+      ctx.lineWidth = Math.max(1, size / 420);
+      ctx.stroke();
+    }
+
     // ścieżki
     ctx.strokeStyle = 'rgba(196,168,116,0.85)';
     ctx.lineWidth = Math.max(2, size / 260);
@@ -1818,12 +1947,34 @@ export class UI {
       }
     }
     this.miniCtx.putImageData(img, 0, 0);
-    this.miniCtx.strokeStyle = 'rgba(196,168,116,0.7)';
-    this.miniCtx.lineWidth = 1;
     const toTile = (x, z) => ({
       x: ((x - p.x) / (2 * viewRadius) + 0.5) * res,
       y: ((z - p.z) / (2 * viewRadius) + 0.5) * res,
     });
+    // rzeki na minimapie — rysowane wektorowo, żeby były ostre i tanie
+    this.miniCtx.lineCap = 'round';
+    this.miniCtx.lineJoin = 'round';
+    for (const r of RIVER_SURFACES) {
+      this.miniCtx.beginPath();
+      r.points.forEach((pt, i) => {
+        const t = toTile(pt.x, pt.z);
+        if (i === 0) this.miniCtx.moveTo(t.x, t.y);
+        else this.miniCtx.lineTo(t.x, t.y);
+      });
+      this.miniCtx.strokeStyle = 'rgba(74,146,174,0.95)';
+      this.miniCtx.lineWidth = Math.max(1.6, (r.width / (2 * viewRadius)) * res * 0.85);
+      this.miniCtx.stroke();
+    }
+    for (const l of LAKE_SURFACES) {
+      if (l.level <= WATER_LEVEL + 1.5) continue;
+      const t = toTile(l.x, l.z);
+      this.miniCtx.beginPath();
+      this.miniCtx.arc(t.x, t.y, (l.r / (2 * viewRadius)) * res, 0, Math.PI * 2);
+      this.miniCtx.fillStyle = 'rgba(58,120,146,0.95)';
+      this.miniCtx.fill();
+    }
+    this.miniCtx.strokeStyle = 'rgba(196,168,116,0.7)';
+    this.miniCtx.lineWidth = 1;
     for (const [ax, az, bx, bz] of PATHS) {
       const a = toTile(ax, az);
       const b = toTile(bx, bz);

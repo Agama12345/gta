@@ -372,7 +372,7 @@ export class Game {
   }
 
   pauseGame() {
-    if (this.state !== 'playing') return;
+    if (this.state !== 'playing' || !this.player) return;
     this.state = 'ui';
     this.ui.showPause();
     this.input.exitLock();
@@ -386,6 +386,7 @@ export class Game {
   }
 
   resumeFromUi() {
+    if (this.state === 'title' || this.state === 'dead') return;
     if (this.ui.anyPanelOpen() || this.ui.dialogueOpen) return;
     if (!this.ui.deathScreen.classList.contains('hidden')) return;
     if (!this.ui.victoryScreen.classList.contains('hidden')) return;
@@ -1159,7 +1160,13 @@ export class Game {
     this.scene.remove(this.player.group);
     this.player = new Player(this);
     this.scene.add(this.player.group);
-    this.player.load(data.player);
+    try {
+      this.player.load(data.player);
+    } catch (err) {
+      // uszkodzony zapis nie może zostawić gracza na czarnym ekranie
+      console.warn('Nie udało się wczytać zapisu, zaczynam nową grę.', err);
+      this.player.load(null);
+    }
     if (this.player.hp <= 0) this.player.hp = Math.max(1, Math.round(this.player.maxHP * 0.5));
     this.quests = new QuestSystem(this);
     this.contracts = new Contracts(this);
