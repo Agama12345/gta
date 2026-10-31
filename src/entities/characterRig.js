@@ -39,10 +39,43 @@ export function tuneCharacterMaterials(root) {
       const metal = METAL_MATERIAL.test(mat.name ?? '');
       mat.metalness = metal ? 0.35 : 0;
       mat.roughness = metal ? 0.4 : 0.62;
+      // Palety Quaterniusa są bardzo ciemne (0,06 w liniowej przestrzeni = prawie
+      // czarna plama na ekranie). Podnosimy luminancję najmroczniejszych barw,
+      // zachowując odcień — inaczej postać czyta się jak sylwetka z sadzy.
+      if (mat.color) {
+        const lum = 0.2126 * mat.color.r + 0.7152 * mat.color.g + 0.0722 * mat.color.b;
+        if (lum < 0.06) mat.color.multiplyScalar(1.45);
+        else if (lum < 0.12) mat.color.multiplyScalar(1.2);
+      }
       tuned += 1;
     }
   });
   return tuned;
+}
+
+/**
+ * Rozluźnia palce.
+ *
+ * Biblioteka animacji (UAL) nie ma ścieżek dla palców, więc dłonie zostawały
+ * w pozie „deski” — płaskie łopatki zamiast dłoni. Delikatne zgięcie palców
+ * (i kciuka w bok) wystarcza, żeby dłoń czytała się jako dłoń, a nie wiosło.
+ */
+export function relaxHands(root, { finger = 0.42, thumb = 0.3 } = {}) {
+  if (!root) return 0;
+  let bent = 0;
+  root.traverse((o) => {
+    if (!o.isBone) return;
+    const name = o.name ?? '';
+    if (/^(Index|Middle|Ring|Pinky)\d/i.test(name)) {
+      o.rotation.x += finger * (name.endsWith('2') || name.endsWith('2L') || name.endsWith('2R') ? 0.6 : 1);
+      bent += 1;
+    } else if (/^Thumb\d/i.test(name)) {
+      o.rotation.y += thumb;
+      o.rotation.x += finger * 0.3;
+      bent += 1;
+    }
+  });
+  return bent;
 }
 
 /** Nadaje modelowi barwy z definicji postaci (materiały są klonowane). */
@@ -388,6 +421,8 @@ export class CharacterRig {
     }
     // Jedna siatka na postać zamiast kilkunastu (kolor materiału → kolor wierzchołka).
     this.mergeStats = mergeSkinnedParts(this.source);
+    // dłonie: palce nie mają ścieżek w bibliotece animacji (patrz `relaxHands`)
+    this.handsRelaxed = relaxHands(this.source);
     this.mixer = new THREE.AnimationMixer(this.source);
     const { clips, unmatched } = matchClips(gltf.animations ?? []);
     this.clips = clips;

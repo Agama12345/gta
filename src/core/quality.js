@@ -12,25 +12,25 @@ export const QUALITY_TIERS = [
     id: 0, name: 'oszczędny',
     pixelRatio: 0.85, shadows: false, shadowMap: 512, shadowEvery: 0,
     fogScale: 0.55, terrainNear: 24, terrainBudget: 3, grass: 1400,
-    particles: 0.5, lodDistance: 55,
+    particles: 0.5, lodDistance: 55, lights: 2,
   },
   {
     id: 1, name: 'niski',
     pixelRatio: 1.0, shadows: true, shadowMap: 1024, shadowEvery: 3,
     fogScale: 0.72, terrainNear: 32, terrainBudget: 4, grass: 2400,
-    particles: 0.7, lodDistance: 75,
+    particles: 0.7, lodDistance: 75, lights: 3,
   },
   {
     id: 2, name: 'średni',
     pixelRatio: 1.25, shadows: true, shadowMap: 1536, shadowEvery: 2,
     fogScale: 0.88, terrainNear: 40, terrainBudget: 5, grass: 4000,
-    particles: 0.85, lodDistance: 95,
+    particles: 0.85, lodDistance: 95, lights: 4,
   },
   {
     id: 3, name: 'wysoki',
     pixelRatio: 1.5, shadows: true, shadowMap: 2048, shadowEvery: 2,
     fogScale: 1.0, terrainNear: 48, terrainBudget: 7, grass: 6000,
-    particles: 1, lodDistance: 120,
+    particles: 1, lodDistance: 120, lights: 6,
   },
 ];
 
@@ -89,7 +89,11 @@ export function applyQualityTier(game, index, { shadowsOverride = null } = {}) {
   }
   game.world?.setViewDistance?.(1150 * tier.fogScale);
   // od tej odległości roślinność rysuje się uproszczoną bryłą (4-5x mniej trójkątów)
-  if (game.world) game.world.lodDistance = tier.lodDistance;
+  if (game.world) {
+    game.world.lodDistance = tier.lodDistance;
+    // ile lamp (ognisk, pochodni, kapliczek) świeci naraz — patrz `world.update`
+    game.world.lightBudget = tier.lights;
+  }
   game.world?.setGrassDensity?.(tier.grass);
 
   game.shadowEvery = tier.shadowEvery;
@@ -132,10 +136,12 @@ export class AutoQuality {
     if (this.samples < 45) return; // daj silnikowi dojść do siebie po starcie
 
     this.lastChange += dt;
-    if (this.ema > 26) {
+    // 20,5 ms to ~49 klatek: poniżej tego gry nie da się nazwać płynną, a przy
+    // odświeżaniu 60 Hz vsync i tak nie pokaże nic pomiędzy 16,7 a 33 ms.
+    if (this.ema > 20.5) {
       this.badTime += dt;
       this.goodTime = 0;
-    } else if (this.ema < 15) {
+    } else if (this.ema < 13) {
       this.goodTime += dt;
       this.badTime = 0;
     } else {
@@ -205,8 +211,10 @@ export class DynamicResolution {
     if (this.timer < 0.5) return;
     this.timer = 0;
     let next = this.scale;
-    if (this.ema > this.target * 1.25) next = Math.max(this.min, this.scale - this.step);
-    else if (this.ema < this.target * 0.82) next = Math.min(this.max, this.scale + this.step * 0.5);
+    // próg „za wolno” ustawiony tuż nad 60 Hz: 18,3 ms to ~55 klatek, czyli
+    // moment, w którym przycięcia zaczynają być widoczne
+    if (this.ema > this.target * 1.1) next = Math.max(this.min, this.scale - this.step);
+    else if (this.ema < this.target * 0.86) next = Math.min(this.max, this.scale + this.step * 0.5);
     if (Math.abs(next - this.scale) > 0.001) {
       this.scale = next;
       this.apply();

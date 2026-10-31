@@ -6,6 +6,7 @@ import {
 } from '../world/terrain.js';
 import { applyGait, applyFootIK, phaseRate } from '../core/gait.js';
 import { makeHumanoid, makeSword, makeShield } from '../world/models.js';
+import { swordMesh } from './weaponProps.js';
 import { CharacterRig, animStateFor } from './characterRig.js';
 import { Cape, CAPE_COLORS } from './cape.js';
 import { Inventory } from '../systems/inventory.js';
@@ -187,16 +188,19 @@ export class Player {
   }
 
   _buildRigWeapons() {
-    const sword = makeSword({ blade: '#d9e2e8', guard: '#b08a3e', grip: '#3a2a1c' });
-    sword.scale.setScalar(0.9);
-    sword.position.set(0, 0.02, 0.02);
+    // Prawdziwe modele (KayKit CC0), a gdy ich brak — dotychczasowa broń z bryłek
+    const assets = this.game?.assets;
+    const glbSword = swordMesh(assets);
+    const sword = glbSword ?? makeSword({ blade: '#d9e2e8', guard: '#b08a3e', grip: '#3a2a1c' });
+    if (!glbSword) {
+      sword.scale.setScalar(0.9);
+      sword.position.set(0, 0.02, 0.02);
+    }
     sword.rotation.set(-0.55, 0, 0.1);
     this.weaponMesh = sword;
 
-    const shield = makeShield('#5d5341');
-    shield.scale.setScalar(0.86);
-    shield.position.set(0, 0.04, 0.02);
-    shield.rotation.set(0, Math.PI / 2, 0);
+    // Tarczy bohater nie nosi — miecz w dłoni czyta się lepiej niż tarcza
+    // zasłaniająca pół ekranu w kamerze zza pleców.
 
     const right = this.rig && this.rig.attach(sword, 'rightHand');
     if (!right) {
@@ -204,12 +208,6 @@ export class Player {
       sword.position.set(0.16, 1.32, -0.16);
       sword.rotation.set(0.5, 0, -1.15);
       this.group.add(sword);
-    }
-    const left = this.rig && this.rig.attach(shield, 'leftHand');
-    if (!left && !right) {
-      shield.position.set(-0.2, 1.2, -0.18);
-      shield.rotation.set(0, Math.PI / 2, 0.2);
-      this.group.add(shield);
     }
   }
 

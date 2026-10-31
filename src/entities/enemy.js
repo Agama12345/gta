@@ -3,6 +3,7 @@ import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { clamp, damp, dampAngle, dist2, TAU } from '../core/utils.js';
 import { heightAt, LOCATIONS, WORLD_SCALE } from '../world/terrain.js';
 import { makeHumanoid, makeSword, makeSkeleton, makeWolf, makeGolem, makeLurker } from '../world/models.js';
+import { weaponByKind } from './weaponProps.js';
 import { ENEMY_TYPES, SPAWNS } from '../data/enemies.js';
 import { buildBipedEnemy, buildBeastEnemy, buildRockGolem } from './enemyRigs.js';
 
@@ -297,19 +298,23 @@ export function buildEnemyModel(typeId, assets = null) {
     });
     if (rig) {
       if (def.weapon === 'bow') {
-        const bow = new THREE.Mesh(
+        // kusza z paczki KayKit trzymana oburącz; gdy modelu brak — dawny łuk
+        const crossbow = weaponByKind(assets, 'crossbow');
+        const bow = crossbow ?? new THREE.Mesh(
           new THREE.TorusGeometry(0.46, 0.028, 4, 14, Math.PI * 1.15),
           new THREE.MeshStandardMaterial({ color: '#6a4a2a', roughness: 0.85 }),
         );
-        bow.rotation.set(0, Math.PI / 2, Math.PI / 2);
+        if (!crossbow) bow.rotation.set(0, Math.PI / 2, Math.PI / 2);
         if (!rig.rig?.attach(bow, 'leftHand')) rig.group.add(bow);
       } else {
-        const weapon = makeSword(
+        const kind = def.weapon === 'axe' ? 'axe' : 'sword';
+        const glb = weaponByKind(assets, kind);
+        const weapon = glb ?? makeSword(
           def.weapon === 'axe'
             ? { blade: '#b9c2c9', guard: '#6a5a3a', grip: '#3a2a1c' }
             : { blade: '#c9d2d9', guard: '#8a7440', grip: '#3a2a1c' },
         );
-        weapon.scale.setScalar(def.weapon === 'axe' ? 1.12 : 1);
+        if (!glb) weapon.scale.setScalar(def.weapon === 'axe' ? 1.12 : 1);
         weapon.rotation.x = -0.3;
         if (!rig.rig?.attach(weapon, 'rightHand')) rig.group.add(weapon);
       }

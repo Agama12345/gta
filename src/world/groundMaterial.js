@@ -29,6 +29,44 @@ function toTexture(data, size) {
   return tex;
 }
 
+/** 64×64 kafelkowy szum — tło dla rozmycia krawędzi drogi i wariacji barwnej. */
+export function createNoiseTexture(size = 64) {
+  const data = new Uint8Array(size * size * 4);
+  const hash = (x, y) => {
+    let h = Math.imul((x | 0) * 374761393 + (y | 0) * 668265263, 1274126177);
+    h = (h ^ (h >>> 13)) >>> 0;
+    return h / 4294967296;
+  };
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      // dwie oktawy: gładka baza + drobne ziarno
+      const fx = x / size;
+      const fy = y / size;
+      const smooth = (u, v) => {
+        const i = Math.floor(u * size);
+        const j = Math.floor(v * size);
+        const fu = u * size - i;
+        const fv = v * size - j;
+        const wu = fu * fu * (3 - 2 * fu);
+        const wv = fv * fv * (3 - 2 * fv);
+        const a = hash(i % size, j % size);
+        const b = hash((i + 1) % size, j % size);
+        const c = hash(i % size, (j + 1) % size);
+        const d = hash((i + 1) % size, (j + 1) % size);
+        return (a * (1 - wu) + b * wu) * (1 - wv) + (c * (1 - wu) + d * wu) * wv;
+      };
+      const v = smooth(fx, fy) * 0.7 + hash(x, y) * 0.3;
+      const i4 = (y * size + x) * 4;
+      const byte = Math.round(Math.min(1, Math.max(0, v)) * 255);
+      data[i4] = byte;
+      data[i4 + 1] = byte;
+      data[i4 + 2] = byte;
+      data[i4 + 3] = byte;
+    }
+  }
+  return toTexture(data, size);
+}
+
 /** Buduje (raz) komplet tekstur gruntu. Zwraca null, gdy coś pójdzie nie tak. */
 export function createGroundTextures(size = 512) {
   if (cachedTextures) return cachedTextures;
@@ -81,6 +119,10 @@ export function injectVertexShader(src) {
 export function FRAG_DECL(pathCount) {
   return `
 #define GRD_PATHS ${pathCount}
+// Tani szum wartościowy: dwie oktawy, bez tekstury. Wcześniej dwie dodatkowe
+// próbki (rozmycie krawędzi drogi i wielkoskalowa wariacja) kosztowały dwa
+// pobrania z pamięci tekstur na każdy piksel ziemi.
+uniform sampler2D uNoiseMap;
 uniform vec4 uPaths[GRD_PATHS];
 uniform sampler2D uGrassMap;
 uniform sampler2D uDirtMap;
@@ -131,7 +173,7 @@ export const FRAG_BODY = `
   vec4 tS = texture2D(uSandMap, suv);
 
   // krawędź drogi rozmyta szumem (alfa = wysokość) i koleiny wzdłuż traktu
-  float grdEdgeNoise = (texture2D(uDirtMap, vGrdPos.xz * 0.031).a - 0.5) * 3.4;
+  float grdEdgeNoise = (texture2D(uNoiseMap, vGrdPos.xz * 0.045).r - 0.5) * 3.0;
   float grdRoad = 1.0 - smoothstep(uPathEdge.x, uPathEdge.y, grdBestD + grdEdgeNoise);
   if (grdRoad > 0.02) {
     vec4 tT = texture2D(uDirtMap, tuv);
@@ -151,7 +193,7 @@ export const FRAG_BODY = `
               + tS.a * (grdSandW + grdSnowW)) / grdTotal;
 
   // wielkoskalowa wariacja: rozbija powtarzalność kafla na dużych łąkach
-  float grdMacro = texture2D(uRockMap, vGrdPos.xz * 0.0075).a;
+  float grdMacro = texture2D(uNoiseMap, vGrdPos.xz * 0.0075).r;
   float grdVar = 1.0 + (grdMacro - uMacroMean) * 0.7;
   diffuseColor.rgb *= clamp(grdCol * uDetailGain, 0.55, 1.6) * grdVar;
 `;
@@ -186,6 +228,10 @@ export function injectFragmentShader(src, pathCount) {
  * Materiał terenu. Zwraca MeshStandardMaterial z wstrzykniętym splatem.
  * Gdy tekstur nie da się zbudować, zwraca zwykły materiał z kolorem wierzchołków.
  */
+export const MAX_PATH_SEGMENTS = 4;
+
+let noiseTexture = null;
+
 export function createGroundMaterial({ paths = [], edge = [2.4, 7.0] } = {}) {
   const tex = createGroundTextures();
   // Lambert zamiast PBR: teren pokrywa większość ekranu, a pełne modelowanie
@@ -196,9 +242,18 @@ export function createGroundMaterial({ paths = [], edge = [2.4, 7.0] } = {}) {
   });
   if (!tex) return material;
 
-  const pathVectors = paths.map(([ax, az, bx, bz]) => new THREE.Vector4(ax, az, bx, bz));
+  // Shader zawsze iteruje po czterech odcinkach — dla kafla, przez który nie
+  // przechodzi żaden trakt, wstawiamy odcinki „w Polesiu” (milion metrów dala).
+  // Jedna pętla po czterech zamiast dwudziestu to największa oszczędność
+  // w całym shaderze gruntu: piksel ziemi liczy się taniej o ~16 pierwiastków.
+  const dummy = new THREE.Vector4(1e6, 1e6, 1e6, 1e6);
+  const pathVectors = [];
+  for (let i = 0; i < MAX_PATH_SEGMENTS; i++) {
+    const seg = paths[i];
+    pathVectors.push(seg ? new THREE.Vector4(seg[0], seg[1], seg[2], seg[3]) : dummy.clone());
+  }
   material.userData.groundTextures = tex;
-  material.customProgramCacheKey = () => `ground-splat-${pathVectors.length}`;
+  material.customProgramCacheKey = () => 'ground-splat-4';
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uPaths = { value: pathVectors };
     shader.uniforms.uGrassMap = { value: tex.grass.map };
@@ -207,8 +262,10 @@ export function createGroundMaterial({ paths = [], edge = [2.4, 7.0] } = {}) {
     shader.uniforms.uSandMap = { value: tex.sand.map };
     shader.uniforms.uPathEdge = { value: new THREE.Vector2(edge[0], edge[1]) };
     shader.uniforms.uDetailGain = { value: tex.detailGain };
-    shader.uniforms.uMacroMean = { value: tex.macroMean };
+    // szum proceduralny ma średnią ~0,5 — wcześniej brała się z tekstury skały
+    shader.uniforms.uMacroMean = { value: 0.5 };
     shader.uniforms.uBumpScale = { value: 0.22 };
+    shader.uniforms.uNoiseMap = { value: noiseTexture ?? (noiseTexture = createNoiseTexture()) };
     shader.vertexShader = injectVertexShader(shader.vertexShader);
     shader.fragmentShader = injectFragmentShader(shader.fragmentShader, pathVectors.length);
   };

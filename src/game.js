@@ -279,6 +279,13 @@ export class Game {
       if (this.ui.moveMenuFocus(code === 'ArrowDown' ? 1 : -1)) return;
     }
 
+    // F3 — licznik wydajności (klatki, wywołania rysowania, trójkąty).
+    // Bez tego nie da się zgłosić „laguje”, bo nie wiadomo, co właściwie zwalnia.
+    if (code === 'F3') {
+      this.ui.toggleDebug?.();
+      return;
+    }
+
     if (this.state !== 'playing') return;
 
     switch (code) {
@@ -502,6 +509,7 @@ export class Game {
     this._watchPerformance(dt);
     this._updateShadows();
     this.renderer.render(this.scene, this.camera);
+    if (this.ui.debugOn) this._updateDebugHud(dt);
   }
 
   /** Odświeżanie mapy cieni co N klatek (albo od razu, gdy trzeba). */
@@ -520,6 +528,26 @@ export class Game {
    * Automatyczna degradacja jakości, gdy komputer nie wyrabia.
    * Ekran tytułowy też się liczy — „zacinające się menu” to najczęstsza skarga.
    */
+  /** Odświeża licznik F3 (cztery liczby, aktualizacja 4 razy na sekundę). */
+  _updateDebugHud(dt) {
+    this._dbgTime = (this._dbgTime ?? 0) + dt;
+    this._dbgFrames = (this._dbgFrames ?? 0) + 1;
+    if (this._dbgTime < 0.25) return;
+    const fps = this._dbgFrames / this._dbgTime;
+    const info = this.renderer?.info?.render ?? {};
+    this.ui.updateDebug?.({
+      fps,
+      ms: 1000 / Math.max(1, fps),
+      pixelRatio: this.renderer?.getPixelRatio?.() ?? 1,
+      calls: info.calls,
+      triangles: info.triangles,
+      chunks: this.world?.terrain?.stats?.built ?? 0,
+      grass: this.world?.grassField?.preparedFor ?? 0,
+    });
+    this._dbgTime = 0;
+    this._dbgFrames = 0;
+  }
+
   _watchPerformance(dt) {
     this.autoQuality?.update(dt);
     this.dynamicRes?.update(dt);

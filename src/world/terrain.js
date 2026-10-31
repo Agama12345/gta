@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { injectWaterWaves } from './waterShader.js';
 import { clamp, fbm, lerp, smoothstep, dist2 } from '../core/utils.js';
 import { biomeWeights } from './biomes.js';
-import { createGroundMaterial } from './groundMaterial.js';
+import { createGroundMaterial, MAX_PATH_SEGMENTS } from './groundMaterial.js';
 
 // ---------------------------------------------------------------------------
 // Skala świata.
@@ -1144,7 +1144,10 @@ export class TerrainManager {
     // Grunt: cztery warstwy tekstur mieszane w shaderze (trawa, droga, skała,
     // piasek/śnieg). Wierzchołki dają kolor biomu, tekstury — strukturę bliskiego
     // planu, bez której mapa wyglądała jak jednolita zielona plansza.
+    // Materiały gruntu trzymamy w puli: każdy kafel dostaje cztery najbliższe
+    // odcinki traktu (shader nie liczy już odległości do wszystkich dwudziestu).
     this.material = createGroundMaterial({ paths: PATHS, edge: [2.4, 7.0] });
+    this.pathMaterials = new Map();
     this.chunks = new Map();
     this.queue = [];
     this.lastLodPos = new THREE.Vector2(1e9, 1e9);
@@ -1160,6 +1163,39 @@ export class TerrainManager {
         });
       }
     }
+  }
+
+  /**
+   * Cztery najbliższe odcinki traktu dla kafla — wybierane raz, przy budowie.
+   * Materiały są współdzielone przez kafle z tym samym zestawem odcinków.
+   */
+  materialForChunk(cx, cz) {
+    const x = cx * CHUNK_SIZE - WORLD_RADIUS + CHUNK_SIZE / 2;
+    const z = cz * CHUNK_SIZE - WORLD_RADIUS + CHUNK_SIZE / 2;
+    const scored = [];
+    for (let i = 0; i < PATHS.length; i++) {
+      const [ax, az, bx, bz] = PATHS[i];
+      const dx = bx - ax;
+      const dz = bz - az;
+      const len2 = Math.max(1e-3, dx * dx + dz * dz);
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / len2));
+      const px = ax + dx * t;
+      const pz = az + dz * t;
+      scored.push([(x - px) * (x - px) + (z - pz) * (z - pz), i]);
+    }
+    scored.sort((a, b) => a[0] - b[0]);
+    const picked = scored.slice(0, MAX_PATH_SEGMENTS).sort((a, b) => a[1] - b[1]).map(([, i]) => i);
+    const key = picked.join(',');
+    let mat = this.pathMaterials.get(key);
+    if (!mat) {
+      mat = createGroundMaterial({ paths: picked.map((i) => PATHS[i]), edge: [2.4, 7.0] });
+      // tekstury tworzymy raz — kolejne materiały dostają te same mapy
+      if (this.material.userData.groundTextures) {
+        mat.userData.groundTextures = this.material.userData.groundTextures;
+      }
+      this.pathMaterials.set(key, mat);
+    }
+    return mat;
   }
 
   /**
@@ -1180,8 +1216,8 @@ export class TerrainManager {
     // wyglądają jak wielkie płaskie trójkąty, zwłaszcza z teksturami.
     // 5,2 m w bliskim planie (res 48) — kompromis: wyraźnie gładziej niż
     // wcześniejsze 7,8 m, ale przebudowa chunka mieści się w budżecie klatki.
-    if (d < 210) return this.nearRes ?? 48;
-    if (d < 430) return 32; // 7,8 m
+    if (d < 190) return this.nearRes ?? 40;
+    if (d < 430) return 28; // 9,1 m
     if (d < 1500) return 16; // 15,6 m — dalej trójkąty były widoczne gołym okiem
     return 12; // 20,8 m tylko na skraju mapy
   }
@@ -1193,7 +1229,7 @@ export class TerrainManager {
       chunk.mesh.geometry.dispose();
     }
     const geo = buildChunkGeometry(chunk.cx, chunk.cz, res);
-    const mesh = new THREE.Mesh(geo, this.material);
+    const mesh = new THREE.Mesh(geo, this.materialForChunk(chunk.cx, chunk.cz));
     mesh.receiveShadow = true;
     mesh.castShadow = false;
     mesh.matrixAutoUpdate = false;
@@ -1231,7 +1267,7 @@ export class TerrainManager {
     // chunki po 3 ms niż cztery po 14 ms i zgubić dwie klatki.
     const deadline = performance.now() + (this.frameBudget ?? 6);
     let done = 0;
-    while (this.queue.length && done < (this.maxPerFrame ?? 3)) {
+    while (this.queue.length && done < (this.maxPerFrame ?? 2)) {
       const job = this.queue.shift();
       if (job.chunk.res === job.want) continue;
       this.ensureChunk(job.chunk, job.want);

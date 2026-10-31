@@ -20,6 +20,7 @@ import {
 import { dominantBiome, biomeRegionsWorld } from './biomes.js';
 import { PropBatcher, flattenGroup, mergeStaticGroups } from './mergeProps.js';
 import { ModelScatter, placeProp, prepareInstancing } from '../core/assets.js';
+import { tierForQuality } from '../core/quality.js';
 import { makeGrassCardGeometry, createGrassCardMaterial } from './grassCards.js';
 
 const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
@@ -36,6 +37,9 @@ function mesh(geo, material, x = 0, y = 0, z = 0) {
 export class World {
   constructor(game) {
     this.game = game;
+    // Gęstość lasu zależy od ustawionego poziomu jakości — na słabszej karcie
+    // 13 tysięcy drzew to zbędne obciążenie, na mocnej pustka wygląda tanio.
+    this.qualityHint = tierForQuality(game?.ui?.videoSettings?.()?.quality ?? 100);
     this.group = new THREE.Group();
     this.group.name = 'world';
     this.colliders = [];
@@ -179,13 +183,34 @@ export class World {
   update(dt, time, playerPos) {
     this.water.update(dt);
     if (playerPos && this.lights?.length) {
+      // Budżet świateł: każda widoczna lampa to dodatkowe obliczenia na KAŻDYM
+      // pikselu ekranu (shader sumuje wszystkie światła punktowe sceny). Przy
+      // czternastu ogniskach teren i tak renderował się wolniej niż potrzeba,
+      // więc świeci tylko kilka najbliższych — reszta to i tak punkty poza mgłą.
       const nightF = 1 - (time?.dayF ?? 1);
-      const range = 95 + nightF * 55;
+      const range = 85 + nightF * 45;
+      const budget = this.lightBudget ?? 5;
+      const candidates = this._lightCandidates ??= [];
+      candidates.length = 0;
+      for (const l of this.lights) {
+        if (l.userData.alwaysOn) {
+          l.visible = true;
+          continue;
+        }
+        const d = dist2(l.position.x, l.position.z, playerPos.x, playerPos.z);
+        if (d < range) candidates.push([d, l]);
+      }
+      candidates.sort((a, b) => a[0] - b[0]);
+      for (let i = 0; i < candidates.length; i++) {
+        const l = candidates[i][1];
+        const want = i < budget;
+        if (l.visible !== want) l.visible = want;
+      }
+      // lampy spoza zasięgu muszą zgasnąć, inaczej zostają zapalone na zawsze
       for (const l of this.lights) {
         if (l.userData.alwaysOn) continue;
         const d = dist2(l.position.x, l.position.z, playerPos.x, playerPos.z);
-        const want = d < range;
-        if (l.visible !== want) l.visible = want;
+        if (d >= range && l.visible) l.visible = false;
       }
     }
     this._updateGulls(dt);
@@ -1948,6 +1973,23 @@ export class World {
     P('crate', F.x, F.z, -6, 6, 1.6, 0.9, 0.5);
     P('torch', F.x, F.z, 8, -6, 0, 2.4, 0);
 
+    // Kufle, tarcze, kołczany i księgi z paczki „Adventurers” (CC0) —
+    // drobnica, która zamienia puste stoły i ściany w miejsca, gdzie ktoś był.
+    P('mug', V.x, V.z, 4, -12, 0.4, 0.13);
+    P('mug_empty', V.x, V.z, 4.4, -11.7, 1.9, 0.12);
+    P('mug', V.x, V.z, 2.6, -11.4, 2.7, 0.13);
+    P('shield', V.x, V.z, -9.5, 6.2, 1.1, 0.78);
+    P('shield_square', T.x, T.z, -6.8, 3.6, 0.5, 0.95);
+    P('mug', T.x, T.z, -2.2, -5.6, 0.9, 0.13);
+    P('dagger', B.x, B.z, -6.2, -3.6, 1.2, 0.32);
+    P('quiver', B.x, B.z, -5.4, -4.4, 0.6, 0.55);
+    P('arrow', B.x, B.z, -5.9, -3.9, 0.4, 0.7);
+    P('axe', F.x, F.z, 5.4, 6.2, 1.9, 0.9);
+    P('axe2', F.x, F.z, -5.6, 6.6, 0.8, 1.3);
+    P('spellbook', LH.x, LH.z, 3.2, -2.4, 0.7, 0.28);
+    P('spellbook_open', RU.x, RU.z, 4.4, 3.8, 1.6, 0.34);
+    P('wand', RU.x, RU.z, 4.9, 3.4, 0.9, 0.34);
+
     // Chaty rybaków
     P('barrel', C.x, C.z, -3, 8, 0.9, 1.1, 0.5);
     P('barrel', C.x, C.z, -1.6, 8.9, 2.4, 1.0, 0.5);
@@ -2359,7 +2401,8 @@ export class World {
 
     // ---- lasy -------------------------------------------------------------
     let trees = 0;
-    const targetTrees = 7000;
+    // 5,0 / 7,0 / 10 / 13 tys. zależnie od poziomu jakości (patrz `qualityHint`).
+    const targetTrees = [5000, 7000, 10000, 13000][this.qualityHint] ?? 10000;
     for (let attempt = 0; attempt < targetTrees * 6 && trees < targetTrees; attempt++) {
       const a = rng.float(0, Math.PI * 2);
       const r = 90 + Math.pow(rng.next(), 0.6) * (landR - 90);

@@ -294,6 +294,14 @@ jobs:
           Pomoc: uruchom z parametrem --selftest, jesli cos nie dziala.
 
           NOWE W TEJ WERSJI
+          - bron i drobnica: prawdziwe modele mieczy, toporow, sztyletow, kusz,
+            kosturow, tarcz, kufli i ksiegi czarow (KayKit, CC0) — w dłoniach
+            bohatera, u bandytow i jako wyposazenie kuźni, targu i gospody
+          - wydajnosc: grunt liczy 4 najblizsze odcinki drogi zamiast 20 i 5 probek
+            tekstury zamiast 7; swieci maks. 4-6 lamp zamiast wszystkich,
+            kafle terenu przebudowuja sie wolniej (mniej przycięć),
+            automatyka jakości reaguje już przy ~49 klatkach
+          - F3: licznik klatek, wywolan rysowania i trojkatow
           - postac: przyspieszona optymalizacja (kazda postac to jedna siatka zamiast
             kilkunastu), plecak schowany, faktura tkaniny na ubraniu
           - silnik: dynamiczna rozdzielczosc (gra sama dokreca ostrosc, zeby nie ciac),

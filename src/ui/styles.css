@@ -1147,3 +1147,17 @@ kbd {
   width: 14px; height: 14px; border-radius: 2px; display: inline-grid; place-items: center;
   font-size: 9px; font-style: normal; color: #cfc4ad; background: rgba(210, 198, 176, 0.14);
 }
+
+/* ---- licznik wydajności (F3) ------------------------------------------- */
+.debug-hud {
+  position: fixed; left: 14px; bottom: 14px; z-index: 900;
+  padding: 9px 12px; border-radius: 6px;
+  font: 11px/1.6 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color: #b9d7c2; background: rgba(8, 12, 10, 0.78);
+  border: 1px solid rgba(120, 170, 140, 0.28);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+  pointer-events: none; white-space: pre;
+}
+.debug-hud .warn { color: #e0c072; }
+.debug-hud .bad { color: #e08a72; }
+.debug-hud.hidden { display: none; }

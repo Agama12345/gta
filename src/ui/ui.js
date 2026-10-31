@@ -740,6 +740,40 @@ export class UI {
     return true;
   }
 
+  /**
+   * Licznik wydajności pod F3.
+   *
+   * Gra ma automatyczne dobieranie jakości, ale gdy ktoś mówi „laguje”, trzeba
+   * wiedzieć, czy wąskim gardłem są klatki (GPU), wywołania rysowania, czy
+   * przebudowa terenu. Trzy liczby wystarczają, żeby to rozstrzygnąć.
+   */
+  toggleDebug() {
+    if (!this.debugHud) {
+      const el = document.createElement('div');
+      el.className = 'debug-hud hidden';
+      document.body.appendChild(el);
+      this.debugHud = el;
+    }
+    this.debugOn = !this.debugOn;
+    this.debugHud.classList.toggle('hidden', !this.debugOn);
+    if (this.debugOn) this.debugHud.textContent = 'mierzenie…';
+    return this.debugOn;
+  }
+
+  updateDebug(stats) {
+    if (!this.debugOn || !this.debugHud) return;
+    const g = this.game;
+    const fps = stats.fps ?? 0;
+    const cls = fps < 40 ? 'bad' : fps < 55 ? 'warn' : '';
+    const lines = [
+      `<span class="${cls}">${fps.toFixed(0)} FPS</span>  (${stats.ms.toFixed(1)} ms)`,
+      `jakość: ${g.qualityName ?? '-'}  rozdz.: ${(stats.pixelRatio ?? 1).toFixed(2)}×`,
+      `rysowania: ${stats.calls ?? 0}  trójkąty: ${((stats.triangles ?? 0) / 1e6).toFixed(2)} M`,
+      `teren: ${stats.chunks ?? 0} kafli  zieleń: ${stats.grass ?? 0}`,
+    ];
+    this.debugHud.innerHTML = lines.join('\n');
+  }
+
   /** Ustawienia grafiki (zapamiętywane w przeglądarce). */
   videoSettings() {
     const def = { quality: 100, shadows: true, view: 100, fov: 62 };
