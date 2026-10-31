@@ -8,23 +8,24 @@ i sposób sprawdzenia, że naprawdę działa (bez tego nie da się odróżnić
 
 ## 1. Silnik: jeszcze mniej wywołań rysowania (stwory i drobnica)
 
-**Stan:** scene ma ~4,2 tys. obiektów rysowalnych; statyka (domy, mosty,
-drobnica) jest już scalona — z 3 802 siatek zostało 1 821. Postacie (gracz,
-mieszkańcy, szkielety) są sklejone w **jedną siatkę** z kolorem wierzchołka.
-Zostają modele proceduralne (golem, zjawa, wilk, bagniak) — po kilkadziesiąt
-brył na sztukę.
+**Stan:** ~2,9 tys. obiektów rysowalnych (było 4,1 tys.). Statyka scalona po
+*kolorze wierzchołka*, nie po materiale — z 3 839 siatek zostało 1 757, a każdy
+obiekt interaktywny (169 szt.) to teraz jedna siatka zamiast ośmiu. Postacie
+(gracz, mieszkańcy, szkielety, bestie) są sklejone w **jedną siatkę**.
+Roślinność ma własny decymator (`src/core/decimate.js`): przy graczu 60%
+trójkątów, w dalszych kaflach 28% — w kadrze z 17,8 mln zrobiło się 13,6 mln,
+a rasteryzacja z 7,7 do 4,9 mln.
 
 **Do zrobienia:**
 - [ ] wrogowie proceduralni: scalić nieanimowane części (korpus, hełm, pasy)
       w jedną siatkę na typ, animować tylko kości/uchwyty,
 - [ ] ten sam typ wroga w wielu miejscach → `InstancedMesh` zamiast kopii,
-- [ ] poziom szczegółowości roślinności: uproszczona geometria kafli dalej niż
-      ~400 m (uwaga: `SimplifyModifier` gubi atrybuty i wywala się na luźnych
-      wierzchołkach — trzeba własnego decymatora zachowującego kolory),
+- [x] poziom szczegółowości roślinności: własny decymator (`decimate.js`,
+      grupowanie wierzchołków w siatce — zachowuje kolory i UV),
 - [ ] cienie tylko dla obiektów w promieniu mapy cienia (±46 m).
 
 **Kryterium:** licznik `obiektów rysowalnych` w `node tools/preview.mjs --tris --draws`
-poniżej 2 500, klatka stabilna na karcie klasy GTX 1050.
+poniżej 2 500 (jest 2 956), klatka stabilna na karcie klasy GTX 1050.
 
 ---
 
@@ -65,6 +66,25 @@ i odrzut przeciwnika, bez „ślizgania” stóp.
 
 ---
 
+## 4. Gęstość terenu (to, co widać pod nogami)
+
+**Stan:** grunt ma cztery warstwy (trawa, ziemia, skała, piasek) mieszane po
+nachyleniu i wysokości, droga z koleinami liczona w shaderze, do tego kępki
+trawy. W praktyce obraz jest jednak zbyt jednolity: brak drobnych kamieni,
+kęp suchych traw i łach piasku wzdłuż wody.
+
+**Do zrobienia:**
+- [ ] drobne kamienie (50–200 szt. w promieniu 60 m, instancje, losowa skala),
+- [ ] „łachy” piasku i żwiru przy brzegach — maska liczona raz przy budowie kafla,
+- [ ] suche, wyższe kępy trawy na skrajach lasu (inny wariant karty),
+- [ ] ślady bytności: wydeptane ścieżki między zagrodami a traktem,
+- [ ] test: `node tools/ground-preview.mjs` — porównanie przed/po.
+
+**Kryterium:** stojąc w dowolnym miejscu widać w promieniu 20 m co najmniej
+trzy różne rodzaje podłoża, a nie jednolitą zieleń.
+
+---
+
 ## Zrobione (dla kontekstu)
 
 - mapa 5 × 5 km z oceanem, 20+ lokacji, rzeki i jeziora,
@@ -73,5 +93,8 @@ i odrzut przeciwnika, bez „ślizgania” stóp.
 - fale wody na GPU (mapa normalnych przesuwana w czasie) — 0 ms na CPU,
 - trawa: pole 6 000 kępek przesuwane z graczem, wysokości doliczane partiami,
 - poziomy jakości + automatyczne dopasowanie + dynamiczna rozdzielczość,
+- scalanie statyki po kolorze wierzchołka (materiały różniące się tylko barwą
+  trafiają do jednej siatki), osobno obiekty interaktywne,
+- LOD roślinności (własny decymator, zachowuje kolory i UV),
 - postacie: realistyczne proporcje (Quaternius), animacje z UAL przez retargeting,
   jedna siatka na postać, faktura tkaniny, plecak bohatera schowany.

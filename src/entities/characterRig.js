@@ -354,10 +354,14 @@ export function autoHeadScale(root, headBone) {
   const headHeight = box.max.y - v.y;
   if (!Number.isFinite(headHeight) || headHeight <= 0.01) return 1;
   const ratio = headHeight / total;
+  // Pomiar „od kości głowy do czubka bryły” myli się, gdy nad głową stoi
+  // kapelusz, kaptur albo helm (czarownica ma przez to 22% zamiast 14%).
+  // W takim wypadku lepiej nie ruszać proporcji, niż zgniatać głowę.
+  if (ratio > 0.25) return 1;
   const realistic = 0.142; // ~1/7 wzrostu na czaszkę (z włosami)
   if (ratio <= realistic * 1.12) return 1;
   const k = realistic / ratio;
-  return Math.min(1, Math.max(0.62, k));
+  return Math.min(1, Math.max(0.85, k));
 }
 
 /**

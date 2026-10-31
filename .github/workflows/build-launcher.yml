@@ -298,6 +298,9 @@ jobs:
             kilkunastu), plecak schowany, faktura tkaniny na ubraniu
           - silnik: dynamiczna rozdzielczosc (gra sama dokreca ostrosc, zeby nie ciac),
             automatyczna zmiana poziomu jakosci, scalona statyka swiata
+            (materialy rozniace sie tylko kolorem trafiaja do jednej siatki),
+            LOD roslinnosci (blizej 60% trojkatow, dalej 28%),
+            mniej obiektow rysowalnych: 4,1 tys. -> 2,9 tys.
           - plan rozwoju dopisany do repozytorium (ROADMAP.md)
           - wydajnosc: poziomy jakosci (oszczedny/niski/sredni/wysoki) + automatyczne
             dopasowanie do komputera, mniej wywolan rysowania (scalona statyka),
