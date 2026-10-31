@@ -19,6 +19,31 @@ const TINT_RULES = [
   [/cloth|tunic|shirt|vest|dress|robe|linen|beige|white|blue|green|red|yellow/, 'tunic'],
 ];
 
+/** Materiały z metalu (hełmy, sprzączki) odróżniamy od tkanin. */
+const METAL_MATERIAL = /metal|armor|gold|steel|iron|buckle/i;
+
+/**
+ * Poprawia materiały modeli z zewnątrz. Domyślne `metallicFactor: 0.4` bez mapy
+ * otoczenia robi z tkanin ciemny, plastikowy szmelc — a scena nie ma IBL.
+ * Tkaniny i skóra dostają metalness 0, metale zostają lekko błyszczące.
+ * @returns {number} liczba poprawionych materiałów
+ */
+export function tuneCharacterMaterials(root) {
+  let tuned = 0;
+  root.traverse((o) => {
+    if (!o.isMesh || !o.material) return;
+    const list = Array.isArray(o.material) ? o.material : [o.material];
+    for (const mat of list) {
+      if (!mat || !('metalness' in mat)) continue;
+      const metal = METAL_MATERIAL.test(mat.name ?? '');
+      mat.metalness = metal ? 0.35 : 0;
+      mat.roughness = metal ? 0.4 : 0.62;
+      tuned += 1;
+    }
+  });
+  return tuned;
+}
+
 /** Nadaje modelowi barwy z definicji postaci (materiały są klonowane). */
 export function tintCharacter(root, visual = {}) {
   if (!root || !visual) return 0;
@@ -280,6 +305,7 @@ export class CharacterRig {
     this.source = cloneSkinned(gltf.scene);
     this.repaired = repairSkinWeights(this.source);
     if (opts.tint) tintCharacter(this.source, opts.tint);
+    tuneCharacterMaterials(this.source);
     this.mixer = new THREE.AnimationMixer(this.source);
     const { clips, unmatched } = matchClips(gltf.animations ?? []);
     this.clips = clips;

@@ -130,6 +130,20 @@ const rig = new CharacterRig({ scene: hero.scene.clone(true), animations: [] }, 
 check('sterownik dostał animacje z biblioteki', rig.has('walk') && rig.has('attack') && rig.has('talk'), Object.keys(rig.actions).join(','));
 check('gniazdo prawej dłoni działa', !!rig.sockets.rightHand, rig.sockets.rightHand?.name ?? 'brak');
 check('gniazdo lewej dłoni działa', !!rig.sockets.leftHand, rig.sockets.leftHand?.name ?? 'brak');
+// materiały: tkaniny bez metaliczności, metale lekko błyszczące
+let clothOk = 0;
+let metalOk = 0;
+rig.group.traverse((o) => {
+  if (!o.isMesh || !o.material) return;
+  const mats = Array.isArray(o.material) ? o.material : [o.material];
+  for (const m of mats) {
+    if (!('metalness' in m)) continue;
+    if (/metal|gold|armor/i.test(m.name ?? '')) metalOk += m.metalness > 0.2 ? 1 : -100;
+    else clothOk += m.metalness < 0.1 && m.roughness >= 0.5 ? 1 : -100;
+  }
+});
+check('tkaniny nie są metaliczne', clothOk > 5, String(clothOk));
+check('metale zachowały połysk', metalOk >= 0, String(metalOk));
 const box = new THREE.Box3().setFromObject(rig.group);
 check('model po normalizacji ma ~1,8 m', Math.abs(box.max.y - box.min.y - 1.82) < 0.1, (box.max.y - box.min.y).toFixed(2));
 rig.play('walk', { speed: 2.9 });
