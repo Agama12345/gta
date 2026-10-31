@@ -294,6 +294,13 @@ jobs:
           Pomoc: uruchom z parametrem --selftest, jesli cos nie dziala.
 
           NOWE W TEJ WERSJI
+          - wydajnosc: poziomy jakosci (oszczedny/niski/sredni/wysoki) + automatyczne
+            dopasowanie do komputera, mniej wywolan rysowania (scalona statyka),
+            fale wody liczone na karcie graficznej, trawa bez zacinania
+          - realistyczny bohater i mieszkancy (proporcje ciala jak u czlowieka),
+            animacje z biblioteki Uniwersal Animation Library
+          - nowe tekstury gruntu: zdzbla trawy, zwir i kamyki, warstwy skalne, piasek
+            z grzbietami fal — droga ma koleiny i rozmyta, nierowna krawedz
           - mapa 5 x 5 km (25 km2, okolo 5x wiecej terenu niz wczesniej)
           - ocean dokola krainy: plaze, klify, fale, piana, wyspy, mielizna na Samotna Skale
           - nowe miejsca: Latarnia na Cyplu, wrak "Zimnej Fali", Chaty Rybakow (rybak Tobiasz - handel i dialogi)
