@@ -81,14 +81,14 @@ export const NATURE_MODELS_EXTRA = {
 };
 
 export const PROP_MODELS = {
-  barrel: 'props/barrel_large.gltf.glb',
-  crate: 'props/box_large.gltf.glb',
+  barrel: 'props/barrel_large.glb',
+  crate: 'props/box_large.glb',
   chest: 'props/chest.glb',
-  keg: 'props/keg.gltf.glb',
-  torch: 'props/torch_lit.gltf.glb',
-  table: 'props/table_long.gltf.glb',
-  chair: 'props/chair.gltf.glb',
-  crates: 'props/crates_stacked.gltf.glb',
+  keg: 'props/keg.glb',
+  torch: 'props/torch_lit.glb',
+  table: 'props/table_long.glb',
+  chair: 'props/chair.glb',
+  crates: 'props/crates_stacked.glb',
   // KayKit „Adventurers” — prawdziwa broń i drobnica (CC0): miecze, topory,
   // sztylety, kusze, kostury, tarcze, kufle, strzały, kołczan, księgi czarów.
   sword: 'props/w_sword_1handed.glb',

@@ -60,6 +60,11 @@ export function decimateGeometry(geo, cells = 22) {
       outCol[found * 3 + 1] += (col.getY(vi) - outCol[found * 3 + 1]) / n;
       outCol[found * 3 + 2] += (col.getZ(vi) - outCol[found * 3 + 2]) / n;
     }
+    if (uvAttr) {
+      const n = counts[found];
+      outUv[found * 2] += (uvAttr.getX(vi) - outUv[found * 2]) / n;
+      outUv[found * 2 + 1] += (uvAttr.getY(vi) - outUv[found * 2 + 1]) / n;
+    }
     if (uv) {
       const n = counts[found];
       outUv[found * 2] += (uv.getX(vi) - outUv[found * 2]) / n;

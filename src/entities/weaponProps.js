@@ -19,8 +19,11 @@ import * as THREE from 'three';
  * @param {number} opts.length docelowa długość w metrach (najdłuższy wymiar)
  * @param {number} opts.grip od 0 (dół) do 1 (góra) — gdzie wypada chwyt
  * @param {number} opts.yaw obrót wokół osi Y modelu (radiany)
+ * @param {number} opts.slim zwężenie w poprzek (1 = bez zmian). Modele KayKit są
+ *   celowo „kreskówkowe” — szerokie ostrza i grube trzonki. Zwężenie ich w dwóch
+ *   osiach poprzecznych daje proporcje prawdziwej broni, nie zachowuje zabaweczki.
  */
-export function makePropMesh(assets, key, { length = 1, grip = 0.22, yaw = 0, offset = null } = {}) {
+export function makePropMesh(assets, key, { length = 1, grip = 0.22, yaw = 0, offset = null, slim = 1 } = {}) {
   const entry = assets?.props?.[key];
   if (!entry?.scene) return null;
   const holder = new THREE.Group();
@@ -29,7 +32,7 @@ export function makePropMesh(assets, key, { length = 1, grip = 0.22, yaw = 0, of
   // model ma własną, „naturalną” długość — dopasowujemy do `length`
   const h = Math.max(0.001, entry.height ?? 1);
   const k = length / h;
-  inner.scale.setScalar(k);
+  inner.scale.set(k * slim, k, k * slim);
   inner.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(inner);
   // chwyt = punkt `grip` pomiędzy dołem a górą bryły; przesuwamy tak,
@@ -55,7 +58,9 @@ export function makePropMesh(assets, key, { length = 1, grip = 0.22, yaw = 0, of
 
 /** Miecz jednoręczny (~1,05 m) trzymany za rękojeść. */
 export function swordMesh(assets, colorHint = null) {
-  const mesh = makePropMesh(assets, 'sword', { length: 1.05, grip: 0.2 });
+  // 0,98 m to długi miecz jednoręczny — dla postaci 1,85 m wygląda wiarygodnie,
+  // a `slim` zwęża kreskówkowe ostrze KayKit do proporcji prawdziwej stali.
+  const mesh = makePropMesh(assets, 'sword', { length: 0.98, grip: 0.16, slim: 0.58 });
   if (mesh && colorHint) tint(mesh, colorHint);
   return mesh;
 }
@@ -70,17 +75,17 @@ export function shieldMesh(assets) {
 export function weaponByKind(assets, kind) {
   switch (kind) {
     case 'axe2':
-      return makePropMesh(assets, 'axe2', { length: 1.35, grip: 0.18 });
+      return makePropMesh(assets, 'axe2', { length: 1.35, grip: 0.18, slim: 0.8 });
     case 'axe':
-      return makePropMesh(assets, 'axe', { length: 0.95, grip: 0.2 });
+      return makePropMesh(assets, 'axe', { length: 0.95, grip: 0.2, slim: 0.8 });
     case 'dagger':
-      return makePropMesh(assets, 'dagger', { length: 0.42, grip: 0.25 });
+      return makePropMesh(assets, 'dagger', { length: 0.42, grip: 0.25, slim: 0.7 });
     case 'crossbow':
       return makePropMesh(assets, 'crossbow', { length: 0.7, grip: 0.5, yaw: Math.PI / 2 });
     case 'staff':
       return makePropMesh(assets, 'staff', { length: 1.9, grip: 0.32 });
     case 'sword2':
-      return makePropMesh(assets, 'sword2', { length: 1.45, grip: 0.16 });
+      return makePropMesh(assets, 'sword2', { length: 1.45, grip: 0.16, slim: 0.58 });
     case 'sword':
     default:
       return swordMesh(assets);

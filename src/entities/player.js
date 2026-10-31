@@ -196,7 +196,9 @@ export class Player {
       sword.scale.setScalar(0.9);
       sword.position.set(0, 0.02, 0.02);
     }
-    sword.rotation.set(-0.55, 0, 0.1);
+    // Miecz wisi w dłoni ostrzem w dół, odchylony na zewnątrz od nogi —
+    // tak nosi się broń poza walką. Wcześniej stał pionowo nad głową.
+    sword.rotation.set(0.2, 0, 2.9);
     this.weaponMesh = sword;
 
     // Tarczy bohater nie nosi — miecz w dłoni czyta się lepiej niż tarcza
