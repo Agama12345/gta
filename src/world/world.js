@@ -20,6 +20,7 @@ import {
 import { dominantBiome, biomeRegionsWorld } from './biomes.js';
 import { PropBatcher, flattenGroup } from './mergeProps.js';
 import { ModelScatter, placeProp } from '../core/assets.js';
+import { makeGrassCardGeometry, createGrassCardMaterial } from './grassCards.js';
 
 const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
 const cyl = (rt, rb, h, s = 6) => new THREE.CylinderGeometry(rt, rb, h, s);
@@ -2805,26 +2806,16 @@ export class World {
   }
 
   _scatterGrass() {
-    // Trawa jako kępy cienkich źdźbeł — tylko w pobliżu miejsc, które gracz odwiedza.
+    // Trawa jako karty z przezroczystością: trzy skrzyżowane pasy na kępkę.
+    // (Wcześniej stożki — z bliska wyglądały jak zielone kolce.)
     const rng = new RNG(999);
-    const tuft = new THREE.Group();
-    for (let b = 0; b < 6; b++) {
-      const h = 0.4 + rng.float(0, 0.35);
-      const blade = new THREE.Mesh(new THREE.ConeGeometry(0.05, h, 3), new THREE.MeshLambertMaterial({ color: '#6e8f4f' }));
-      const a = (b / 6) * Math.PI * 2 + rng.float(-0.4, 0.4);
-      const r = rng.float(0, 0.16);
-      blade.position.set(Math.cos(a) * r, h / 2, Math.sin(a) * r);
-      blade.rotation.set(rng.float(-0.3, 0.3), rng.float(0, 3), rng.float(-0.3, 0.3));
-      tuft.add(blade);
-    }
-    const tuftGeo = flattenGroup(tuft);
-    tuft.traverse((o) => { if (o.isMesh) o.geometry.dispose(); });
+    const tuftGeo = makeGrassCardGeometry({ width: 0.62, height: 0.5 });
+    const grassCardMat = createGrassCardMaterial();
 
     const spots = Object.values(LOCATIONS);
     const perSpot = 520;
     const total = spots.length * perSpot;
-    const grassMat = new THREE.MeshLambertMaterial({ color: '#6f9150' });
-    const inst = new THREE.InstancedMesh(tuftGeo, grassMat, total);
+    const inst = new THREE.InstancedMesh(tuftGeo, grassCardMat, total);
     inst.castShadow = false;
     inst.receiveShadow = true;
     inst.frustumCulled = false;
@@ -2848,13 +2839,13 @@ export class World {
         inst.setMatrixAt(placed, dummy.matrix);
         const biome = dominantBiome(x, z);
         if (biome === 'desert') {
-          color.setHSL(0.12 + rng.float(-0.02, 0.02), rng.float(0.25, 0.4), rng.float(0.38, 0.5));
+          color.setHSL(0.13 + rng.float(-0.02, 0.02), rng.float(0.2, 0.32), rng.float(0.68, 0.82));
         } else if (biome === 'savanna') {
-          color.setHSL(0.14 + rng.float(-0.02, 0.03), rng.float(0.3, 0.45), rng.float(0.34, 0.45));
+          color.setHSL(0.13 + rng.float(-0.02, 0.03), rng.float(0.24, 0.36), rng.float(0.62, 0.78));
         } else if (biome === 'ice') {
-          color.setHSL(0.28 + rng.float(-0.03, 0.03), rng.float(0.08, 0.2), rng.float(0.55, 0.72));
+          color.setHSL(0.3 + rng.float(-0.03, 0.03), rng.float(0.06, 0.16), rng.float(0.88, 1.0));
         } else {
-          color.setHSL(0.22 + rng.float(-0.03, 0.05), rng.float(0.3, 0.52), rng.float(0.28, 0.42));
+          color.setHSL(0.23 + rng.float(-0.03, 0.05), rng.float(0.22, 0.4), rng.float(0.6, 0.86));
         }
         inst.setColorAt(placed, color);
         placed += 1;
@@ -2877,9 +2868,8 @@ export class World {
    */
   _buildGrassField(geo) {
     if (!geo) return;
-    const COUNT = 1600;
-    const mat = new THREE.MeshLambertMaterial({ color: '#ffffff' });
-    const inst = new THREE.InstancedMesh(geo, mat, COUNT);
+    const COUNT = 6000;
+    const inst = new THREE.InstancedMesh(geo, createGrassCardMaterial(), COUNT);
     inst.castShadow = false;
     inst.receiveShadow = true;
     inst.frustumCulled = false;
@@ -2904,7 +2894,7 @@ export class World {
     f.lastX = px;
     f.lastZ = pz;
 
-    const R = 48;
+    const R = 42;
     const rng = new RNG(Math.round(px * 13 + pz * 7) | 0);
     const inst = f.mesh;
     const dummy = f.dummy;
@@ -2933,13 +2923,13 @@ export class World {
       dummy.updateMatrix();
       inst.setMatrixAt(n, dummy.matrix);
       if (biome === 'desert') {
-        color.setHSL(0.13 + rng.float(-0.02, 0.02), rng.float(0.22, 0.38), rng.float(0.4, 0.52));
+        color.setHSL(0.13 + rng.float(-0.02, 0.02), rng.float(0.18, 0.3), rng.float(0.66, 0.8));
       } else if (biome === 'savanna') {
-        color.setHSL(0.14 + rng.float(-0.02, 0.03), rng.float(0.3, 0.44), rng.float(0.34, 0.46));
+        color.setHSL(0.13 + rng.float(-0.02, 0.03), rng.float(0.22, 0.34), rng.float(0.6, 0.76));
       } else if (biome === 'ice') {
-        color.setHSL(0.28 + rng.float(-0.03, 0.03), rng.float(0.07, 0.18), rng.float(0.55, 0.7));
+        color.setHSL(0.3 + rng.float(-0.03, 0.03), rng.float(0.05, 0.14), rng.float(0.86, 1.0));
       } else {
-        color.setHSL(0.24 + rng.float(-0.04, 0.05), rng.float(0.28, 0.5), rng.float(0.24, 0.4));
+        color.setHSL(0.23 + rng.float(-0.04, 0.05), rng.float(0.2, 0.38), rng.float(0.58, 0.84));
       }
       inst.setColorAt(n, color);
       n += 1;

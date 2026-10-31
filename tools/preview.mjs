@@ -838,7 +838,13 @@ function drawGeometry(geometry, matrix, material, useVertexColors, count, meshRe
   const baseColor = materialColor(material, atlasMesh).clone();
   if (tint) baseColor.multiply(tint);
   const total = index ? index.count : pos.count;
-  const step = total > 24000 ? Math.ceil(total / 24000) : 1;
+  const step = total > 60000 ? Math.ceil(total / 60000) : 1;
+  // Tekstury danych (trawa jako karty, tekstury gruntu) — podgląd nie ma
+  // próbkowania per-piksel, więc sprawdzamy alfa w środku trójkąta i barwimy
+  // nim trójkąt. Bez tego trawa rysowała się jako białe płachty.
+  const uvAttr = geometry.attributes.uv;
+  const dataTex = material?.map?.image?.data && material.map.image.width ? material.map : null;
+  const alphaTest = material?.alphaTest ?? 0;
   m4.copy(matrix);
   const A = new THREE.Vector4();
   const B = new THREE.Vector4();
@@ -869,6 +875,22 @@ function drawGeometry(geometry, matrix, material, useVertexColors, count, meshRe
     const center = va.clone().add(vb).add(vc).multiplyScalar(1 / 3);
     if (nrm.dot(camPos.clone().sub(center)) < 0) nrm.negate();
     let col = baseColor;
+    if (dataTex && uvAttr) {
+      const size = dataTex.image.width;
+      const uu = (uvAttr.getX(ia) + uvAttr.getX(ib) + uvAttr.getX(ic)) / 3;
+      const vv = (uvAttr.getY(ia) + uvAttr.getY(ib) + uvAttr.getY(ic)) / 3;
+      const tx = Math.min(size - 1, Math.max(0, Math.round(uu * (size - 1))));
+      const ty = Math.min(size - 1, Math.max(0, Math.round(vv * (size - 1))));
+      const o4 = (ty * size + tx) * 4;
+      const a = dataTex.image.data[o4 + 3] / 255;
+      if (a < alphaTest) continue;
+      const texCol = new THREE.Color(
+        dataTex.image.data[o4] / 255,
+        dataTex.image.data[o4 + 1] / 255,
+        dataTex.image.data[o4 + 2] / 255
+      );
+      col = baseColor.clone().multiply(texCol);
+    }
     if (colors) {
       cA.fromBufferAttribute(colors, ia);
       cB.fromBufferAttribute(colors, ib);

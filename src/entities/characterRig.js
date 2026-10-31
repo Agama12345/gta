@@ -355,6 +355,15 @@ export class CharacterRig {
       head: findSocket(this.source, HAND_ALIASES.head),
       spine: findSocket(this.source, HAND_ALIASES.spine),
     };
+    // Proporcje: modele z paczek CC0 mają głowy jak figurki (ok. 1/5 wzrostu).
+    // W realistycznej konwencji dorosły człowiek ma ok. 1/7,5 — zmniejszamy
+    // kość głowy, co od razu zdejmuje „bobbleheadowy” wygląd.
+    const headBone = this.sockets.head;
+    if (headBone && headBone.scale && opts.headScale !== 1) {
+      const k = opts.headScale ?? 0.8;
+      headBone.scale.multiplyScalar(k);
+      this.headScale = k;
+    }
     this.hasClips = Object.keys(this.actions).length > 0;
     if (this.actions.idle) {
       this.actions.idle.play();

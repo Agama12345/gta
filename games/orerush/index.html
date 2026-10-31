@@ -408,112 +408,322 @@
   }
 
   // ---------------------------------------------------------- rysowanie
+  // Jaskinia jest rysowana warstwami: poszarpana skała wokół, warstwy skalne
+  // na ścianie, drewniane podpory, szyny, pochodnie, potem światło. Wszystko
+  // generowane z ziarna poziomu, więc każdy zjazd wygląda tak samo w obrębie
+  // jednego poziomu, ale inaczej na kolejnym.
+  let decor = null;
+
+  function seeded(seed) {
+    let s = seed % 2147483647;
+    if (s <= 0) s += 2147483646;
+    return () => {
+      s = (s * 16807) % 2147483647;
+      return (s - 1) / 2147483646;
+    };
+  }
+
+  function buildDecor() {
+    const rng = seeded(4200 + level * 977);
+    const outline = [];
+    const steps = 56;
+    for (let i = 0; i < steps; i++) {
+      const t = i / steps * Math.PI * 2;
+      const wobble = 5 + rng() * 26;
+      // prostokąt „napompowany” szumem — daje nieregularną ścianę jaskini
+      const cx = CAVE.x + CAVE.w / 2;
+      const cy = CAVE.y + CAVE.h / 2;
+      const hw = CAVE.w / 2;
+      const hh = CAVE.h / 2;
+      const k = 1 / Math.max(Math.abs(Math.cos(t)) / hw, Math.abs(Math.sin(t)) / hh);
+      outline.push({
+        x: cx + Math.cos(t) * (k - wobble * 0.4),
+        y: cy + Math.sin(t) * (k - wobble * 0.4),
+      });
+    }
+    const columns = [];
+    for (let x = CAVE.x + 120; x < CAVE.x + CAVE.w - 90; x += 232 + rng() * 60) {
+      columns.push({ x, w: 10 + rng() * 6, lean: (rng() - 0.5) * 0.1 });
+    }
+    const torches = columns.map((c, i) => ({
+      x: c.x + c.w / 2,
+      y: CAVE.y + 64 + (i % 2) * 26,
+      phase: rng() * 10,
+    }));
+    const stalactites = [];
+    for (let i = 0; i < 26; i++) {
+      const x = CAVE.x + 30 + rng() * (CAVE.w - 60);
+      stalactites.push({ x, len: 18 + rng() * 60, w: 6 + rng() * 12 });
+    }
+    const pebbles = [];
+    for (let i = 0; i < 90; i++) {
+      pebbles.push({
+        x: CAVE.x + rng() * CAVE.w,
+        y: CAVE.y + rng() * CAVE.h,
+        r: 1.2 + rng() * 3.6,
+        a: 0.05 + rng() * 0.12,
+      });
+    }
+    const crystals = [];
+    for (let i = 0; i < 12; i++) {
+      crystals.push({
+        x: CAVE.x + 40 + rng() * (CAVE.w - 80),
+        y: CAVE.y + CAVE.h - 60 - rng() * 90,
+        s: 6 + rng() * 10,
+        hue: rng() > 0.5 ? 190 : 275,
+      });
+    }
+    const rails = CAVE.y + CAVE.h - 34;
+    const beams = [];
+    for (let i = 0; i < 4; i++) {
+      beams.push({ x: CAVE.x + 80 + i * (CAVE.w - 160) / 3, y: CAVE.y + 40 });
+    }
+    decor = { outline, columns, torches, stalactites, pebbles, crystals, rails, beams, rngSeed: level };
+  }
+
+  function cavePath(c) {
+    const o = decor.outline;
+    c.beginPath();
+    c.moveTo(o[0].x, o[0].y);
+    for (let i = 1; i < o.length; i++) {
+      const prev = o[i - 1];
+      const cur = o[i];
+      c.quadraticCurveTo(prev.x, prev.y, (prev.x + cur.x) / 2, (prev.y + cur.y) / 2);
+    }
+    c.closePath();
+  }
+
   function draw() {
+    if (!decor || decor.rngSeed !== level) buildDecor();
     ctx.save();
     if (shake > 0.2) {
       ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
     }
 
-    // tło kopalni
-    const bg = ctx.createRadialGradient(W / 2, H / 2, 80, W / 2, H / 2, W * 0.72);
-    bg.addColorStop(0, '#241d13');
-    bg.addColorStop(1, '#0b0906');
+    // ---- skała wokół jaskini: ciemna, z pionowymi smugami ----------------
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#100c07');
+    bg.addColorStop(0.5, '#191207');
+    bg.addColorStop(1, '#0a0704');
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
-
-    // skała wokół jaskini
-    ctx.fillStyle = '#151109';
-    ctx.fillRect(0, 0, W, H);
-
-    // jaskinia
-    ctx.save();
-    ctx.beginPath();
-    roundRect(ctx, CAVE.x, CAVE.y, CAVE.w, CAVE.h, 26);
-    ctx.clip();
-    const caveGradient = ctx.createLinearGradient(CAVE.x, CAVE.y, CAVE.x, CAVE.y + CAVE.h);
-    caveGradient.addColorStop(0, '#2c2417');
-    caveGradient.addColorStop(1, '#1a150d');
-    ctx.fillStyle = caveGradient;
-    ctx.fillRect(CAVE.x, CAVE.y, CAVE.w, CAVE.h);
-
-    // warstwy skalne
-    ctx.strokeStyle = 'rgba(120,96,54,.13)';
-    ctx.lineWidth = 2;
-    for (let i = 0; i < 14; i++) {
+    ctx.strokeStyle = 'rgba(70,54,30,.18)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 70; i++) {
+      const x = (i * 97) % W;
       ctx.beginPath();
-      let y = CAVE.y + ((i * 61 + elapsed * 6) % CAVE.h);
-      ctx.moveTo(CAVE.x, y);
-      for (let x = CAVE.x; x < CAVE.x + CAVE.w; x += 40) {
-        ctx.lineTo(x, y + Math.sin((x + i * 30) * 0.02) * 6);
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x + Math.sin(i) * 24, H);
+      ctx.stroke();
+    }
+
+    // ---- wnętrze jaskini -------------------------------------------------
+    ctx.save();
+    cavePath(ctx);
+    ctx.clip();
+
+    const floor = ctx.createLinearGradient(0, CAVE.y, 0, CAVE.y + CAVE.h);
+    floor.addColorStop(0, '#241c12');
+    floor.addColorStop(0.55, '#2a2115');
+    floor.addColorStop(1, '#181208');
+    ctx.fillStyle = floor;
+    ctx.fillRect(CAVE.x - 40, CAVE.y - 40, CAVE.w + 80, CAVE.h + 80);
+
+    // warstwy skalne na ścianie
+    for (let i = 0; i < 16; i++) {
+      ctx.strokeStyle = `rgba(122,98,54,${0.05 + (i % 3) * 0.02})`;
+      ctx.lineWidth = 1.5 + (i % 4);
+      ctx.beginPath();
+      const y = CAVE.y + 10 + i * (CAVE.h / 16);
+      ctx.moveTo(CAVE.x - 20, y);
+      for (let x = CAVE.x - 20; x < CAVE.x + CAVE.w + 20; x += 26) {
+        ctx.lineTo(x, y + Math.sin((x + i * 47) * 0.018) * 9 + Math.cos(x * 0.006 + i) * 4);
       }
       ctx.stroke();
     }
 
-    // światło lampy
-    const lampPct = Math.max(0.08, lamp / levelConfig().lamp);
-    const lightRadius = 150 + 260 * lampPct;
-    const light = ctx.createRadialGradient(player.x, player.y, 20, player.x, player.y, lightRadius);
-    light.addColorStop(0, 'rgba(255,226,150,' + (0.32 + lampPct * 0.3).toFixed(3) + ')');
-    light.addColorStop(0.55, 'rgba(255,196,90,.10)');
-    light.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = light;
-    ctx.fillRect(CAVE.x, CAVE.y, CAVE.w, CAVE.h);
+    // drobny żwir na dnie
+    for (const p of decor.pebbles) {
+      ctx.fillStyle = `rgba(${140 + (p.r * 12) | 0},${116 + (p.r * 9) | 0},70,${p.a})`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
-    // ciemność poza kręgiem światła
-    const vignette = ctx.createRadialGradient(player.x, player.y, lightRadius * 0.55, player.x, player.y, Math.max(W, H) * 0.72);
-    vignette.addColorStop(0, 'rgba(0,0,0,0)');
-    vignette.addColorStop(0.7, 'rgba(0,0,0,' + (0.55 + (1 - lampPct) * 0.3).toFixed(3) + ')');
-    vignette.addColorStop(1, 'rgba(0,0,0,.93)');
-    ctx.fillStyle = vignette;
-    ctx.fillRect(CAVE.x, CAVE.y, CAVE.w, CAVE.h);
+    // stalaktyty u sufitu
+    for (const st of decor.stalactites) {
+      const g = ctx.createLinearGradient(0, CAVE.y, 0, CAVE.y + st.len);
+      g.addColorStop(0, '#3a2f1d');
+      g.addColorStop(1, '#151009');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(st.x - st.w / 2, CAVE.y - 6);
+      ctx.lineTo(st.x + st.w / 2, CAVE.y - 6);
+      ctx.lineTo(st.x + st.w * 0.12, CAVE.y + st.len);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // szyny i podpory
+    ctx.strokeStyle = 'rgba(120,104,80,.55)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(CAVE.x - 10, decor.rails);
+    ctx.lineTo(CAVE.x + CAVE.w + 10, decor.rails);
+    ctx.moveTo(CAVE.x - 10, decor.rails + 11);
+    ctx.lineTo(CAVE.x + CAVE.w + 10, decor.rails + 11);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(80,62,38,.7)';
+    ctx.lineWidth = 4;
+    for (let x = CAVE.x + 40; x < CAVE.x + CAVE.w; x += 48) {
+      ctx.beginPath();
+      ctx.moveTo(x, decor.rails - 4);
+      ctx.lineTo(x, decor.rails + 15);
+      ctx.stroke();
+    }
+    for (const col of decor.columns) {
+      const woodTop = CAVE.y + 26;
+      const woodBottom = CAVE.y + CAVE.h - 20;
+      const g = ctx.createLinearGradient(col.x, 0, col.x + col.w, 0);
+      g.addColorStop(0, '#4a3520');
+      g.addColorStop(0.5, '#6b4d2c');
+      g.addColorStop(1, '#3a2a18');
+      ctx.fillStyle = g;
+      ctx.fillRect(col.x, woodTop, col.w, woodBottom - woodTop);
+      ctx.fillStyle = '#5a4026';
+      ctx.fillRect(col.x - 12, woodTop + 18, col.w + 24, 14);
+      ctx.fillRect(col.x - 12, woodBottom - 46, col.w + 24, 14);
+      ctx.fillStyle = 'rgba(0,0,0,.28)';
+      ctx.fillRect(col.x + col.w * 0.62, woodTop, col.w * 0.38, woodBottom - woodTop);
+    }
+
+    // pochodnie na ścianach — ciepłe, migoczące światło
+    for (const t of decor.torches) {
+      const flick = 0.82 + Math.sin(elapsed * 9 + t.phase) * 0.1 + Math.sin(elapsed * 21 + t.phase * 2) * 0.06;
+      const glow = ctx.createRadialGradient(t.x, t.y, 2, t.x, t.y, 120 * flick);
+      glow.addColorStop(0, 'rgba(255,198,104,.42)');
+      glow.addColorStop(0.45, 'rgba(230,150,60,.14)');
+      glow.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, 120 * flick, 0, Math.PI * 2);
+      ctx.fill();
+      // płomień
+      ctx.fillStyle = '#ffd27a';
+      ctx.beginPath();
+      ctx.ellipse(t.x, t.y - 6 - Math.sin(elapsed * 12 + t.phase) * 3, 4.2, 9 * flick, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ff8a3c';
+      ctx.beginPath();
+      ctx.ellipse(t.x, t.y - 2, 5.6, 4.4, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // kryształy w ścianach — dekoracyjne, nie do zebrania
+    for (const cr of decor.crystals) {
+      ctx.save();
+      ctx.translate(cr.x, cr.y);
+      ctx.fillStyle = `hsla(${cr.hue}, 60%, 52%, .5)`;
+      ctx.beginPath();
+      ctx.moveTo(0, -cr.s);
+      ctx.lineTo(cr.s * 0.6, -cr.s * 0.2);
+      ctx.lineTo(cr.s * 0.35, cr.s * 0.7);
+      ctx.lineTo(-cr.s * 0.4, cr.s * 0.6);
+      ctx.lineTo(-cr.s * 0.6, -cr.s * 0.25);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
 
     // ruda
     for (const ore of ores) {
       if (ore.taken) continue;
-      const bob = Math.sin(ore.bob) * 2.4;
-      const glow = ctx.createRadialGradient(ore.x, ore.y + bob, 1, ore.x, ore.y + bob, 22);
-      glow.addColorStop(0, 'rgba(232,194,82,.75)');
-      glow.addColorStop(1, 'rgba(232,194,82,0)');
+      const bob = Math.sin(ore.bob) * 2.6;
+      const y = ore.y + bob;
+      const glow = ctx.createRadialGradient(ore.x, y, 1, ore.x, y, 30);
+      glow.addColorStop(0, 'rgba(255,214,110,.85)');
+      glow.addColorStop(0.4, 'rgba(232,178,60,.32)');
+      glow.addColorStop(1, 'rgba(232,178,60,0)');
       ctx.fillStyle = glow;
       ctx.beginPath();
-      ctx.arc(ore.x, ore.y + bob, 22, 0, Math.PI * 2);
+      ctx.arc(ore.x, y, 30, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.fillStyle = '#E8C252';
+      // fasetowany kryształ: trzy ściany o różnej jasności
+      const facets = [
+        ['#ffe9a8', [0, -13, 9, -1, 0, 7]],
+        ['#e8c252', [0, -13, 0, 7, -8, -1]],
+        ['#a97f1f', [0, 7, 9, -1, -8, -1]],
+      ];
+      for (const [color, pts] of facets) {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(ore.x + pts[0], y + pts[1]);
+        ctx.lineTo(ore.x + pts[2], y + pts[3]);
+        ctx.lineTo(ore.x + pts[4], y + pts[5]);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.strokeStyle = 'rgba(60,44,10,.85)';
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
-      ctx.moveTo(ore.x, ore.y - 9 + bob);
-      ctx.lineTo(ore.x + 8, ore.y + bob);
-      ctx.lineTo(ore.x + 3, ore.y + 8 + bob);
-      ctx.lineTo(ore.x - 6, ore.y + 7 + bob);
-      ctx.lineTo(ore.x - 8, ore.y + bob);
+      ctx.moveTo(ore.x, y - 13);
+      ctx.lineTo(ore.x + 9, y - 1);
+      ctx.lineTo(ore.x, y + 7);
+      ctx.lineTo(ore.x - 8, y - 1);
       ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(90,68,18,.85)';
-      ctx.lineWidth = 1.4;
       ctx.stroke();
+      // iskra
+      const tw = (Math.sin(elapsed * 4 + ore.bob) + 1) / 2;
+      ctx.fillStyle = `rgba(255,255,220,${0.35 + tw * 0.6})`;
+      ctx.beginPath();
+      ctx.arc(ore.x + 2.5, y - 6, 1.6 + tw, 0, Math.PI * 2);
+      ctx.fill();
     }
 
-    // kamienie
+    // kamienie — cień na dnie rośnie w miarę spadania
     for (const rock of rocks) {
+      if (!rock.landed) {
+        const floorY = CAVE.y + CAVE.h - rock.r;
+        const k = Math.max(0, Math.min(1, (rock.y - CAVE.y) / (floorY - CAVE.y)));
+        ctx.fillStyle = `rgba(0,0,0,${0.10 + k * 0.35})`;
+        ctx.beginPath();
+        ctx.ellipse(rock.x, CAVE.y + CAVE.h - 8, rock.r * (0.5 + k * 0.6), rock.r * 0.3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // smuga spadania
+        const trail = ctx.createLinearGradient(rock.x, rock.y - 90, rock.x, rock.y);
+        trail.addColorStop(0, 'rgba(150,124,72,0)');
+        trail.addColorStop(1, 'rgba(150,124,72,.28)');
+        ctx.fillStyle = trail;
+        ctx.fillRect(rock.x - rock.r * 0.5, rock.y - 90, rock.r, 90);
+      }
       ctx.save();
       ctx.globalAlpha = rock.landed ? Math.max(0, 1 - rock.wobble / 4.5) : 1;
-      ctx.fillStyle = '#6f6047';
+      // nieregularny głaz: 7 boków z ziarna położenia
+      const rr = seeded(Math.round(rock.x * 13 + rock.y * 7) + 1);
       ctx.beginPath();
-      ctx.arc(rock.x, rock.y, rock.r, 0, Math.PI * 2);
+      for (let i = 0; i < 7; i++) {
+        const a = (i / 7) * Math.PI * 2;
+        const rad = rock.r * (0.78 + rr() * 0.34);
+        const px = rock.x + Math.cos(a) * rad;
+        const py = rock.y + Math.sin(a) * rad * 0.92;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      const rockG = ctx.createLinearGradient(rock.x - rock.r, rock.y - rock.r, rock.x + rock.r, rock.y + rock.r);
+      rockG.addColorStop(0, '#8a7756');
+      rockG.addColorStop(0.45, '#6a5a3f');
+      rockG.addColorStop(1, '#3f3423');
+      ctx.fillStyle = rockG;
       ctx.fill();
-      ctx.fillStyle = 'rgba(0,0,0,.35)';
+      ctx.strokeStyle = 'rgba(20,16,9,.8)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255,240,200,.10)';
       ctx.beginPath();
-      ctx.arc(rock.x + rock.r * 0.3, rock.y + rock.r * 0.25, rock.r * 0.55, 0, Math.PI * 2);
+      ctx.arc(rock.x - rock.r * 0.3, rock.y - rock.r * 0.35, rock.r * 0.42, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
-
-      if (!rock.landed) {
-        ctx.strokeStyle = 'rgba(220,190,120,.10)';
-        ctx.beginPath();
-        ctx.moveTo(rock.x, CAVE.y);
-        ctx.lineTo(rock.x, rock.y - rock.r);
-        ctx.stroke();
-      }
     }
 
     // gracz
@@ -527,75 +737,131 @@
     }
     ctx.globalAlpha = 1;
 
+    // kurz w świetle lampy
+    for (let i = 0; i < 46; i++) {
+      const px = (CAVE.x + ((i * 137 + elapsed * (6 + (i % 5) * 4)) % CAVE.w));
+      const py = CAVE.y + ((i * 91 + Math.sin(elapsed * 0.7 + i) * 26) % CAVE.h);
+      const d = Math.hypot(px - player.x, py - player.y);
+      if (d > 240) continue;
+      const a = (1 - d / 240) * (0.10 + ((i % 4) * 0.03));
+      ctx.fillStyle = `rgba(255,236,190,${a.toFixed(3)})`;
+      ctx.fillRect(px, py, 1.6, 1.6);
+    }
+
+    // ---- światło lampy górnika -----------------------------------------
+    const lampPct = Math.max(0.08, lamp / levelConfig().lamp);
+    const lightRadius = 160 + 280 * lampPct;
+    const light = ctx.createRadialGradient(player.x, player.y, 18, player.x, player.y, lightRadius);
+    light.addColorStop(0, `rgba(255,228,158,${(0.30 + lampPct * 0.34).toFixed(3)})`);
+    light.addColorStop(0.5, 'rgba(255,196,90,.12)');
+    light.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = light;
+    ctx.fillRect(CAVE.x, CAVE.y, CAVE.w, CAVE.h);
+
+    // stożek światła z latarki na kasku
+    const dir = player.facing || 1;
+    const cone = ctx.createLinearGradient(player.x, player.y, player.x + dir * 190, player.y);
+    cone.addColorStop(0, `rgba(255,238,180,${0.12 + lampPct * 0.16})`);
+    cone.addColorStop(1, 'rgba(255,238,180,0)');
+    ctx.fillStyle = cone;
+    ctx.beginPath();
+    ctx.moveTo(player.x + dir * 8, player.y - 6);
+    ctx.lineTo(player.x + dir * 210, player.y - 80);
+    ctx.lineTo(player.x + dir * 210, player.y + 80);
+    ctx.lineTo(player.x + dir * 8, player.y + 10);
+    ctx.closePath();
+    ctx.fill();
+
+    // ciemność poza kręgiem światła
+    const vignette = ctx.createRadialGradient(player.x, player.y, lightRadius * 0.5, player.x, player.y, Math.max(W, H) * 0.74);
+    vignette.addColorStop(0, 'rgba(0,0,0,0)');
+    vignette.addColorStop(0.65, `rgba(0,0,0,${(0.5 + (1 - lampPct) * 0.3).toFixed(3)})`);
+    vignette.addColorStop(1, 'rgba(0,0,0,.95)');
+    ctx.fillStyle = vignette;
+    ctx.fillRect(CAVE.x, CAVE.y, CAVE.w, CAVE.h);
+
     ctx.restore(); // clip
 
-    // obramowanie jaskini
-    ctx.strokeStyle = '#4a3a22';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    roundRect(ctx, CAVE.x, CAVE.y, CAVE.w, CAVE.h, 26);
+    // obramowanie jaskini — poszarpana skała
+    cavePath(ctx);
+    ctx.strokeStyle = 'rgba(96,74,42,.85)';
+    ctx.lineWidth = 5;
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(20,14,8,.9)';
+    ctx.lineWidth = 2;
     ctx.stroke();
 
     ctx.restore();
   }
 
   function drawPlayer() {
-    const swingAngle = player.swing * 1.2;
+    const swingAngle = player.swing;
     ctx.save();
     ctx.translate(player.x, player.y);
 
     // cień
     ctx.fillStyle = 'rgba(0,0,0,.45)';
     ctx.beginPath();
-    ctx.ellipse(0, player.r * 0.85, player.r * 0.95, player.r * 0.42, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, player.r * 0.9, player.r * 1.0, player.r * 0.44, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // kilof
+    // kilof — łuk zamachu rysowany jako smuga
     ctx.save();
     ctx.rotate(-0.7 + swingAngle * 2.6);
-    ctx.strokeStyle = '#8a7452';
+    if (swingAngle > 0.1) {
+      ctx.strokeStyle = `rgba(220,210,180,${0.10 + swingAngle * 0.25})`;
+      ctx.lineWidth = 9;
+      ctx.beginPath();
+      ctx.arc(0, 0, 26, -2.6, -0.7 + swingAngle * 1.4);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = '#7a6242';
     ctx.lineWidth = 4;
     ctx.beginPath();
     ctx.moveTo(0, 0);
-    ctx.lineTo(0, -26);
+    ctx.lineTo(0, -27);
     ctx.stroke();
-    ctx.strokeStyle = '#c8c2b4';
+    ctx.strokeStyle = '#cfc8b8';
     ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(-9, -26);
-    ctx.quadraticCurveTo(0, -33, 9, -26);
+    ctx.moveTo(-10, -27);
+    ctx.quadraticCurveTo(0, -35, 10, -27);
     ctx.stroke();
     ctx.restore();
 
     // ciało
     const bodyGradient = ctx.createLinearGradient(0, -player.r, 0, player.r);
     bodyGradient.addColorStop(0, '#E6D9BE');
-    bodyGradient.addColorStop(1, '#B49E76');
+    bodyGradient.addColorStop(1, '#A99168');
     ctx.fillStyle = bodyGradient;
     ctx.beginPath();
     ctx.arc(0, 0, player.r, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = '#2a2116';
+    ctx.strokeStyle = '#241c12';
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // kask
+    // kask z szerokim rondem
     ctx.fillStyle = '#C9A227';
     ctx.beginPath();
-    ctx.arc(0, -player.r * 0.35, player.r * 0.78, Math.PI, 0);
+    ctx.arc(0, -player.r * 0.34, player.r * 0.8, Math.PI, 0);
     ctx.fill();
-    ctx.fillStyle = '#fff8dc';
+    ctx.fillStyle = '#8a6d14';
+    ctx.fillRect(-player.r * 0.95, -player.r * 0.4, player.r * 1.9, 3);
+    // latarka
+    ctx.fillStyle = '#fff4c8';
     ctx.beginPath();
-    ctx.arc(player.facing * player.r * 0.45, -player.r * 0.5, 2.6, 0, Math.PI * 2);
+    ctx.arc(player.facing * player.r * 0.6, -player.r * 0.62, 2.8, 0, Math.PI * 2);
     ctx.fill();
 
-    // lampka na kasku
-    const lampGlow = ctx.createRadialGradient(0, -player.r, 0, 0, -player.r, 26);
-    lampGlow.addColorStop(0, 'rgba(255,240,180,.85)');
-    lampGlow.addColorStop(1, 'rgba(255,240,180,0)');
+    // poświata latarki
+    const lampGlow = ctx.createRadialGradient(player.facing * player.r * 0.6, -player.r * 0.62, 0, player.facing * player.r * 0.6, -player.r * 0.62, 34);
+    lampGlow.addColorStop(0, 'rgba(255,244,200,.75)');
+    lampGlow.addColorStop(1, 'rgba(255,244,200,0)');
     ctx.fillStyle = lampGlow;
     ctx.beginPath();
-    ctx.arc(0, -player.r, 26, 0, Math.PI * 2);
+    ctx.arc(player.facing * player.r * 0.6, -player.r * 0.62, 34, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.restore();

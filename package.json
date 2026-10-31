@@ -18,12 +18,16 @@
     "downloads": "python3 tools/pack_downloads.py",
     "test:menu": "node tests/menu.mjs",
     "test:character": "node tests/character.mjs",
-    "test:characters3d": "node tests/characters3d.mjs"
+    "test:characters3d": "node tests/characters3d.mjs",
+    "check:shaders": "node tools/check-shaders.mjs",
+    "preview:ground": "node tools/ground-preview.mjs",
+    "dump:ground": "node tools/dump-ground.mjs"
   },
   "dependencies": {
     "three": "^0.169.0"
   },
   "devDependencies": {
+    "@shaderfrog/glsl-parser": "^7.0.1",
     "jsdom": "^25.0.1",
     "vite": "^5.4.10"
   }

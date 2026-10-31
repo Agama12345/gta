@@ -295,6 +295,40 @@ export async function loadCustomCharacters(loader, lib, base = BASE) {
   }));
 }
 
+
+/**
+ * Urealnienie roślinności z paczek CC0.
+ *
+ * Modele z paczek (KayKit, Quaternius) mają mocno nasycone, „plastikowe”
+ * kolory liści — w lesie wyglądają jak figurki. Tutaj przygaszamy zieleń:
+ * mniejsza saturacja, ciemniejsza jasność, lekkie przesunięcie w stronę oliwki.
+ * Działa tylko na materiałach dominująco zielonych, więc kora, kamienie i
+ * kwiaty zostają nietknięte.
+ */
+export function naturalizeFoliage(root, { saturation = 0.55, darken = 0.82, hueShift = 0.02 } = {}) {
+  if (!root) return root;
+  const seen = new Set();
+  const hsl = { h: 0, s: 0, l: 0 };
+  root.traverse?.((obj) => {
+    if (!obj.material) return;
+    const list = Array.isArray(obj.material) ? obj.material : [obj.material];
+    for (const m of list) {
+      if (!m || seen.has(m) || !m.color) continue;
+      seen.add(m);
+      const c = m.color;
+      const max = Math.max(c.r, c.g, c.b);
+      const min = Math.min(c.r, c.g, c.b);
+      // tylko zieleń (liście, trawa, igliwie)
+      if (!(c.g >= max - 1e-4) || c.g <= min + 1e-4) continue;
+      if (c.g < 0.05) continue;
+      c.getHSL(hsl);
+      const h = (hsl.h + hueShift) % 1;
+      c.setHSL(h, Math.min(0.6, hsl.s * saturation), Math.max(0.06, hsl.l * darken));
+      m.needsUpdate = true;
+    }
+  });
+  return root;
+}
 /**
  * Dociąga wszystkie modele. Nigdy nie rzuca błędem — brak pliku to tylko wpis
  * na liście `failed`.
@@ -313,7 +347,7 @@ export async function loadAssets(onProgress) {
   const natureAll = { ...NATURE_MODELS, ...NATURE_MODELS_EXTRA };
   for (const [key, url] of Object.entries(natureAll)) {
     jobs.push(loadOne(loader, url).then((gltf) => {
-      const scene = gltf.scene;
+      const scene = naturalizeFoliage(gltf.scene);
       const info = measure(scene);
       lib.nature[key] = {
         parts: prepareInstancing(scene),

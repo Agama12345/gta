@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { clamp, fbm, lerp, smoothstep, dist2 } from '../core/utils.js';
 import { biomeWeights } from './biomes.js';
+import { createGroundMaterial } from './groundMaterial.js';
 
 // ---------------------------------------------------------------------------
 // Skala świata.
@@ -727,11 +728,11 @@ export function forestMask(x, z) {
 // Kolory terenu — wspólne dla siatki i minimapy.
 // ---------------------------------------------------------------------------
 const C = {
-  meadow: new THREE.Color('#8aa062'),
+  meadow: new THREE.Color('#8b9268'),
   meadowDry: new THREE.Color('#a8a066'),
-  grass: new THREE.Color('#5d7f42'),
-  grassDark: new THREE.Color('#415f31'),
-  forest: new THREE.Color('#34502c'),
+  grass: new THREE.Color('#64794a'),
+  grassDark: new THREE.Color('#4b5a39'),
+  forest: new THREE.Color('#3d4a34'),
   dirt: new THREE.Color('#8a7350'),
   rock: new THREE.Color('#84817a'),
   rockDark: new THREE.Color('#5e5d58'),
@@ -747,8 +748,8 @@ const tmpC2 = new THREE.Color();
 
 const BIOME = {
   temperate: {
-    grass: new THREE.Color('#5d7f42'), grassDark: new THREE.Color('#415f31'),
-    meadow: new THREE.Color('#8aa062'), dry: new THREE.Color('#a8a066'),
+    grass: new THREE.Color('#64794a'), grassDark: new THREE.Color('#4b5a39'),
+    meadow: new THREE.Color('#8b9268'), dry: new THREE.Color('#a59a74'),
     rock: new THREE.Color('#84817a'), rockDark: new THREE.Color('#5e5d58'),
     sand: new THREE.Color('#9c8f68'),
   },
@@ -852,6 +853,37 @@ export function terrainColorAt(x, z, h, slope, out = tmpC) {
   return out;
 }
 
+/**
+ * Wagi warstw gruntu dla wierzchołka (trawa, piasek, śnieg, bagno).
+ * Skała i droga są liczone w shaderze: skała z normalnej (nachylenie), droga
+ * z odległości do osi traktu — oba pola zmieniają się zbyt szybko, by trzymać
+ * je w wierzchołkach siatki o kroku ~8 m.
+ */
+export function groundWeightsAt(x, z, h, slope, out = [0, 0, 0, 0]) {
+  const w = biomeWeights(x, z);
+  const H = HEIGHT_SCALE;
+  const n2 = fbm(x * 0.028 - 9, z * 0.03 + 3, 2) * 0.5 + 0.5;
+
+  const beach = smoothstep(WATER_LEVEL + 3.0, WATER_LEVEL - 1.5, h);
+  let sand = clamp(w.desert * 0.95 + beach * 0.95, 0, 1);
+
+  const snowAllowed = clamp(w.ice + w.temperate * 0.92 + w.savanna * 0.12, 0, 1);
+  const snowLine = (150 + n2 * 26) * H - w.ice * 130;
+  const snow = clamp(
+    w.ice * 0.8 + smoothstep(snowLine, snowLine + 26 * H, h) * (1 - smoothstep(2.2, 3.4, slope)) * snowAllowed,
+    0, 1
+  );
+
+  const mud = clamp(w.swamp * 0.95, 0, 1);
+  sand = Math.max(0, sand - snow * 0.5);
+  const grass = clamp(1 - sand - snow - mud, 0, 1);
+  out[0] = grass;
+  out[1] = sand;
+  out[2] = snow;
+  out[3] = mud;
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 // Chunkowy teren z poziomami szczegółu (LOD).
 // ---------------------------------------------------------------------------
@@ -871,6 +903,8 @@ function buildChunkGeometry(cx, cz, res) {
   const colors = new Float32Array((vertCount + skirtVerts) * 3);
   const uvs = new Float32Array((vertCount + skirtVerts) * 2);
   const normals = new Float32Array((vertCount + skirtVerts) * 3);
+  const ground = new Float32Array((vertCount + skirtVerts) * 4);
+  const gw = [0, 0, 0, 0];
   const heights = new Float32Array(vertCount);
   const tmp = new THREE.Color();
   const e = 2.5;
@@ -892,6 +926,11 @@ function buildChunkGeometry(cx, cz, res) {
       colors[k * 3 + 2] = tmp.b;
       uvs[k * 2] = x / 22;
       uvs[k * 2 + 1] = z / 22;
+      groundWeightsAt(x, z, h, slope, gw);
+      ground[k * 4] = gw[0];
+      ground[k * 4 + 1] = gw[1];
+      ground[k * 4 + 2] = gw[2];
+      ground[k * 4 + 3] = gw[3];
       // normalna liczona z pola wysokości — identyczna na styku chunków,
       // więc nie ma widocznych szwów ani prostokątów na łąkach
       const nx = heightAt(x - e, z) - heightAt(x + e, z);
@@ -928,6 +967,10 @@ function buildChunkGeometry(cx, cz, res) {
     normals[v * 3] = normals[k * 3];
     normals[v * 3 + 1] = normals[k * 3 + 1];
     normals[v * 3 + 2] = normals[k * 3 + 2];
+    ground[v * 4] = ground[k * 4];
+    ground[v * 4 + 1] = ground[k * 4 + 1];
+    ground[v * 4 + 2] = ground[k * 4 + 2];
+    ground[v * 4 + 3] = ground[k * 4 + 3];
     return v++;
   };
   const edges = [
@@ -949,6 +992,7 @@ function buildChunkGeometry(cx, cz, res) {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(positions.subarray(0, v * 3), 3));
   geo.setAttribute('color', new THREE.BufferAttribute(colors.subarray(0, v * 3), 3));
+  geo.setAttribute('aGround', new THREE.BufferAttribute(ground.subarray(0, v * 4), 4));
   geo.setAttribute('uv', new THREE.BufferAttribute(uvs.subarray(0, v * 2), 2));
   geo.setAttribute('normal', new THREE.BufferAttribute(normals.subarray(0, v * 3), 3));
   geo.setIndex(indices);
@@ -1083,14 +1127,10 @@ export class TerrainManager {
     this.group.name = 'terrain-chunks';
     scene.add(this.group);
 
-    const detail = makeDetailTexture();
-    const bump = makeBumpTexture();
-    this.material = new THREE.MeshLambertMaterial({
-      vertexColors: true,
-      map: detail ?? null,
-      bumpMap: bump ?? null,
-      bumpScale: 0.55,
-    });
+    // Grunt: cztery warstwy tekstur mieszane w shaderze (trawa, droga, skała,
+    // piasek/śnieg). Wierzchołki dają kolor biomu, tekstury — strukturę bliskiego
+    // planu, bez której mapa wyglądała jak jednolita zielona plansza.
+    this.material = createGroundMaterial({ paths: PATHS, edge: [2.4, 7.0] });
     this.chunks = new Map();
     this.queue = [];
     this.lastLodPos = new THREE.Vector2(1e9, 1e9);
@@ -1109,7 +1149,10 @@ export class TerrainManager {
   }
 
   lodForDistance(d) {
-    if (d < 340) return 32; // 7,8 m (siatka wysokości ma 8 m, więcej nie da)
+    // Bliski plan: 3,9 m między wierzchołkami — bez tego zbocza i skarpy
+    // wyglądają jak wielkie płaskie trójkąty, zwłaszcza z teksturami.
+    if (d < 210) return 64;
+    if (d < 430) return 32; // 7,8 m
     if (d < 1500) return 16; // 15,6 m — dalej trójkąty były widoczne gołym okiem
     return 12; // 20,8 m tylko na skraju mapy
   }
