@@ -948,6 +948,32 @@ if (argv.includes('--tris')) {
   for (const [k, v] of rows) {
     console.log(`${(v.tris / 1000).toFixed(0).padStart(7)}k  ${String(v.inst).padStart(6)} szt.  ${String(v.meshes).padStart(4)} siatek  ${k}`);
   }
+  let lodNear = 0;
+  let lodFar = 0;
+  game.scene.traverse((o) => {
+    if (o.userData?.farGeometry) {
+      lodFar += 1;
+      lodNear += (o.userData.nearGeometry.index ? o.userData.nearGeometry.index.count : o.userData.nearGeometry.attributes.position.count) / 3;
+    }
+  });
+  if (lodFar) {
+    let farTris = 0;
+    game.scene.traverse((o) => {
+      const g = o.userData?.farGeometry;
+      if (g) farTris += (g.index ? g.index.count : g.attributes.position.count) / 3;
+    });
+    console.log(`LOD roślinności: ${lodFar} siatek, ${(lodNear / 1e6).toFixed(2)} M → ${(farTris / 1e6).toFixed(2)} M trójkątów na model`);
+    const without = new Map();
+    game.scene.traverse((o) => {
+      if (!o.isInstancedMesh || !o.geometry) return;
+      if (o.userData?.farGeometry) return;
+      const tris = (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3;
+      if (tris < 600) return;
+      const name = (o.name || '').replace(/-?-?\d+:-?\d+$/, '');
+      without.set(name, Math.max(without.get(name) ?? 0, Math.round(tris)));
+    });
+    console.log('bez LOD:', [...without.entries()].slice(0, 8).map(([k, v]) => `${k}(${v})`).join(' '));
+  }
   console.log(`SUMA: ${(total / 1e6).toFixed(2)} M trójkątów, obiektów rysowalnych: ${[...agg.values()].reduce((a, b) => a + b.meshes, 0)}`);
   if (argv.includes('--draws')) {
     // Kto zjada wywołania rysowania: podsumowanie po korzeniach sceny

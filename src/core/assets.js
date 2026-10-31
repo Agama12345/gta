@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { farLod } from './decimate.js';
 
 // ---------------------------------------------------------------------------
 // ZASOBY ZEWNĘTRZNE (darmowe modele CC0)
@@ -198,7 +199,9 @@ export function prepareInstancing(scene, { mergeAll = false } = {}) {
       if (collected.length > 1) for (const g of collected) g.dispose();
       merged.computeBoundingSphere();
       merged.computeBoundingBox();
-      return [{ geometry: merged, material }];
+      // dalszy plan: uproszczona bryła (patrz `decimate.js`)
+      merged.userData = merged.userData ?? {};
+      return [{ geometry: merged, material, farGeometry: farLod(merged) }];
     }
   }
   for (const g of collected) g.dispose();
@@ -210,7 +213,7 @@ export function prepareInstancing(scene, { mergeAll = false } = {}) {
     if (geometries.length > 1) for (const g of geometries) g.dispose();
     merged.computeBoundingSphere();
     merged.computeBoundingBox();
-    parts.push({ geometry: merged, material });
+    parts.push({ geometry: merged, material, farGeometry: farLod(merged) });
   }
   return parts;
 }
@@ -519,6 +522,11 @@ export class ModelScatter {
           mesh.castShadow = true;
           mesh.receiveShadow = true;
           mesh.name = `inst-${key}-${cellId}`;
+          // podmiana geometrii przy przejściu na dalszy plan
+          if (part.farGeometry) {
+            mesh.userData.nearGeometry = part.geometry;
+            mesh.userData.farGeometry = part.farGeometry;
+          }
           for (let i = 0; i < entries.length; i++) {
             mesh.setMatrixAt(i, entries[i].matrix);
             if (anyColor) mesh.setColorAt(i, entries[i].color ?? white);
@@ -557,14 +565,23 @@ export class ModelScatter {
    * wszystko powyżej ~1,2 km, a frustum trójki przepuszcza obiekty z boku —
    * to realnie zdejmuje dziesiątki procent trójkątów z klatki.
    */
-  cullByDistance(camX, camZ, far = 1450) {
+  cullByDistance(camX, camZ, far = 1450, lodDistance = 170) {
     if (!this.cells) return 0;
     let hidden = 0;
     for (const cell of this.cells) {
       const d = Math.hypot(cell.x - camX, cell.z - camZ) - (cell.radius ?? 0);
       const visible = d < far;
+      const useFar = d > lodDistance;
       for (const m of cell.meshes) {
         if (m.visible !== visible) m.visible = visible;
+        // Dalszy plan rysujemy uproszczoną bryłą — z 300 m i tak widać tylko
+        // sylwetkę, a to zdejmuje większość trójkątów z klatki.
+        const near = m.userData?.nearGeometry;
+        const farGeo = m.userData?.farGeometry;
+        if (near && farGeo) {
+          const want = useFar ? farGeo : near;
+          if (m.geometry !== want) m.geometry = want;
+        }
       }
       if (!visible) hidden += cell.count;
     }
