@@ -1,0 +1,18 @@
+Dźwięki w tym katalogu pochodzą z paczki „Oculus Audio Pack 1”,
+udostępnionej przez Meta Platforms, Inc. w ramach projektu Meta Open Sound.
+
+Źródło: https://github.com/facebookincubator/Meta-open-sound
+Licencja: Creative Commons Attribution 4.0 International (CC BY 4.0)
+          https://creativecommons.org/licenses/by/4.0/
+
+Wymagane uznanie autorstwa:
+  "Sound effects from the Oculus Audio Pack, © Meta Platforms, Inc.,
+   licensed under CC BY 4.0."
+
+Zmiany wykonane na potrzeby gry „Runy Przeznaczenia”:
+  - konwersja do mono, 32 kHz, Vorbis (mniejszy rozmiar, poprawne pozycjonowanie),
+  - normalizacja poziomu do ok. -1 dBFS,
+  - zmiana nazw plików i podział na katalogi steps/, ambience/, foley/, ui/, music/.
+
+Kroje pisma w src/assets/fonts/ (Cinzel, Inter) są objęte SIL Open Font License 1.1
+— pełne teksty w OFL-Cinzel.txt i OFL-Inter.txt.

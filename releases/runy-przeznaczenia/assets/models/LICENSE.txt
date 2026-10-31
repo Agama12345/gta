@@ -70,3 +70,34 @@ src/entities/enemy.js — szkielet z AnimationMixerem (SkeletonUtils.clone)
 
 Jeśli któregoś pliku zabraknie, gra automatycznie wraca do modeli
 proceduralnych — nic się nie wysypuje.
+
+--------------------------------------------------------------------------
+6. HALLOWEEN/  — cmentarz, kurhan, kapliczki, martwe drzewa
+   Paczka: KayKit — Halloween Bits 1.0
+   Autor:  Kay Lousberg
+   Strona: https://kaylousberg.itch.io/kaykit-halloween-bits
+   Repo:   https://github.com/KayKit-Game-Assets/KayKit-Halloween-Bits-1.0
+
+   grave_A/B, gravemarker_A/B, crypt, coffin, coffin_decorated — cmentarz przy kurhanie
+   shrine, shrine_candles, lantern_standing, post_lantern, fence_broken — kapliczki i latarnie
+   skull, bone_A, ribcage — szczątki na bagnie i w ruinach
+   tree_dead_large/medium, tree_pine_orange/yellow_large — martwe drzewa i jesienne iglaki
+
+--------------------------------------------------------------------------
+7. FURNITURE/  — wnętrza chat, gospody i kuźni
+   Paczka: KayKit — Furniture Bits 1.0
+   Autor:  Kay Lousberg
+   Strona: https://kaylousberg.itch.io/kaykit-furniture-bits
+   Repo:   https://github.com/KayKit-Game-Assets/KayKit-Furniture-Bits-1.0
+
+   bed_single_A, bed_double_A, table_medium, chair_A, chair_stool, shelf_A_small,
+   cabinet_small, book_set, rug_rectangle_A, lamp_table, couch, pictureframe_medium
+
+--------------------------------------------------------------------------
+8. CITY/  — obejścia i drobna architektura
+   Paczka: KayKit — City Builder Bits 1.0
+   Autor:  Kay Lousberg
+   Strona: https://kaylousberg.itch.io/kaykit-city-builder-bits
+   Repo:   https://github.com/KayKit-Game-Assets/KayKit-City-Builder-Bits-1.0
+
+   bench, streetlight, watertower, box_A, bush
