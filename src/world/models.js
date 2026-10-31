@@ -1445,3 +1445,128 @@ export function makeNetFrame() {
   g.add(net);
   return g;
 }
+
+// ---------------------------------------------------------------------------
+// ROŚLINNOŚĆ I FORMACJE BIOMÓW
+// ---------------------------------------------------------------------------
+
+/** Kaktus — kolumnowy, z odnogami i kolcami; rośnie na pustyni. */
+export function makeCactus(seed = 1) {
+  const rng = new RNG(seed);
+  const g = new THREE.Group();
+  const green = mat(rng.chance(0.5) ? '#5f7546' : '#6b8050', { rough: 0.92 });
+  const H = rng.float(2.2, 3.8);
+  const trunk = mesh(ocyl(0.32, 0.4, H, 8), green, 0, H / 2, 0);
+  g.add(trunk);
+  // żeberka
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const rib = mesh(ocyl(0.04, 0.05, H * 0.94, 3), mat('#4e6238'), Math.cos(a) * 0.34, H / 2, Math.sin(a) * 0.34);
+    rib.castShadow = false;
+    g.add(rib);
+  }
+  // odnogi
+  const arms = 1 + Math.floor(rng.float(0, 2));
+  for (let i = 0; i < arms; i++) {
+    const side = rng.chance(0.5) ? 1 : -1;
+    const y = rng.float(H * 0.35, H * 0.65);
+    const out = rng.float(0.5, 0.8);
+    const elbow = mesh(ocyl(0.2, 0.22, out, 6), green, side * out / 2, y, 0);
+    elbow.rotation.z = Math.PI / 2;
+    g.add(elbow);
+    const up = mesh(ocyl(0.16, 0.2, rng.float(0.6, 1.1), 6), green, side * out, y + 0.35, 0);
+    g.add(up);
+  }
+  // kwiat na szczycie
+  if (rng.chance(0.35)) {
+    const flower = mesh(new THREE.ConeGeometry(0.13, 0.22, 6), mat('#c2513e', { emissive: '#7a2018', emissiveIntensity: 0.25 }), 0, H + 0.06, 0);
+    g.add(flower);
+  }
+  return g;
+}
+
+/** Akacja — płaski, parasolowy baldachim sawanny. */
+export function makeAcacia(seed = 1) {
+  const rng = new RNG(seed);
+  const g = new THREE.Group();
+  const bark = mat('#4b3a29', { rough: 0.95 });
+  const H = rng.float(3.4, 5.2);
+  const trunk = mesh(ocyl(0.18, 0.32, H, 6), bark, 0, H / 2, 0);
+  trunk.rotation.z = rng.float(-0.1, 0.1);
+  g.add(trunk);
+  const branches = 3 + Math.floor(rng.float(0, 2));
+  for (let i = 0; i < branches; i++) {
+    const a = (i / branches) * Math.PI * 2 + rng.float(-0.4, 0.4);
+    const len = rng.float(1.4, 2.4);
+    const br = mesh(ocyl(0.06, 0.13, len, 5), bark, Math.cos(a) * len * 0.32, H * 0.92, Math.sin(a) * len * 0.32);
+    br.rotation.set(Math.PI / 2 - rng.float(0.35, 0.7), 0, -a);
+    g.add(br);
+  }
+  // baldachim: szeroki, spłaszczony
+  const leaves = mat('#6f7c3f', { rough: 0.96 });
+  const leaves2 = mat('#7e8b49', { rough: 0.96 });
+  for (let i = 0; i < 6; i++) {
+    const a = rng.float(0, Math.PI * 2);
+    const rad = rng.float(0.2, 1.9);
+    const size = rng.float(1.1, 1.9);
+    const clump = mesh(new THREE.IcosahedronGeometry(size, 0), i % 2 ? leaves : leaves2,
+      Math.cos(a) * rad, H + rng.float(-0.15, 0.5), Math.sin(a) * rad);
+    clump.scale.y = 0.4;
+    clump.rotation.y = rng.float(0, 3);
+    g.add(clump);
+  }
+  return g;
+}
+
+/** Uschły krzew — cierniste badyle pustyni i stepu. */
+export function makeDeadBush(seed = 1) {
+  const rng = new RNG(seed);
+  const g = new THREE.Group();
+  const dry = mat('#6b5a3c', { rough: 1 });
+  const n = 6 + Math.floor(rng.float(0, 5));
+  for (let i = 0; i < n; i++) {
+    const a = rng.float(0, Math.PI * 2);
+    const h = rng.float(0.35, 0.95);
+    const twig = mesh(ocyl(0.012, 0.035, h, 3), dry, Math.cos(a) * 0.12, h / 2, Math.sin(a) * 0.12);
+    twig.rotation.set(rng.float(-0.5, 0.5), 0, rng.float(-0.5, 0.5));
+    twig.castShadow = false;
+    g.add(twig);
+  }
+  return g;
+}
+
+/** Sopel lodu / lodowa grań — tundra. */
+export function makeIceSpire(seed = 1, scale = 1) {
+  const rng = new RNG(seed);
+  const g = new THREE.Group();
+  const ice = new THREE.MeshStandardMaterial({
+    color: '#cfe6ee', roughness: 0.14, metalness: 0.06,
+    transparent: true, opacity: 0.86, flatShading: true,
+    emissive: '#2a4a56', emissiveIntensity: 0.25,
+  });
+  const n = 2 + Math.floor(rng.float(0, 3));
+  for (let i = 0; i < n; i++) {
+    const h = rng.float(1.4, 4.2) * scale;
+    const spike = new THREE.Mesh(new THREE.ConeGeometry(rng.float(0.22, 0.55) * scale, h, rng.chance(0.5) ? 5 : 6), ice);
+    spike.position.set(rng.float(-0.7, 0.7) * scale, h / 2, rng.float(-0.7, 0.7) * scale);
+    spike.rotation.set(rng.float(-0.16, 0.16), rng.float(0, 3), rng.float(-0.16, 0.16));
+    spike.castShadow = true;
+    spike.receiveShadow = true;
+    g.add(spike);
+  }
+  return g;
+}
+
+/** Głaz pokryty śniegiem — tundra i wysokie góry. */
+export function makeSnowRock(seed = 1, scale = 1) {
+  const rng = new RNG(seed);
+  const g = new THREE.Group();
+  const body = makeRock(seed, scale);
+  g.add(body);
+  const capGeo = new THREE.SphereGeometry(rng.float(0.55, 0.85) * scale, 6, 3, 0, Math.PI * 2, 0, Math.PI * 0.45);
+  const cap = mesh(capGeo, mat('#e2ebee', { rough: 0.8 }), 0, rng.float(0.45, 0.7) * scale, 0);
+  cap.scale.y = 0.42;
+  cap.castShadow = false;
+  g.add(cap);
+  return g;
+}

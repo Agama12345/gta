@@ -208,6 +208,11 @@ export class Game {
       return;
     }
 
+    // nawigacja klawiaturą po menu (strzałki + Enter)
+    if ((this.state === 'title' || this.state === 'ui') && (code === 'ArrowDown' || code === 'ArrowUp')) {
+      if (this.ui.moveMenuFocus(code === 'ArrowDown' ? 1 : -1)) return;
+    }
+
     if (this.state !== 'playing') return;
 
     switch (code) {

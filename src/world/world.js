@@ -11,8 +11,10 @@ import {
   makeMenhir, makeStoneArch, makePillar, makeCrystal, makeOreNode, makeHerbPatch,
   makeBanner, makeBonePile, makeGrave, makePortal, makeShrine, makeBoat,
   makeWolfTotem, makeSignpost, makeFern, makeReed, makeGull,
-  makeLighthouse, makeShipwreck, makeFishRack, makeNetFrame, mat,
+  makeLighthouse, makeShipwreck, makeFishRack, makeNetFrame,
+  makeCactus, makeAcacia, makeDeadBush, makeIceSpire, makeSnowRock, mat,
 } from './models.js';
+import { dominantBiome } from './biomes.js';
 import { PropBatcher, flattenGroup } from './mergeProps.js';
 
 const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
@@ -1252,6 +1254,31 @@ export class World {
       const geo = flattenGroup(makeBush(3000 + i));
       if (geo) bushVariants.push(geo);
     }
+    const cactusVariants = [];
+    for (let i = 0; i < 3; i++) {
+      const geo = flattenGroup(makeCactus(5100 + i * 17));
+      if (geo) cactusVariants.push(geo);
+    }
+    const acaciaVariants = [];
+    for (let i = 0; i < 3; i++) {
+      const geo = flattenGroup(makeAcacia(5200 + i * 23));
+      if (geo) acaciaVariants.push(geo);
+    }
+    const deadBushVariants = [];
+    for (let i = 0; i < 3; i++) {
+      const geo = flattenGroup(makeDeadBush(5300 + i * 11));
+      if (geo) deadBushVariants.push(geo);
+    }
+    const iceSpireVariants = [];
+    for (let i = 0; i < 3; i++) {
+      const geo = flattenGroup(makeIceSpire(5400 + i * 13, 1));
+      if (geo) iceSpireVariants.push(geo);
+    }
+    const snowRockVariants = [];
+    for (let i = 0; i < 3; i++) {
+      const geo = flattenGroup(makeSnowRock(5500 + i * 19, 1));
+      if (geo) snowRockVariants.push(geo);
+    }
     const fernVariants = [];
     for (let i = 0; i < 3; i++) {
       const geo = flattenGroup(makeFern(3500 + i));
@@ -1278,16 +1305,30 @@ export class World {
       if (h > 182) continue; // powyżej granicy lasu
       const forest = forestMask(x, z);
       const nearSwamp = dist2(x, z, LOCATIONS.swamp.x, LOCATIONS.swamp.z) < 210 * S;
-      if (forest < 0.3 && !nearSwamp && rng.next() > 0.055) continue;
-      // sosny wyżej i na suchym gruncie, liściaste w dolinach
-      const usePine = h > 95 || (h > 55 && rng.chance(0.45));
-      const variant = nearSwamp
-        ? (rng.chance(0.7) ? treeVariants[treeVariants.length - 1] : pick(broadleaf))
-        : (usePine ? pick(conifers) : pick(broadleaf));
-      if (!variant) continue;
-      const scale = rng.float(1.0, 1.95);
+      const biome = dominantBiome(x, z);
+      // gęstość roślinności zależy od biomu: pustynia prawie pusta, tundra rzadka
+      const density = biome === 'desert' ? 0.14 : biome === 'ice' ? 0.35 : biome === 'savanna' ? 0.5 : 1;
+      if (forest < 0.3 && !nearSwamp && rng.next() > 0.055 * density) continue;
+
+      let variant;
+      if (biome === 'desert') {
+        variant = rng.chance(0.58) ? pick(cactusVariants) : rng.chance(0.5) ? pick(acaciaVariants) : pick(deadBushVariants);
+      } else if (biome === 'savanna') {
+        variant = rng.chance(0.62) ? pick(acaciaVariants) : rng.chance(0.5) ? pick(deadBushVariants) : pick(broadleaf);
+      } else if (biome === 'ice') {
+        variant = rng.chance(0.55) ? pick(conifers) : rng.chance(0.5) ? pick(deadBushVariants) : (treeVariants.find((v) => v.dead) ?? pick(conifers));
+      } else {
+        // sosny wyżej i na suchym gruncie, liściaste w dolinach
+        const deadVariant = treeVariants.find((v) => v.dead);
+        const usePine = h > 95 || (h > 55 && rng.chance(0.45));
+        variant = nearSwamp
+          ? (rng.chance(0.7) && deadVariant ? deadVariant : pick(broadleaf))
+          : (usePine ? pick(conifers) : pick(broadleaf));
+      }
+      if (!variant || !variant.geo) continue;
+      const scale = biome === 'desert' ? rng.float(0.8, 1.5) : rng.float(1.0, 1.95);
       this.batcher.addGeometry(variant.geo, x, h, z, rng.float(0, Math.PI * 2), scale);
-      if (scale > 1.3) this.colliders.push({ x, z, r: 0.5 * scale });
+      if (scale > 1.3 && biome !== 'desert') this.colliders.push({ x, z, r: 0.5 * scale });
       trees += 1;
     }
 
@@ -1303,7 +1344,8 @@ export class World {
       const h = heightAt(x, z);
       const steep = slopeAt(x, z);
       if (steep < 0.6 && h < 120 && rng.next() > 0.16) continue;
-      const geo = pick(rockVariants);
+      const biome = dominantBiome(x, z);
+      const geo = biome === 'ice' ? pick(snowRockVariants) : pick(rockVariants);
       const scale = rng.float(0.8, 2.4);
       this.batcher.addGeometry(geo, x, h, z, rng.float(0, 6.28), scale);
       if (scale > 1.6) this.colliders.push({ x, z, r: scale * 0.55 });
@@ -1321,6 +1363,21 @@ export class World {
       const ch = heightAt(cx, cz);
       const steep = slopeAt(cx, cz);
       if (steep < 0.45 && ch < 110) continue;
+      const biome = dominantBiome(cx, cz);
+      if (biome === 'ice') {
+        // lodowe granie zamiast głazów
+        const spikes = 2 + Math.floor(rng.next() * 3);
+        for (let i = 0; i < spikes; i++) {
+          const geo = pick(iceSpireVariants);
+          const ox = cx + rng.float(-4, 4);
+          const oz = cz + rng.float(-4, 4);
+          const scale = rng.float(0.8, 2.0);
+          this.batcher.addGeometry(geo, ox, heightAt(ox, oz) - 0.2, oz, rng.float(0, 6.28), scale);
+          if (scale > 1.4) this.colliders.push({ x: ox, z: oz, r: scale * 0.5 });
+        }
+        outcrops += 1;
+        continue;
+      }
       const piles = 3 + Math.floor(rng.next() * 5);
       for (let i = 0; i < piles; i++) {
         const spread = 1.5 + rng.float(0, 5.5);
@@ -1537,12 +1594,22 @@ export class World {
         if (Math.abs(x) > WORLD_RADIUS - 10 || Math.abs(z) > WORLD_RADIUS - 10) continue;
         if (isWater(x, z) || distanceToPath(x, z) < 8) continue;
         if (slopeAt(x, z) > 1.2) continue;
+        if (dominantBiome(x, z) === 'desert' && rng.next() > 0.25) continue;
         dummy.position.set(x, heightAt(x, z) - 0.04, z);
         dummy.rotation.set(0, rng.float(0, 6.28), 0);
         dummy.scale.setScalar(rng.float(0.8, 1.7));
         dummy.updateMatrix();
         inst.setMatrixAt(placed, dummy.matrix);
-        color.setHSL(0.22 + rng.float(-0.03, 0.05), rng.float(0.3, 0.52), rng.float(0.28, 0.42));
+        const biome = dominantBiome(x, z);
+        if (biome === 'desert') {
+          color.setHSL(0.12 + rng.float(-0.02, 0.02), rng.float(0.25, 0.4), rng.float(0.38, 0.5));
+        } else if (biome === 'savanna') {
+          color.setHSL(0.14 + rng.float(-0.02, 0.03), rng.float(0.3, 0.45), rng.float(0.34, 0.45));
+        } else if (biome === 'ice') {
+          color.setHSL(0.28 + rng.float(-0.03, 0.03), rng.float(0.08, 0.2), rng.float(0.55, 0.72));
+        } else {
+          color.setHSL(0.22 + rng.float(-0.03, 0.05), rng.float(0.3, 0.52), rng.float(0.28, 0.42));
+        }
         inst.setColorAt(placed, color);
         placed += 1;
       }

@@ -31,10 +31,13 @@ export class VoiceSystem {
     if (!this.supported) return;
     try {
       this._resolveVoices();
+      // WebView2/Chrome nie zawsze mają addEventListener na speechSynthesis —
+      // ustawiamy i właściwość, i zdarzenie, i kilka prób opóźnionych.
+      window.speechSynthesis.onvoiceschanged = this._resolveVoices;
       window.speechSynthesis.addEventListener?.('voiceschanged', this._resolveVoices);
-      // niektóre systemy ładują listę głosów dopiero po chwili
-      setTimeout(() => this._resolveVoices(), 600);
-      setTimeout(() => this._resolveVoices(), 2000);
+      [300, 800, 1600, 3000, 5000].forEach((ms) => setTimeout(() => {
+        if (!this.voicesReady) this._resolveVoices();
+      }, ms));
     } catch (err) {
       this.supported = false;
     }
@@ -48,7 +51,10 @@ export class VoiceSystem {
     } catch (err) {
       list = [];
     }
-    if (!list.length) return;
+    if (!list.length) {
+      this._tries = (this._tries ?? 0) + 1;
+      return;
+    }
     const polish = list.filter((v) => (v.lang || '').toLowerCase().startsWith('pl'));
     this._all = list;
     this.polish = polish.length > 0;

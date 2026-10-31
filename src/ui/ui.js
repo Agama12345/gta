@@ -7,6 +7,7 @@ import { TIPS } from '../data/dialogue.js';
 import { clamp, dist2, fbm } from '../core/utils.js';
 import { SHOPS } from '../data/dialogue.js';
 import { icon } from './icons.js';
+import { biomeLabel } from '../world/biomes.js';
 
 const fmt = (n) => Math.round(n).toLocaleString('pl-PL');
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
@@ -112,6 +113,7 @@ export class UI {
       </div>
 
       <div class="clock" id="clock">☀ 08:30</div>
+      <div class="world-tag" id="world-tag"></div>
 
       <div class="quest-tracker" id="quest-tracker">
         <h4>Zadanie</h4>
@@ -395,9 +397,10 @@ export class UI {
         <div class="menu-sigil"><img class="rune-icon" src="./icon-128.png" alt="" /></div>
         <h1 class="menu-title">Runy Przeznaczenia</h1>
         <div class="menu-tagline">RPG · Wilcza Dolina · Mgliste Wrota</div>
-        <div class="menu-buttons">
+        <div class="menu-buttons" id="title-buttons">
           <button class="primary" data-menu="new">Nowa wyprawa</button>
           <button data-menu="continue" id="btn-continue">Kontynuuj</button>
+          <button data-menu="settings">Ustawienia</button>
           <button data-menu="controls">Sterowanie</button>
           <button data-menu="about">O grze</button>
         </div>
@@ -414,12 +417,13 @@ export class UI {
       <div class="menu-inner">
         <div class="menu-sigil">❖</div>
         <h1 class="menu-title" style="font-size:clamp(26px,4.5vw,40px)">Pauza</h1>
-        <div class="menu-tagline">Wilcza Dolina czeka</div>
-        <div class="menu-buttons">
+        <div class="menu-tagline" id="pause-sub">Wilcza Dolina czeka</div>
+        <div class="menu-buttons" id="pause-buttons">
           <button class="primary" data-pause="resume">Powrót do gry</button>
           <button data-pause="save">Zapisz grę</button>
+          <button data-pause="settings">Ustawienia</button>
           <button data-pause="controls">Sterowanie</button>
-          <button data-pause="mute">Dźwięk: wł.</button>
+          <button data-pause="mute" id="btn-mute">Dźwięk: wł.</button>
           <button data-pause="title">Wyjdź do menu</button>
         </div>
       </div>`;
@@ -479,24 +483,29 @@ export class UI {
     this.infoPanel = info;
 
     title.addEventListener('click', (e) => {
-      const a = e.target.closest('[data-menu]')?.dataset.menu;
-      if (!a) return;
+      const btn = e.target.closest('[data-menu]');
+      if (!btn || btn.disabled) return;
+      const a = btn.dataset.menu;
       this.game.audio?.unlock();
       this.game.audio?.uiClick();
       if (a === 'new') this.game.startNew();
       if (a === 'continue') this.game.loadGame();
+      if (a === 'settings') this.showSettings();
       if (a === 'controls') this.showControls();
       if (a === 'about') this.showAbout();
     });
     pause.addEventListener('click', (e) => {
-      const a = e.target.closest('[data-pause]')?.dataset.pause;
-      if (!a) return;
+      const btn = e.target.closest('[data-pause]');
+      if (!btn || btn.disabled) return;
+      const a = btn.dataset.pause;
+      this.game.audio?.uiClick();
       if (a === 'resume') this.game.resumeFromUi();
       if (a === 'save') this.game.saveGame(true);
+      if (a === 'settings') this.showSettings();
       if (a === 'controls') this.showControls();
       if (a === 'mute') {
         const on = this.game.audio?.toggleMute();
-        e.target.textContent = `Dźwięk: ${on ? 'wł.' : 'wył.'}`;
+        btn.textContent = `Dźwięk: ${on ? 'wł.' : 'wył.'}`;
       }
       if (a === 'title') this.game.returnToTitle();
     });
@@ -518,6 +527,131 @@ export class UI {
         if (!this.anyScreenOpen()) this.game.resumeFromUi();
       }
     });
+  }
+
+  // -----------------------------------------------------------------------
+  // MENU — stan, ustawienia, nawigacja klawiaturą
+  // -----------------------------------------------------------------------
+  _readSave() {
+    try {
+      const raw = localStorage.getItem('runy-przeznaczenia-save')
+        ?? localStorage.getItem('ostrze-switu-save');
+      return raw ? JSON.parse(raw) : null;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  _biomeLabel() {
+    try {
+      const pos = this.game.player?.pos;
+      if (!pos) return '';
+      return biomeLabel(pos.x, pos.z);
+    } catch (err) {
+      return '';
+    }
+  }
+
+  /** Odświeża stan ekranu tytułowego: czy jest zapis, co pokazać w stopce. */
+  refreshMenuState() {
+    const save = this._readSave();
+    const btn = this.titleScreen?.querySelector('#btn-continue');
+    if (btn) {
+      btn.disabled = !save;
+      btn.title = save ? 'Wczytaj ostatni zapis' : 'Brak zapisu — zacznij nową wyprawę';
+    }
+    const foot = this.titleScreen?.querySelector('#title-foot');
+    if (foot) {
+      if (save?.player) {
+        const lvl = save.player.level ?? 1;
+        const gold = save.player.gold ?? 0;
+        const when = save.savedAt ? new Date(save.savedAt).toLocaleString('pl-PL') : '';
+        foot.innerHTML = `Zapis: poziom <b>${lvl}</b> · ${fmt(gold)} szt. złota<br/><small>${when}</small>`;
+      } else {
+        foot.textContent = 'Nowa gra — zacznij wyprawę';
+      }
+    }
+    const mute = this.pauseScreen?.querySelector('#btn-mute');
+    if (mute) mute.textContent = `Dźwięk: ${this.game.audio?.enabled ? 'wł.' : 'wył.'}`;
+    const sub = this.pauseScreen?.querySelector('#pause-sub');
+    if (sub && this.game.player) {
+      sub.textContent = `Poziom ${this.game.player.level} · ${fmt(this.game.player.inventory.gold)} szt. złota`;
+    }
+  }
+
+  /** Klawiatura w menu: strzałki przełączają przyciski, Enter wybiera. */
+  moveMenuFocus(delta) {
+    const screen = [this.titleScreen, this.pauseScreen, this.deathScreen, this.victoryScreen]
+      .find((el) => el && !el.classList.contains('hidden'));
+    if (!screen) return false;
+    const buttons = [...screen.querySelectorAll('.menu-buttons button')].filter((b) => !b.disabled);
+    if (!buttons.length) return false;
+    const current = buttons.indexOf(document.activeElement);
+    const next = current < 0 ? 0 : (current + delta + buttons.length) % buttons.length;
+    buttons[next].focus();
+    this.game.audio?.uiClick();
+    return true;
+  }
+
+  /** Panel ustawień — głośność, głosy, jakość obrazu. */
+  showSettings() {
+    const audio = this.game.audio;
+    const voice = this.game.voice;
+    const vol = Math.round((audio?.master?.gain?.value ?? 0.55) * 100);
+    const body = `
+      <div class="settings">
+        <div class="setting-row">
+          <div><b>Głośność ogólna</b><div class="sub">Muzyka, otoczenie i efekty</div></div>
+          <div class="setting-ctrl">
+            <input type="range" id="set-volume" min="0" max="100" value="${vol}" />
+            <span id="set-volume-val">${vol}%</span>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div><b>Dźwięk</b><div class="sub">Wiatr, fale, walka, interfejs</div></div>
+          <div class="setting-ctrl"><button id="set-mute">${audio?.enabled ? 'Włączony' : 'Wyłączony'}</button></div>
+        </div>
+        <div class="setting-row">
+          <div><b>Głosy postaci</b><div class="sub" id="set-voice-sub">${voice?.status?.() ?? 'niedostępne'}</div></div>
+          <div class="setting-ctrl"><button id="set-voice">${voice?.enabled ? 'Włączone' : 'Wyłączone'}</button></div>
+        </div>
+        <div class="setting-row">
+          <div><b>Ostrość obrazu</b><div class="sub">Niższa wartość = płynniej na słabszym komputerze</div></div>
+          <div class="setting-ctrl">
+            <input type="range" id="set-quality" min="75" max="200" step="25" value="${Math.round((this.game.renderer?.getPixelRatio?.() ?? 1) * 100)}" />
+            <span id="set-quality-val">${Math.round((this.game.renderer?.getPixelRatio?.() ?? 1) * 100)}%</span>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div><b>Sterowanie</b><div class="sub">Pełna lista klawiszy</div></div>
+          <div class="setting-ctrl"><button id="set-keys">Pokaż</button></div>
+        </div>
+      </div>`;
+    this.showInfo('Ustawienia', 'Zmiany działają od razu', body);
+    const panel = this.infoPanel;
+    panel.querySelector('#set-volume')?.addEventListener('input', (e) => {
+      const v = Number(e.target.value);
+      panel.querySelector('#set-volume-val').textContent = `${v}%`;
+      this.game.audio?.setVolume((v / 100) * 0.55);
+    });
+    panel.querySelector('#set-mute')?.addEventListener('click', (e) => {
+      const on = this.game.audio?.toggleMute();
+      e.target.textContent = on ? 'Włączony' : 'Wyłączony';
+    });
+    panel.querySelector('#set-voice')?.addEventListener('click', (e) => {
+      const on = this.game.voice?.toggle();
+      e.target.textContent = on ? 'Włączone' : 'Wyłączone';
+      const sub = panel.querySelector('#set-voice-sub');
+      if (sub) sub.textContent = this.game.voice?.status() ?? '';
+      if (on) this.game.voice?.speak('Głosy postaci włączone.', 'narrator');
+    });
+    panel.querySelector('#set-quality')?.addEventListener('input', (e) => {
+      const v = Number(e.target.value);
+      panel.querySelector('#set-quality-val').textContent = `${v}%`;
+      this.game.renderer?.setPixelRatio?.(v / 100);
+      this.game.renderer?.setSize?.(window.innerWidth, window.innerHeight);
+    });
+    panel.querySelector('#set-keys')?.addEventListener('click', () => this.showControls());
   }
 
   // =======================================================================
@@ -617,10 +751,22 @@ export class UI {
   renderInventory() {
     const p = this.game.player;
     const inv = p.inventory;
-    const items = inv.list().sort((a, b) => {
-      const order = { weapon: 0, armor: 1, helm: 2, trinket: 3, consumable: 4, material: 5, quest: 6 };
-      return (order[a.def.type] ?? 9) - (order[b.def.type] ?? 9);
+    this.invFilter = this.invFilter ?? 'all';
+    this.invSort = this.invSort ?? 'type';
+    const all = inv.list();
+    const order = { weapon: 0, armor: 1, helm: 2, trinket: 3, consumable: 4, material: 5, quest: 6 };
+    const sorters = {
+      type: (a, b) => (order[a.def.type] ?? 9) - (order[b.def.type] ?? 9) || a.def.name.localeCompare(b.def.name, 'pl'),
+      name: (a, b) => a.def.name.localeCompare(b.def.name, 'pl'),
+      value: (a, b) => (b.def.value ?? 0) - (a.def.value ?? 0),
+    };
+    const filtered = this.invFilter === 'all' ? all : all.filter((e) => {
+      if (this.invFilter === 'gear') return ['weapon', 'armor', 'helm', 'trinket'].includes(e.def.type);
+      if (this.invFilter === 'use') return e.def.type === 'consumable';
+      if (this.invFilter === 'mat') return e.def.type === 'material';
+      return true;
     });
+    const items = filtered.sort(sorters[this.invSort] ?? sorters.type);
 
     const equipHtml = EQUIP_SLOTS.map((slot) => {
       const id = inv.equipped[slot.id];
@@ -671,13 +817,35 @@ export class UI {
             </div>
           </div>
           <div class="card" style="margin-top:14px">
-            <h4>Torba</h4>
+            <div class="inv-head">
+              <h4>Torba</h4>
+              <div class="inv-filters">
+                ${[['all', 'Wszystko'], ['gear', 'Ekwipunek'], ['use', 'Mikstury'], ['mat', 'Materiały']]
+                  .map(([id, label]) => `<button class="chip ${this.invFilter === id ? 'on' : ''}" data-inv-filter="${id}">${label}</button>`)
+                  .join('')}
+                <button class="chip ${this.invSort !== 'type' ? 'on' : ''}" data-inv-sort="1">↕ ${this.invSort === 'value' ? 'Cena' : this.invSort === 'name' ? 'Nazwa' : 'Rodzaj'}</button>
+              </div>
+            </div>
             <div class="inv-grid">${cells.join('')}</div>
+            ${filtered.length === 0 ? '<div class="empty-note">Brak przedmiotów w tej kategorii.</div>' : ''}
           </div>
         </div>
         <div>${detail}</div>
       </div>`;
 
+    this.heroBody.querySelectorAll('[data-inv-filter]').forEach((b) => {
+      b.addEventListener('click', () => {
+        this.invFilter = b.dataset.invFilter;
+        this.game.audio?.uiClick();
+        this.renderInventory();
+      });
+    });
+    this.heroBody.querySelector('[data-inv-sort]')?.addEventListener('click', () => {
+      const cycle = ['type', 'name', 'value'];
+      this.invSort = cycle[(cycle.indexOf(this.invSort) + 1) % cycle.length];
+      this.game.audio?.uiClick();
+      this.renderInventory();
+    });
     this.heroBody.querySelectorAll('[data-item]').forEach((c) => {
       c.addEventListener('click', () => {
         this.selectedItem = c.dataset.item;
@@ -939,6 +1107,18 @@ export class UI {
     this.game.openUI(true);
   }
 
+  /** Wspólny panel informacyjny (sterowanie, ustawienia, o grze). */
+  showInfo(title, sub, html) {
+    qs('#info-title').textContent = title;
+    qs('#info-sub').textContent = sub ?? '';
+    qs('#info-body').innerHTML = html;
+    this.infoPanel.classList.remove('hidden');
+    this.infoPanel.classList.add('show');
+    this.infoOpen = true;
+    this.infoFromTitle = this.game.state === 'title';
+    this.game.openUI(true);
+  }
+
   showControls() {
     qs('#info-title').textContent = 'Sterowanie';
     qs('#info-sub').textContent = 'Wszystko pod ręką';
@@ -951,6 +1131,7 @@ export class UI {
             ['Spacja', 'Unik / przewrót (nietykalność)'],
             ['Q / E / R', 'Zaklęcia: Znak Świtu, Wilczy Zew, Blask Świtu'],
             ['1 / 2', 'Mikstury z paska szybkiego dostępu'],
+            ['V', 'Głosy postaci — włącz / wyłącz'],
           ].map(([k, v]) => `<div class="kbd-row"><kbd>${k}</kbd><span>${v}</span></div>`).join('')}
         </div>
         <div>
@@ -1007,6 +1188,7 @@ export class UI {
   // EKRANY STANU
   // =======================================================================
   showTitle() {
+    this.refreshMenuState();
     this.titleScreen.classList.remove('hidden');
     const hasSave = !!localStorage.getItem('runy-przeznaczenia-save') || !!localStorage.getItem('ostrze-switu-save');
     const btn = qs('#btn-continue');
@@ -1021,6 +1203,7 @@ export class UI {
   }
 
   showPause() {
+    this.refreshMenuState();
     this.pauseScreen.classList.remove('hidden');
   }
 
@@ -1069,6 +1252,21 @@ export class UI {
     qs('#label-mana').textContent = `${Math.ceil(p.mana)} / ${p.maxMana}`;
     qs('#label-xp').textContent = `${fmt(p.xp)} / ${fmt(p.xpNeeded)} PD`;
 
+    // znacznik pogody i krainy
+    const tag = qs('#world-tag');
+    if (tag) {
+      const w = this.game.weather;
+      const biome = this._biomeLabel?.() ?? '';
+      const icon = w ? ({ Pogodnie: '☀', Zachmurzenie: '☁', Deszcz: '☂', Burza: '⚡', Mgła: '≋' }[w.label] ?? '☀') : '☀';
+      const weather = w ? `${icon} ${w.label}` : '';
+      tag.textContent = [weather, biome].filter(Boolean).join(' · ');
+      tag.classList.toggle('night', !!this.game.dayNight?.isNight);
+    }
+
+    // niski poziom zdrowia — pulsująca obwódka
+    this.hud.classList.toggle('low-hp', p.hp / p.maxHP < 0.3 && !p.dead);
+    this.hud.classList.toggle('low-mana', p.mana < p.maxMana * 0.15);
+
     // zaklęcia
     SPELLS.forEach((s, i) => {
       const el = this.spellEls[i];
@@ -1115,6 +1313,7 @@ export class UI {
       qs('#label-stam').textContent = `${Math.ceil(p.stamina)}`;
       qs('#label-mana').textContent = `${Math.ceil(p.mana)} / ${p.maxMana}`;
       qs('#label-xp').textContent = `${fmt(p.xp)} / ${fmt(p.xpNeeded)} PD`;
+      this.refreshHud();
       qs('#hero-gold').textContent = `${fmt(p.inventory.gold)} szt.`;
       SPELLS.forEach((s, i) => {
         const el = this.spellEls[i];

@@ -82,6 +82,7 @@ export class DialogueSystem {
       const quest = QUESTS[arg];
       if (!quest) return;
       g.quests.accept(arg);
+      this.game.voice?.speak(`${quest.name}. ${quest.intro ?? ''}`.trim(), 'narrator');
       this.game.ui?.hideDialogue();
       this.open = false;
       this.game.ui?.showQuestIntro(quest, () => {

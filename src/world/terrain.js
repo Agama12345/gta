@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { clamp, fbm, lerp, smoothstep, dist2 } from '../core/utils.js';
+import { biomeWeights } from './biomes.js';
 
 // ---------------------------------------------------------------------------
 // Skala świata.
@@ -359,48 +360,107 @@ const C = {
 const tmpC = new THREE.Color();
 const tmpC2 = new THREE.Color();
 
+const BIOME = {
+  temperate: {
+    grass: new THREE.Color('#5d7f42'), grassDark: new THREE.Color('#415f31'),
+    meadow: new THREE.Color('#8aa062'), dry: new THREE.Color('#a8a066'),
+    rock: new THREE.Color('#84817a'), rockDark: new THREE.Color('#5e5d58'),
+    sand: new THREE.Color('#9c8f68'),
+  },
+  desert: {
+    grass: new THREE.Color('#c2a06a'), grassDark: new THREE.Color('#a8874f'),
+    meadow: new THREE.Color('#d9c08c'), dry: new THREE.Color('#e0cb9c'),
+    rock: new THREE.Color('#a2663f'), rockDark: new THREE.Color('#7a4529'),
+    sand: new THREE.Color('#dcbe86'),
+  },
+  savanna: {
+    grass: new THREE.Color('#8f8a4e'), grassDark: new THREE.Color('#6d6a3a'),
+    meadow: new THREE.Color('#b3a566'), dry: new THREE.Color('#c9b97a'),
+    rock: new THREE.Color('#8b7a63'), rockDark: new THREE.Color('#6a5a48'),
+    sand: new THREE.Color('#b7a071'),
+  },
+  ice: {
+    grass: new THREE.Color('#8d9c93'), grassDark: new THREE.Color('#6d7b74'),
+    meadow: new THREE.Color('#c3cec9'), dry: new THREE.Color('#dbe4e2'),
+    rock: new THREE.Color('#7b858b'), rockDark: new THREE.Color('#565f66'),
+    sand: new THREE.Color('#c8cfca'),
+  },
+};
+
+const accent = new THREE.Color();
+const rockTmp = new THREE.Color();
+
+/**
+ * Kolor terenu: biom × nachylenie × wysokość.
+ * Skały są teraz widoczne od łagodniejszych zboczy (0,38) — w górach dominuje
+ * kamień, żwir i odsłonięte granie, a nie jednolita trawa, jak dotąd.
+ */
 export function terrainColorAt(x, z, h, slope, out = tmpC) {
   const S = WORLD_SCALE;
   const H = HEIGHT_SCALE;
+  const w = biomeWeights(x, z);
   const forest = forestMask(x, z);
   const n = fbm(x * 0.09 + 5, z * 0.09 - 2, 3) * 0.5 + 0.5;
   const n2 = fbm(x * 0.028 - 9, z * 0.03 + 3, 2) * 0.5 + 0.5;
 
-  out.copy(C.grass).lerp(C.meadow, n).lerp(C.meadowDry, n2 * 0.5);
-  // duże łaty ciemniejszej darni — przełamują jednolitość łąk
-  const patch = fbm(x * 0.006 - 21.5, z * 0.006 + 4.7, 3) * 0.5 + 0.5;
-  out.lerp(C.grassDark, smoothstep(0.32, 0.72, patch) * 0.55);
-  if (forest > 0.42) out.lerp(C.forest, smoothstep(0.42, 0.85, forest) * 0.8);
+  // ---- baza: mieszanka palet biomów -------------------------------------
+  out.setRGB(0, 0, 0);
+  let total = 0;
+  for (const key of ['temperate', 'desert', 'savanna', 'ice']) {
+    const ww = key === 'temperate' ? w.temperate : w[key];
+    if (ww <= 0.001) continue;
+    const pal = BIOME[key];
+    accent.copy(pal.grass).lerp(pal.meadow, n).lerp(pal.dry, n2 * 0.5);
+    const patch = fbm(x * 0.006 - 21.5, z * 0.006 + 4.7, 3) * 0.5 + 0.5;
+    accent.lerp(pal.grassDark, smoothstep(0.32, 0.72, patch) * 0.5);
+    out.r += accent.r * ww;
+    out.g += accent.g * ww;
+    out.b += accent.b * ww;
+    total += ww;
+  }
+  if (total > 0) out.multiplyScalar(1 / total);
+
+  // las i bagno tylko na umiarkowanym terenie
+  if (w.temperate > 0.2 && forest > 0.42) {
+    out.lerp(C.forest, smoothstep(0.42, 0.85, forest) * 0.8 * w.temperate);
+  }
+  if (w.swamp > 0.01) out.lerp(C.mud, w.swamp * 0.85);
 
   const pathD = distanceToPath(x, z);
-  if (pathD < 7.8) out.lerp(C.dirt, smoothstep(7.8, 2.0, pathD) * 0.72);
+  if (pathD < 7.8) out.lerp(C.dirt, smoothstep(7.8, 2.0, pathD) * 0.7);
 
-  // bagno
-  const ds = dist2(x, z, LOCATIONS.swamp.x, LOCATIONS.swamp.z);
-  if (ds < 220 * S) out.lerp(C.mud, smoothstep(220 * S, 70 * S, ds) * 0.72);
+  // ---- skały: zbocza, żwir i granie -------------------------------------
+  const pal = w.desert > 0.5 ? BIOME.desert : w.ice > 0.5 ? BIOME.ice : w.savanna > 0.5 ? BIOME.savanna : BIOME.temperate;
+  if (slope > 0.38) {
+    rockTmp.copy(pal.rock);
+    out.lerp(rockTmp, smoothstep(0.38, 1.25, slope) * 0.88);
+  }
+  if (slope > 1.1) out.lerp(pal.rockDark, smoothstep(1.1, 2.3, slope) * 0.7);
+  const rockLine = 96 * H;
+  if (h > rockLine) out.lerp(pal.rock, smoothstep(rockLine, 150 * H, h) * 0.8);
+  // żwir i piarg pod ścianami — szum o wysokiej częstotliwości
+  const scree = fbm(x * 0.12 + 44.1, z * 0.12 - 17.3, 3) * 0.5 + 0.5;
+  if (slope > 0.55 && scree > 0.55) out.lerp(pal.rockDark, smoothstep(0.55, 0.9, scree) * 0.35);
 
-  // skały i śnieg (progi przeliczone na nową skalę pionową)
-  if (slope > 0.6) out.lerp(C.rock, smoothstep(0.6, 1.6, slope));
-  if (slope > 1.35) out.lerp(C.rockDark, smoothstep(1.35, 2.7, slope) * 0.6);
-  const rockLine = 104 * H;
-  if (h > rockLine) out.lerp(C.rock, smoothstep(rockLine, 148 * H, h) * 0.75);
   // popiół wokół starożytnej kuźni
   const df = dist2(x, z, LOCATIONS.forge.x, LOCATIONS.forge.z);
   if (df < 30 * S) out.lerp(C.ash, smoothstep(30 * S, 10 * S, df) * 0.55);
-  const snowLine = (152 + n2 * 26) * H;
-  if (h > snowLine) out.lerp(C.snow, smoothstep(snowLine, snowLine + 26 * H, h) * (1 - smoothstep(2.0, 3.2, slope)));
-  if (h > snowLine + 22 * H) out.lerp(C.snow, 0.42 * (1 - smoothstep(2.4, 3.4, slope)));
 
-  // ---- wybrzeże: piach, mokry piach i dno morskie --------------------------
+  // ---- śnieg: wysoko i w tundrze (na pustyni i sawannie nie ma śniegu) ---
+  const snowAllowed = clamp(w.ice + w.temperate * 0.92 + w.savanna * 0.12, 0, 1);
+  const snowLine = (150 + n2 * 26) * H - w.ice * 130;
+  if (w.ice > 0.15 && slope < 1.7) out.lerp(C.snow, w.ice * 0.7);
+  if (h > snowLine && snowAllowed > 0.15) {
+    out.lerp(C.snow, smoothstep(snowLine, snowLine + 26 * H, h) * (1 - smoothstep(2.2, 3.4, slope)) * snowAllowed);
+  }
+  if (h > snowLine + 22 * H && snowAllowed > 0.2) {
+    out.lerp(C.snow, 0.45 * (1 - smoothstep(2.6, 3.6, slope)) * snowAllowed);
+  }
+
+  // ---- wybrzeże: piach, mokry piach i dno morskie -----------------------
   const beachTop = WATER_LEVEL + 2.6;
-  if (h < beachTop) {
-    const t = smoothstep(beachTop, WATER_LEVEL - 1.4, h);
-    out.lerp(C.sand, t * 0.88);
-  }
-  if (h < WATER_LEVEL - 2.5) {
-    const t = smoothstep(WATER_LEVEL - 2.5, WATER_LEVEL - 22, h);
-    out.lerp(C.seaFloor, t * 0.92);
-  }
+  if (h < beachTop) out.lerp(C.sand, smoothstep(beachTop, WATER_LEVEL - 1.4, h) * 0.88);
+  if (h < WATER_LEVEL - 2.5) out.lerp(C.seaFloor, smoothstep(WATER_LEVEL - 2.5, WATER_LEVEL - 22, h) * 0.92);
 
   // lekka wariacja, by uniknąć plam
   out.lerp(tmpC2.setRGB(out.r * 1.06, out.g * 1.04, out.b * 0.98), 0.18);

@@ -19,10 +19,15 @@ Alternatywy: [paczka ZIP](https://github.com/Agama12345/gta/raw/arena/68dc2b6a-g
 (rozpakuj → `Uruchom-gre.cmd`) albo launcher **Arcane Spire**
 ([`ArcaneSpire.exe`](https://github.com/Agama12345/gta/releases/download/launcher-latest/ArcaneSpire.exe)).
 
-## Co jest w świecie (wersja 1.1)
+## Co jest w świecie (wersja 1.2)
 
-- **Mapa 5 × 5 km (25 km², ~5× więcej lądu niż wcześniej)** — góry, przełęcze, lasy,
+- **Mapa 5 × 5 km (25 km², ~5× więcej terenu niż wcześniej)** — góry, przełęcze, lasy,
   bagno, jezioro i wybrzeże. Wszystkie odległości w grze są liczone w metrach.
+- **Pięć biomów:** umiarkowane łąki i lasy, **pustynia** (wydmy, kaktusy, czerwone skały),
+  **sawanna** (akacje, sucha trawa), **tundra** (sopel lodu, śnieżne głazy, blade sosny)
+  oraz **bagno**. Granice biomów przenikają się płynnie.
+- **Skały w górach:** zbocza od 0,38 nachylenia pokrywa kamień, wyżej żwir i odsłonięte
+  granie; do tego piargi, skalne żebra i głazy z mchem — teren przestał być jednolitą trawą.
 - **Ocean dokoła krainy** — linia brzegowa z plażami i klifami, fale, piana przybrzeżna,
   wyspy, mielizna do Samotnej Skały, mewy nad zatoką. Nie ma już niewidzialnej ściany na
   skraju mapy: dalej jest po prostu morze.
@@ -40,6 +45,12 @@ Alternatywy: [paczka ZIP](https://github.com/Agama12345/gta/raw/arena/68dc2b6a-g
   własną barwę (wysokość i tempo). Klawisz **V** włącza/wyłącza głosy.
 - **Pogoda:** słońce, zachmurzenie, deszcz, burza i mgła zmieniają się same; deszcz
   realnie zmniejsza zasięg, z jakiego wrogowie cię zauważają.
+
+## Darmowe assety (modele, tekstury, animacje, dźwięki)
+
+Lista sprawdzonych, **darmowych** źródeł (CC0 i podobne) z linkami — po 3 propozycje na
+kategorię: trawa, skały, drzewa, roślinność, postacie, animacje, dźwięki, muzyka, efekty,
+interfejs. Zobacz plik **[ASSETS.md](ASSETS.md)**.
 
 ## Co to jest
 
