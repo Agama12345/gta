@@ -409,7 +409,10 @@ export class Enemy {
     const weather = this.game.weather;
     const visibility = weather ? 1 + (1 - weather.fogScale) * 0.35 : 1;
     const rainPenalty = weather ? 1 - Math.min(1, weather.rain) * 0.22 : 1;
-    return d < this.def.aggro * visibility * rainPenalty;
+    // skradanie: obniżona sylwetka i cisza zmniejszają zasięg wykrycia
+    const stealth = p.stealthFactor ?? 1;
+    const noise = 1 - (p.stealthNoise ?? 0) * 0.25;
+    return d < this.def.aggro * visibility * rainPenalty * stealth * noise;
   }
 
   _playerInVillage() {
@@ -746,6 +749,17 @@ export class Enemy {
       this.windupActive = true;
       this.pendingRanged = false;
     }
+  }
+
+  /** Gracz sparował cios — wróg traci równowagę i dostaje chwilę na kontrę. */
+  onParried() {
+    this.staggerTime = Math.max(this.staggerTime ?? 0, 1.15);
+    this.attackTimer = Math.max(this.attackTimer, this.def.attackCooldown * 0.6);
+    this.windupActive = false;
+    this.state = 'stagger';
+    this.stateTime = 0;
+    this.hitFlash = 0.3;
+    this.game.ui?.floatNumber?.(this.pos.clone().add(new THREE.Vector3(0, 2, 0)), 'OGŁUSZONY', 'crit');
   }
 
   _animate(dt) {

@@ -252,6 +252,7 @@ export class UI {
             <button data-tab="character">Postać</button>
             <button data-tab="inventory">Ekwipunek</button>
             <button data-tab="quests">Zadania</button>
+            <button data-tab="perks">Rozwój</button>
           </div>
           <div id="hero-tab-body"></div>
         </div>
@@ -269,6 +270,46 @@ export class UI {
       if (e.target.closest('[data-close="hero"]')) this.closePanels();
     });
     this.heroBody = qs('#hero-tab-body', hero);
+
+    // ---- tablica zleceń ----
+    const board = document.createElement('div');
+    board.className = 'modal-layer hidden';
+    board.id = 'board-panel';
+    board.innerHTML = `
+      <div class="panel" style="width:min(820px,94vw)">
+        <div class="panel-head">
+          <div><h2>Tablica zleceń</h2><div class="sub" id="board-sub"></div></div>
+          <div class="spacer"></div>
+          <button class="close-x" data-close="board">✕</button>
+        </div>
+        <div class="panel-body"><div id="board-body"></div></div>
+      </div>`;
+    layer.appendChild(board);
+    this.boardPanel = board;
+    this.boardBody = qs('#board-body', board);
+    board.addEventListener('click', (e) => {
+      if (e.target.closest('[data-close="board"]')) {
+        this.closePanels();
+        return;
+      }
+      const accept = e.target.closest('[data-contract-accept]');
+      if (accept) {
+        this.game.contracts.accept(accept.dataset.contractAccept);
+        this.renderBoard();
+        return;
+      }
+      const turn = e.target.closest('[data-contract-turnin]');
+      if (turn) {
+        this.game.contracts.turnIn(turn.dataset.contractTurnin);
+        this.renderBoard();
+        return;
+      }
+      const drop = e.target.closest('[data-contract-drop]');
+      if (drop) {
+        this.game.contracts.abandon(drop.dataset.contractDrop);
+        this.renderBoard();
+      }
+    });
 
     // ---- sklep ----
     const shop = document.createElement('div');
@@ -673,6 +714,57 @@ export class UI {
     if (!this.anyScreenOpen()) this.game.resumeFromUi();
   }
 
+  // ---------------- tablica zleceń ----------------
+  openContracts() {
+    this.boardPanel.classList.remove('hidden');
+    this.boardPanel.classList.add('show');
+    this.renderBoard();
+    this.game.openUI();
+    this.game.audio?.uiOpen?.();
+  }
+
+  renderBoard() {
+    const c = this.game.contracts;
+    if (!c) return;
+    const entries = c.board();
+    qs('#board-sub').textContent = `Przyjęte: ${c.active.length}/3 · oddane: ${c.completedCount} · poziom ${this.game.player.level}`;
+
+    const row = (e) => {
+      const prog = e.progress.length
+        ? `<div class="c-progress">${e.progress.map((o) => `<span class="${o.have >= o.target ? 'ok' : ''}">${o.have}/${o.target}</span>`).join(' · ')}</div>`
+        : '';
+      let action = '';
+      if (e.active && e.complete) action = `<button class="perk-buy" data-contract-turnin="${e.id}">Oddaj zlecenie</button>`;
+      else if (e.active) action = `<button class="perk-buy" data-contract-drop="${e.id}">Porzuć</button>`;
+      else if (e.cooldown > 0) action = `<span class="c-wait">odnowi się za ${Math.ceil(e.cooldown)} s</span>`;
+      else if (e.canAccept) action = `<button class="perk-buy" data-contract-accept="${e.id}">Przyjmij</button>`;
+      else if (e.tooLowLevel) action = `<span class="c-wait">poziom ${e.level}</span>`;
+      else action = `<span class="c-wait">brak miejsca</span>`;
+      return `<div class="c-row ${e.active ? 'active' : ''} ${e.complete ? 'ready' : ''}">
+        <div class="c-head">
+          <div class="c-name">${e.name}</div>
+          <div class="c-giver">${e.giver} · poziom ${e.level}</div>
+        </div>
+        <div class="c-desc">${e.desc}</div>
+        ${prog}
+        <div class="c-reward">${c.rewardText(e.id)}</div>
+        <div class="c-action">${action}</div>
+      </div>`;
+    };
+
+    const active = entries.filter((e) => e.active);
+    const available = entries.filter((e) => !e.active);
+    this.boardBody.innerHTML = `
+      <div class="card">
+        <h4>Przyjęte zlecenia</h4>
+        ${active.length ? active.map(row).join('') : '<div class="empty-note">Nikogo jeszcze nie najmujesz. Weź zlecenie z listy poniżej.</div>'}
+      </div>
+      <div class="card" style="margin-top:14px">
+        <h4>Ogłoszenia</h4>
+        ${available.map(row).join('')}
+      </div>`;
+  }
+
   openHero(tab = 'character') {
     this.lastTab = tab;
     this.heroPanel.classList.remove('hidden');
@@ -688,6 +780,7 @@ export class UI {
     if (tab === 'character') this.renderCharacter();
     if (tab === 'inventory') this.renderInventory();
     if (tab === 'quests') this.renderQuests();
+    if (tab === 'perks') this.renderPerks();
   }
 
   renderCharacter() {
@@ -926,11 +1019,92 @@ export class UI {
             ${LORE.map((l) => `<div class="q-obj" style="margin-bottom:9px"><span class="tick">·</span><span>${l}</span></div>`).join('')}
           </div>
           <div class="card" style="margin-top:14px">
+            <h4>Zlecenia z tablicy</h4>
+            ${(this.game.contracts?.activeLines() ?? []).length
+              ? this.game.contracts.activeLines().map((c) => `<div class="q-obj ${c.done ? 'done' : ''}"><span class="tick">${c.done ? '✔' : '◇'}</span><span><b>${c.name}</b> — ${c.text}</span></div>`).join('')
+              : '<div class="empty-note">Tablica w Wilczej Dolinie czeka na śmiałków.</div>'}
+          </div>
+          <div class="card" style="margin-top:14px">
             <h4>Wskazówka</h4>
             <p class="panel-note">${TIPS[Math.floor(Math.random() * TIPS.length)]}</p>
           </div>
         </div>
       </div>`;
+  }
+
+  // ---------------- rozwój (perki) ----------------
+  renderPerks() {
+    const p = this.game.player;
+    const perks = p.perks;
+    const state = perks.treeState();
+    const mods = perks.mods;
+    const rows = [
+      ['Obrażenia', `+${Math.round((mods.damage ?? 0) * 100)}%`],
+      ['Pancerz', `+${Math.round((mods.armor ?? 0) * 100)}%`],
+      ['Kryt', `+${Math.round((mods.crit ?? 0) * 100)}%`],
+      ['Życie', `+${Math.round((mods.hp ?? 0) * 100)}%`],
+      ['Mana', `+${Math.round((mods.mana ?? 0) * 100)}%`],
+      ['Moc zaklęć', `+${Math.round((mods.spellPower ?? 0) * 100)}%`],
+      ['Cios w plecy', `+${Math.round((mods.backstab ?? 0) * 100)}%`],
+      ['Skradanie', `${Math.round((1 + (mods.stealth ?? 0)) * 100)}% zasięgu`],
+      ['Łup', `+${Math.round((mods.loot ?? 0) * 100)}% złota`],
+    ];
+
+    const treeHtml = state.map((tree) => `
+      <div class="card perk-tree" style="border-left-color:${tree.color}">
+        <h4 style="color:${tree.color}">${tree.glyph} ${tree.name}</h4>
+        <div class="perk-list">
+          ${tree.perks.map((perk) => {
+            const ranks = Array.from({ length: perk.maxRank }, (_, i) => `<span class="pip ${i < perk.rank ? 'on' : ''}"></span>`).join('');
+            const locked = perk.req && (perks.rank(perk.req.perk) ?? 0) < perk.req.rank;
+            const reqName = locked ? PERKS[perk.req.perk].name : null;
+            return `<div class="perk-row ${perk.rank >= perk.maxRank ? 'maxed' : ''} ${locked ? 'locked' : ''}">
+              <div class="perk-glyph">${perk.glyph}</div>
+              <div class="perk-info">
+                <div class="perk-name">${perk.name} <span class="pips">${ranks}</span></div>
+                <div class="perk-desc">${perk.desc}</div>
+                ${locked ? `<div class="perk-req">Wymaga: ${reqName}</div>` : ''}
+              </div>
+              <button class="perk-buy" data-perk="${perk.id}" ${perk.canBuy ? '' : 'disabled'}>
+                ${perk.rank >= perk.maxRank ? 'Maks.' : 'Rozwiń'}
+              </button>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`).join('');
+
+    this.heroBody.innerHTML = `
+      <div class="perk-head">
+        <div>
+          <div class="points-left">Punkty rozwoju: <b>${perks.points}</b> · wykupione rangi: <b>${perks.totalRanks()}</b></div>
+          <p class="panel-note">Punkty zdobywasz za każdy poziom doświadczenia. Kolejne rangi odblokowują się po wykupieniu wcześniejszych.</p>
+        </div>
+      </div>
+      <div class="grid-2 perk-grid">
+        <div class="perk-trees">${treeHtml}</div>
+        <div>
+          <div class="card">
+            <h4>Efekty rozwoju</h4>
+            ${rows.map(([k, v]) => `<div class="stat-row"><span class="k">${k}</span><span class="v">${v}</span></div>`).join('')}
+          </div>
+          <div class="card" style="margin-top:14px">
+            <h4>Jak używać</h4>
+            <p class="panel-note">Prawy przycisk myszy — blok (parowanie w pierwszych 0,25 s daje kontrę).<br/>
+            Klawisz X — skradanie: wrogowie widzą cię później, a cios w nieświadomego celu bije mocniej.<br/>
+            Trzy ciosy w rytmie tworzą kombinację, trzeci jest najsilniejszy.</p>
+          </div>
+        </div>
+      </div>`;
+
+    this.heroBody.querySelectorAll('[data-perk]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (perks.buy(btn.dataset.perk)) {
+          this.game.audio?.uiClick();
+          this.renderPerks();
+          this.refreshHud();
+        }
+      });
+    });
   }
 
   // ---------------- sklep ----------------
@@ -1144,6 +1318,8 @@ export class UI {
             ['Spacja', 'Unik / przewrót (nietykalność)'],
             ['Q / E / R', 'Zaklęcia: Znak Świtu, Wilczy Zew, Blask Świtu'],
             ['1 / 2', 'Mikstury z paska szybkiego dostępu'],
+            ['Prawy przycisk myszy', 'Blok (parowanie w 0,25 s daje kontrę)'],
+            ['X', 'Skradanie — ciszej, cios w plecy mocniejszy'],
             ['V', 'Głosy postaci — włącz / wyłącz'],
           ].map(([k, v]) => `<div class="kbd-row"><kbd>${k}</kbd><span>${v}</span></div>`).join('')}
         </div>
@@ -1151,6 +1327,8 @@ export class UI {
           ${[
             ['F', 'Interakcja: rozmowa, kuźnia, zioła, skrzynie'],
             ['I', 'Ekwipunek'], ['C', 'Postać i atrybuty'], ['K', 'Zadania'],
+            ['P', 'Rozwój — drzewko perków (Wojownik / Łowca / Mag)'],
+            ['F', 'Tablica zleceń w Wilczej Dolinie — poboczne kontrakty'],
             ['M', 'Mapa świata'], ['Esc', 'Pauza, zapis, wyjście'],
             ['Mysz', 'Rozglądanie (po kliknięciu w planszę)'],
           ].map(([k, v]) => `<div class="kbd-row"><kbd>${k}</kbd><span>${v}</span></div>`).join('')}

@@ -19,7 +19,7 @@ Alternatywy: [paczka ZIP](https://github.com/Agama12345/gta/raw/arena/68dc2b6a-g
 (rozpakuj → `Uruchom-gre.cmd`) albo launcher **Arcane Spire**
 ([`ArcaneSpire.exe`](https://github.com/Agama12345/gta/releases/download/launcher-latest/ArcaneSpire.exe)).
 
-## Co jest w świecie (wersja 1.3)
+## Co jest w świecie (wersja 1.4)
 
 - **Mapa 5 × 5 km (25 km², ~5× więcej terenu niż wcześniej)** — góry, przełęcze, lasy,
   bagno, jezioro i wybrzeże. Wszystkie odległości w grze są liczone w metrach.
@@ -51,6 +51,20 @@ Alternatywy: [paczka ZIP](https://github.com/Agama12345/gta/raw/arena/68dc2b6a-g
   własną barwę (wysokość i tempo). Klawisz **V** włącza/wyłącza głosy.
 - **Pogoda:** słońce, zachmurzenie, deszcz, burza i mgła zmieniają się same; deszcz
   realnie zmniejsza zasięg, z jakiego wrogowie cię zauważają.
+- **Drzewko rozwoju (klawisz P):** trzy ścieżki — Wojownik, Łowca, Mag — po sześć perków
+  z rangami i wymaganiami. Punkty zdobywasz za każdy poziom; efekty (obrażenia, pancerz,
+  kryt, życie, mana, moc zaklęć, cios w plecy, skradanie, łup złota) wchodzą od razu do statystyk.
+- **Skradanie (klawisz X):** obniżona postawa, cichy krok i mniejszy zasięg wykrycia;
+  cios w nieświadomego wroga bije mocniej (bazowo +60%, perk „Cios w plecy” dokłada kolejne rangi).
+- **Blok i parowanie (prawy przycisk myszy):** blok tłumi 75% obrażeń kosztem kondycji,
+  a blok rozpoczęty w ostatnich 0,25 s **paruje cios** — wróg traci równowagę i wystawia się na kontrę.
+- **Trzyciosowa kombinacja:** ciosy w rytmie (do 1,1 s przerwy) tworzą łańcuch; trzeci to
+  cięcie z nad głowy z odrzutem, a perk „Cios kończący” zwiększa jego moc.
+- **Tablica zleceń w Wilczej Dolinie:** sześć pobocznych kontraktów (wilcze łby, zioła dla
+  zielarki, patrol w kurhanie, ruda dla kowala, bandyci, nocna wachta) — do trzech naraz,
+  z licznikami, nagrodami i odnawianiem po czasie. Działają równolegle do głównego wątku.
+- **Rytm dnia mieszkańców:** wieczorem i nocą mieszkańcy wracają w stronę domostw
+  (animowany chód), a o świcie wracają do swoich warsztatów — dzięki temu wioska żyje.
 
 ## Darmowe assety (modele, tekstury, animacje, dźwięki)
 

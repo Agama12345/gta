@@ -307,6 +307,13 @@ export class AudioSystem {
     this._tone(2637, 0.42, { type: 'sine', gain: 0.05, slide: -600, delay: 0.01, reverb: 0.6 });
     this._noise(0.12, { filterFreq: 5200, gain: 0.09, type: 'highpass' });
   }
+  block(hard = false) {
+    // tępy stuk drewna/ metalu o tarczę; parowanie ma wyższy, czystszy dźwięk
+    this._tone(hard ? 1180 : 520, hard ? 0.3 : 0.18, {
+      type: hard ? 'triangle' : 'square', gain: hard ? 0.1 : 0.07, slide: hard ? -260 : -120, reverb: 0.4,
+    });
+    this._noise(0.12, { filterFreq: hard ? 3800 : 1500, gain: hard ? 0.12 : 0.09, type: hard ? 'highpass' : 'lowpass' });
+  }
   enemyHit() {
     this._noise(0.11, { filterFreq: 640, gain: 0.11, type: 'lowpass' });
   }

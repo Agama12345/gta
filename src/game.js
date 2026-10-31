@@ -13,6 +13,7 @@ import { FX } from './systems/fx.js';
 import { ThirdPersonCamera } from './systems/camera.js';
 import { UI } from './ui/ui.js';
 import { QuestSystem } from './systems/quests.js';
+import { Contracts } from './systems/contracts.js';
 import { DialogueSystem } from './systems/dialogue.js';
 import { AudioSystem } from './systems/audio.js';
 import { VoiceSystem } from './systems/voice.js';
@@ -148,6 +149,7 @@ export class Game {
     this.world = new World(this);
     this.enemies = new EnemyManager(this);
     this.quests = new QuestSystem(this);
+    this.contracts = new Contracts(this);
     this.ui = new UI(this, document.getElementById('ui'));
     this.dialogue = new DialogueSystem(this);
 
@@ -171,6 +173,12 @@ export class Game {
       if (type === 'keydown') this._onKeyDown(data);
       if (type === 'mousedown' && data === 0) {
         if (this.state === 'playing') this.player.attack();
+      }
+      if (type === 'mousedown' && data === 2) {
+        if (this.state === 'playing') this.player.startBlock();
+      }
+      if (type === 'mouseup' && data === 2) {
+        this.player?.endBlock?.();
       }
       if (type === 'lockchange' && !data && this.state === 'playing' && !this.ui.anyPanelOpen()) {
         // utrata blokady kursora nie zatrzymuje gry — rozglądanie działa też przeciąganiem
@@ -233,6 +241,12 @@ export class Game {
       case 'KeyV':
         this.toggleVoice();
         break;
+      case 'KeyX':
+        this.player.toggleStealth();
+        break;
+      case 'KeyP':
+        this.ui.openHero('perks');
+        break;
       case 'KeyF':
         this.interact();
         break;
@@ -280,6 +294,7 @@ export class Game {
     this._ensureCompanion();
 
     this.quests = new QuestSystem(this);
+    this.contracts = new Contracts(this);
     this.dialogue = new DialogueSystem(this);
     this.enemies.reset();
     this.fx.clear();
@@ -408,6 +423,7 @@ export class Game {
   }
 
   updateGame(dt) {
+    this.contracts?.update(dt);
     const mouse = this.input.consumeMouse();
     if (mouse.x !== 0 || mouse.y !== 0) {
       const sens = this.input.locked ? 0.0022 : 0.0042;
@@ -645,6 +661,10 @@ export class Game {
       this.ui.openMap();
       return;
     }
+    if (node.kind === 'board') {
+      this.ui.openContracts();
+      return;
+    }
     if (node.kind === 'rest') {
       this.restAtCampfire();
       return;
@@ -790,7 +810,8 @@ export class Game {
     p.gainXp(Math.round(baseXp * lvlBonus));
 
     const [gmin, gmax] = enemy.def.gold ?? [0, 0];
-    const gold = Math.round(gmin + Math.random() * (gmax - gmin));
+    const lootBonus = 1 + (p.mods?.loot ?? 0);
+    const gold = Math.round((gmin + Math.random() * (gmax - gmin)) * lootBonus);
     if (gold > 0) {
       inv.gold += gold;
       this.ui.log(`+${gold} złota`, 'gold');
@@ -805,7 +826,19 @@ export class Game {
     }
     if (lootLines.length) this.ui.log(`Łup: ${lootLines.join(', ')}`, 'good');
 
+    // Łaska świtu: część życia wraca po pokonaniu wroga
+    const heal = p.mods?.healOnKill ?? 0;
+    if (heal > 0) {
+      const before = p.hp;
+      p.hp = Math.min(p.maxHP, p.hp + p.maxHP * heal);
+      if (p.hp > before) {
+        this.ui.floatNumber(p.pos.clone().add(new THREE.Vector3(0, 1.2, 0)), `+${Math.round(p.hp - before)}`, 'heal');
+        this.fx.heal(p.pos.clone().add(new THREE.Vector3(0, 0.9, 0)));
+      }
+    }
+
     this.quests.onKill(enemy.type);
+    this.contracts?.onKill(enemy.type);
 
     if (this.quests.active === 'boss' && this.quests.canComplete('boss')) {
       setTimeout(() => {
@@ -826,9 +859,17 @@ export class Game {
     this.ui.refreshHud();
   }
 
+  /** Reakcja świata na udane sparowanie ciosu. */
+  onParry(source) {
+    this.audio?.parry?.();
+    if (source && typeof source.onParried === 'function') source.onParried();
+    this.quests?.onParry?.();
+    this.ui?.log('Sparowałeś cios — wróg traci równowagę. Kontra!', 'good');
+  }
+
   onLevelUp(level) {
     this.audio.levelUp();
-    this.ui.toast(`Poziom ${level}`, '+3 punkty atrybutów — naciśnij C');
+    this.ui.toast(`Poziom ${level}`, '+3 punkty atrybutów (C) i 1 punkt rozwoju (P)');
     this.ui.log(`Awans na poziom ${level}! Otrzymujesz 3 punkty atrybutów.`, 'gold');
     this.fx.magicBurst(this.player.pos.clone().add(new THREE.Vector3(0, 1, 0)), '#ffe3a8');
     this.ui.refreshHud();
@@ -1024,6 +1065,7 @@ export class Game {
         savedAt: Date.now(),
         player: this.player.serialize(),
         quests: this.quests.serialize(),
+        contracts: this.contracts?.serialize(),
         hour: this.dayNight.hour,
         day: this.dayNight.day,
         kills: this.kills,
@@ -1059,7 +1101,9 @@ export class Game {
     this.player.load(data.player);
     if (this.player.hp <= 0) this.player.hp = Math.max(1, Math.round(this.player.maxHP * 0.5));
     this.quests = new QuestSystem(this);
+    this.contracts = new Contracts(this);
     this.quests.load(data.quests);
+    this.contracts.load(data.contracts);
     this.dialogue = new DialogueSystem(this);
     this.enemies.reset();
     this.fx.clear();

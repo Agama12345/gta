@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { dampAngle, dist2, TAU } from '../core/utils.js';
-import { heightAt } from '../world/terrain.js';
+import { heightAt, LOCATIONS } from '../world/terrain.js';
 import { makeHumanoid } from '../world/models.js';
 
 export class NPC {
@@ -16,6 +16,12 @@ export class NPC {
     this.yaw = def.rot ?? 0;
     this.phase = Math.random() * TAU;
     this.visible = !def.hidden;
+    this.walkPhase = Math.random() * TAU;
+    this.speed = def.speed ?? 1.5;
+    this.basePos = this.pos.clone();
+    // wieczorem każdy wraca w stronę domostw (kilka metrów w głąb osady)
+    this.nightPos = this._makeNightSpot(def, this.basePos);
+    this.moving = false;
 
     const built = makeHumanoid(def.visual);
     this.model = built.group;
@@ -49,14 +55,53 @@ export class NPC {
     game.scene.add(this.model);
   }
 
+  _makeNightSpot(def, from) {
+    const ref = def.homeRef
+      ? { x: def.homeRef[0], z: def.homeRef[1] }
+      : LOCATIONS.village;
+    const dx = ref.x - from.x;
+    const dz = ref.z - from.z;
+    const d = Math.hypot(dx, dz) || 1;
+    const step = def.nightRadius ?? 5.5;
+    const x = from.x + (dx / d) * step + Math.sin(this.phase * 3.1) * 1.2;
+    const z = from.z + (dz / d) * step + Math.cos(this.phase * 2.3) * 1.2;
+    return new THREE.Vector3(x, heightAt(x, z), z);
+  }
+
+  /** O której postać idzie spać (nie dotyczy duchów i nocnych stworzeń). */
+  _isNight(hour) {
+    return hour >= 21.5 || hour < 5.5;
+  }
+
   setVisible(v) {
     this.visible = v;
     this.model.visible = v;
   }
 
   update(dt, player) {
+    // ---- rytm dnia: w dzień przy swoim warsztacie, nocą wraca pod dach ----
+    const hour = this.game.dayNight?.hour ?? 12;
+    if (!this.def.ghost && !this.def.noSchedule) {
+      const target = this._isNight(hour) ? this.nightPos : this.basePos;
+      const dx = target.x - this.pos.x;
+      const dz = target.z - this.pos.z;
+      const dist = Math.hypot(dx, dz);
+      this.moving = dist > 0.35;
+      if (this.moving) {
+        const step = Math.min(dist, this.speed * dt);
+        this.pos.x += (dx / dist) * step;
+        this.pos.z += (dz / dist) * step;
+        this.pos.y = heightAt(this.pos.x, this.pos.z);
+        this.yaw = dampAngle(this.yaw, Math.atan2(dx, dz), 6, dt);
+        this.walkPhase += dt * 6.5;
+      } else {
+        this.walkPhase = dampAngle(this.walkPhase, 0, 4, dt);
+      }
+      this.model.position.copy(this.pos);
+    }
+
     const d = dist2(this.pos.x, this.pos.z, player.pos.x, player.pos.z);
-    if (d < 9) {
+    if (d < 9 && !this.moving) {
       const targetYaw = Math.atan2(player.pos.x - this.pos.x, player.pos.z - this.pos.z);
       this.yaw = dampAngle(this.yaw, targetYaw, 3, dt);
     }
@@ -79,6 +124,26 @@ export class NPC {
     }
     head.rotation.y = Math.sin(this.phase * 0.4) * 0.22;
     head.rotation.x = Math.sin(this.phase * 0.33) * 0.05;
+
+    // krok, gdy postać idzie na nocleg lub wraca do pracy
+    const legs = this.parts.legs ?? [];
+    const shins = this.parts.shins ?? [];
+    if (legs.length >= 2) {
+      if (this.moving) {
+        const sw = Math.sin(this.walkPhase) * 0.55;
+        legs[0].rotation.x = sw;
+        legs[1].rotation.x = -sw;
+        if (shins[0]) shins[0].rotation.x = -Math.max(0, -Math.sin(this.walkPhase - 0.5)) * 0.7;
+        if (shins[1]) shins[1].rotation.x = -Math.max(0, -Math.sin(this.walkPhase + Math.PI - 0.5)) * 0.7;
+        arms[0].rotation.x = -sw * 0.6;
+        arms[1].rotation.x = sw * 0.6;
+      } else {
+        legs[0].rotation.x = dampAngle(legs[0].rotation.x, 0, 6, dt);
+        legs[1].rotation.x = dampAngle(legs[1].rotation.x, 0, 6, dt);
+        if (shins[0]) shins[0].rotation.x = dampAngle(shins[0].rotation.x, -0.04, 6, dt);
+        if (shins[1]) shins[1].rotation.x = dampAngle(shins[1].rotation.x, -0.02, 6, dt);
+      }
+    }
   }
 
   get interactPos() {

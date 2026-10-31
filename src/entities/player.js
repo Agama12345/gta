@@ -6,6 +6,7 @@ import {
 } from '../world/terrain.js';
 import { makeHumanoid, makeSword, makeShield } from '../world/models.js';
 import { Inventory } from '../systems/inventory.js';
+import { Perks } from '../systems/perks.js';
 import { ITEMS } from '../data/items.js';
 
 export const SPELLS = [
@@ -67,6 +68,18 @@ export class Player {
     this.hurtFlash = 0;
     this.hitFlash = 0;
     this.dead = false;
+
+    this.perks = new Perks(this);
+    this.mods = this.perks.mods;
+    this.stealth = false;          // skradanie (klawisz X)
+    this.stealthNoise = 0;         // 0 = cisza, 1 = pełny hałas
+    this.blocking = false;         // blok (prawy przycisk myszy)
+    this.blockTime = 0;
+    this.parryWindow = 0;
+    this.comboWindow = 0;          // okno na przedłużenie kombinacji
+    this.lastAttackEnd = 0;
+    this.attackClock = 0;          // zegar ataków do liczenia kombinacji
+    this.lastAttackAt = -10;
 
     this.cooldowns = { dawn: 0, frenzy: 0, blink: 0 };
     this.buffs = { attack: 0, attackTime: 0, speedTime: 0, shield: 0 };
@@ -256,18 +269,51 @@ export class Player {
   recalc() {
     const eq = this.inventory.equipStats();
     const a = this.attrs;
-    this.maxHP = Math.round(64 + a.end * 9 + this.level * 7 + eq.hp);
-    this.maxMana = Math.round(22 + a.foc * 7 + this.level * 4 + eq.mana);
+    const m = this.perks?.recalc() ?? this.mods ?? {};
+    this.mods = m;
+    this.maxHP = Math.round((64 + a.end * 9 + this.level * 7 + eq.hp) * (1 + (m.hp ?? 0)));
+    this.maxMana = Math.round((22 + a.foc * 7 + this.level * 4 + eq.mana) * (1 + (m.mana ?? 0)));
     this.maxStamina = Math.round(96 + a.end * 3.2);
-    this.attackPower = 5 + a.str * 1.7 + this.level * 1.3 + eq.attack;
-    this.armor = a.end * 0.55 + eq.armor;
-    this.critChance = clamp(0.04 + a.agi * 0.014 + eq.crit * 0.01, 0, 0.65);
+    this.attackPower = (5 + a.str * 1.7 + this.level * 1.3 + eq.attack) * (1 + (m.damage ?? 0));
+    this.armor = (a.end * 0.55 + eq.armor) * (1 + (m.armor ?? 0));
+    this.critChance = clamp(0.04 + a.agi * 0.014 + eq.crit * 0.01 + (m.crit ?? 0), 0, 0.75);
     // mapa jest duża — bohater porusza się żwawiej niż w oryginale
-    this.moveSpeed = 6.3 + a.agi * 0.055 + eq.speed;
-    this.spellPower = 14 + a.foc * 2.6 + this.level * 1.6;
+    this.moveSpeed = (6.3 + a.agi * 0.055 + eq.speed) * (1 + (m.speed ?? 0));
+    this.spellPower = (14 + a.foc * 2.6 + this.level * 1.6) * (1 + (m.spellPower ?? 0));
+    this.staminaCostMul = clamp(1 + (m.staminaCost ?? 0), 0.4, 1.4);
+    this.dodgeMul = 1 + (m.dodge ?? 0);
+    this.attackSpeed = clamp(1 + (m.attackSpeed ?? 0), 0.6, 2);
     this.hp = Math.min(this.hp, this.maxHP);
     this.mana = Math.min(this.mana, this.maxMana);
     this.stamina = Math.min(this.stamina, this.maxStamina);
+  }
+
+  /** Mnożnik obrażeń zależny od stanu (wściekłość, finisher, cios w plecy). */
+  damageMultiplier(enemy = null, comboIndex = 0) {
+    const m = this.mods ?? {};
+    let mult = 1 + this.buffs.attack;
+    if (this.hp / this.maxHP < 0.35) mult += m.lowHpDamage ?? 0;
+    if (comboIndex === 2) mult += m.finisher ?? 0;
+    if (enemy && !enemy.aggro && !enemy.dead) mult += m.backstab ?? 0;
+    return mult;
+  }
+
+  /** Czy włączone skradanie faktycznie działa (nie w biegu, nie w walce). */
+  get sneaking() {
+    return this.stealth && !this.sprinting && this.state !== 'attack' && !this.blocking;
+  }
+
+  /** Mnożnik zasięgu, z jakiego wrogowie cię zauważają. */
+  get stealthFactor() {
+    if (!this.sneaking) return 1;
+    return clamp(0.42 + (this.mods?.stealth ?? 0), 0.15, 1);
+  }
+
+  toggleStealth() {
+    this.stealth = !this.stealth;
+    this.game.ui?.toast?.(this.stealth ? 'Skradanie włączone — wrogowie widzą cię później.' : 'Skradanie wyłączone.', 'info');
+    this.game.audio?.uiClick?.();
+    return this.stealth;
   }
 
   get xpNeeded() {
@@ -281,6 +327,8 @@ export class Player {
       this.xp -= this.xpNeeded;
       this.level += 1;
       this.points += 3;
+      this.perks.points += 1;
+      this.perkPoints = this.perks.points;
       ups += 1;
       if (ups > 8) break;
     }
@@ -310,15 +358,21 @@ export class Player {
 
   attack() {
     if (this.dead || this.attackCooldown > 0) return false;
-    if (this.state === 'attack' && this.stateTime < 0.34) return false;
+    if (this.state === 'attack' && this.stateTime < 0.3) return false;
     if (this.state === 'dodge' || this.state === 'cast') return false;
+    if (this.blocking) return false;
+    // kombinacja: cios w oknie 1,1 s po poprzednim przedłuża łańcuch 1→2→3
+    const chained = this.attackClock - this.lastAttackAt < 1.1;
+    this.combo = chained ? Math.min(2, this.combo + 1) : 0;
+    this.lastAttackAt = this.attackClock;
+    this.comboWindow = 1.1;
     this.state = 'attack';
     this.stateTime = 0;
     this.attackHitApplied = false;
-    this.combo = (this.combo + 1) % 3;
-    this.attackCooldown = 0.42;
-    this.stamina = Math.max(0, this.stamina - 6);
+    this.attackCooldown = 0.42 / (this.attackSpeed ?? 1);
+    this.stamina = Math.max(0, this.stamina - 6 * (this.staminaCostMul ?? 1));
     this.sinceCombat = 0;
+    this.stealth = false;
 
     // skieruj postać w stronę kamery, jeśli nie ma ruchu
     if (this.vel.lengthSq() < 0.6) {
@@ -338,9 +392,10 @@ export class Player {
     if (this.state === 'dodge') return false;
     this.state = 'dodge';
     this.stateTime = 0;
-    this.invuln = Math.max(this.invuln, 0.34);
+    this.stealth = false;
+    this.invuln = Math.max(this.invuln, 0.34 * (this.dodgeMul ?? 1));
     this.dodgeCooldown = 0.72;
-    this.stamina -= 20;
+    this.stamina -= 20 * (this.staminaCostMul ?? 1);
     this.sinceCombat = 0;
     const dir = this.vel.lengthSq() > 0.4 ? this.vel.clone().normalize() : new THREE.Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw));
     this.dodgeDir = dir;
@@ -425,11 +480,50 @@ export class Player {
     if (gained > 0) this.game.ui?.floatNumber(this.pos, `+${gained}`, 'heal');
   }
 
+  startBlock() {
+    if (this.dead || this.state === 'dodge' || this.state === 'cast') return false;
+    this.blocking = true;
+    this.blockTime = 0;
+    this.parryWindow = 0.26;
+    this.stealth = false;
+    return true;
+  }
+
+  endBlock() {
+    this.blocking = false;
+    this.blockTime = 0;
+  }
+
+  /** Parowanie: blok rozpoczęty chwilę temu całkowicie zbija cios. */
   takeDamage(raw, source = 'wróg') {
     if (this.dead) return 0;
     if (this.invuln > 0) {
       this.game.ui?.floatNumber(this.pos, 'unik', 'mana');
       return 0;
+    }
+    if (this.blocking) {
+      const front = this._blockCovers(source);
+      if (front && this.parryWindow > 0) {
+        this.parryWindow = 0;
+        this.invuln = 0.25;
+        this.stamina = Math.max(0, this.stamina - 8);
+        this.game.ui?.floatNumber(this.pos.clone().add(new THREE.Vector3(0, 0.9, 0)), 'PAROWANIE', 'crit');
+        this.game.audio?.block?.(true);
+        this.game.cameraRig.addShake(0.2);
+        this.game.fx.sparks(this.pos.clone().add(new THREE.Vector3(0, 1.1, 0)), '#ffe9a8', 14);
+        this.game.onParry?.(source);
+        return 0;
+      }
+      if (front) {
+        const staminaCost = raw * 0.55;
+        this.stamina = Math.max(0, this.stamina - staminaCost);
+        if (this.stamina <= 0) {
+          this.blocking = false;
+          this.game.ui?.toast?.('Kondycja się skończyła — blok padł.', 'warn');
+        }
+        raw *= 0.25;
+        this.game.audio?.block?.(false);
+      }
     }
     const mitigated = raw * (100 / (100 + this.armor * 2.4));
     const variance = 0.92 + Math.random() * 0.16;
@@ -480,12 +574,24 @@ export class Player {
   // ---------------- aktualizacja ----------------
   update(dt, input) {
     this.stateTime += dt;
+    this.attackClock += dt;
     this.attackCooldown = Math.max(0, this.attackCooldown - dt);
     this.dodgeCooldown = Math.max(0, this.dodgeCooldown - dt);
     this.invuln = Math.max(0, this.invuln - dt);
     this.hurtFlash = Math.max(0, this.hurtFlash - dt);
     this.regenDelay = Math.max(0, this.regenDelay - dt);
     this.sinceCombat += dt;
+    this.parryWindow = Math.max(0, this.parryWindow - dt);
+    this.comboWindow = Math.max(0, this.comboWindow - dt);
+    if (this.blocking) {
+      this.blockTime += dt;
+      // blok trzymany długo męczy — kondycja schodzi wolniej niż przy ciosach
+      this.stamina = Math.max(0, this.stamina - 3.4 * dt);
+      if (this.stamina <= 0) this.blocking = false;
+    }
+    // hałas: skradanie = cisza, sprint = pełny tupot
+    const targetNoise = this.sneaking ? 0.18 : this.sprinting ? 1 : 0.55;
+    this.stealthNoise = damp(this.stealthNoise ?? 0.5, targetNoise, 6, dt);
 
     for (const k of Object.keys(this.cooldowns)) this.cooldowns[k] = Math.max(0, this.cooldowns[k] - dt);
     if (this.buffs.attackTime > 0) {
@@ -536,6 +642,9 @@ export class Player {
     if (this.state === 'attack') speed *= 0.34;
     if (this.state === 'cast') speed *= 0.2;
     if (this.state === 'hurt') speed *= 0.15;
+    if (this.sneaking) speed *= 0.52;
+    else if (this.stealth) speed *= 0.8;
+    if (this.blocking) speed *= 0.42;
 
     if (this.state === 'dodge') {
       const t = clamp(1 - this.stateTime / 0.42, 0, 1);
@@ -630,11 +739,26 @@ export class Player {
       this.attackHitApplied = true;
       this._applyMeleeHit();
     }
-    if (this.state === 'attack' && this.stateTime > 0.52) this.state = 'idle';
+    if (this.state === 'attack' && this.stateTime > 0.52) {
+      this.state = 'idle';
+      this.lastAttackEnd = this.attackClock;
+    }
     if (this.state === 'cast' && this.stateTime > 0.42) this.state = 'idle';
     if (this.state === 'hurt' && this.stateTime > 0.3) this.state = 'idle';
 
     this.syncModel();
+  }
+
+  _blockCovers(source) {
+    if (!source || typeof source === 'string') return true;
+    const ex = source.pos?.x ?? source.x;
+    const ez = source.pos?.z ?? source.z;
+    if (ex === undefined) return true;
+    const dx = ex - this.pos.x;
+    const dz = ez - this.pos.z;
+    const len = Math.hypot(dx, dz) || 1;
+    const forward = new THREE.Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw));
+    return forward.x * (dx / len) + forward.z * (dz / len) > -0.15;
   }
 
   _applyMeleeHit() {
@@ -655,11 +779,17 @@ export class Player {
     for (let i = 0; i < Math.min(count, targets.length); i++) {
       const e = targets[i].e;
       const crit = Math.random() < this.critChance;
+      const sneakAttack = !e.aggro && this.sneaking;
       let dmg = this.attackPower * (this.combo === 2 ? 1.35 : i === 0 ? 1 : 0.75);
-      dmg *= 1 + this.buffs.attack;
+      dmg *= this.damageMultiplier(e, this.combo);
       dmg *= 0.9 + Math.random() * 0.2;
       if (crit) dmg *= 1.75;
-      e.takeDamage(dmg, { crit, source: 'Gracz', knockback: 3.2 });
+      if (sneakAttack) {
+        dmg *= 1;
+        this.game.ui?.floatNumber(e.pos.clone().add(new THREE.Vector3(0, 1.9, 0)), 'CIOS W PLECY', 'crit');
+      }
+      e.takeDamage(dmg, { crit, source: 'Gracz', knockback: this.combo === 2 ? 4.6 : 3.2 });
+      this.stealth = false;
       const hitPos = new THREE.Vector3(e.pos.x, e.pos.y + 1.1, e.pos.z);
       this.game.fx.sparks(hitPos, crit ? '#ffd27a' : '#f2e3c4', crit ? 12 : 6);
       this.game.cameraRig.addShake(crit ? 0.28 : 0.14);
@@ -709,21 +839,49 @@ export class Player {
       const wind = clamp(t / 0.28, 0, 1);            // 0..1 podniesienie broni
       const strike = clamp((t - 0.28) / 0.34, 0, 1);  // 0..1 cięcie
       const recover = clamp((t - 0.62) / 0.38, 0, 1);
-      const dir = this.combo === 2 ? -1 : 1;
+      const dir = this.combo === 1 ? -1 : 1;
       const swing = Math.sin(strike * Math.PI);
 
-      arms[1].rotation.x = -2.1 * wind + 3.1 * strike - 0.8 * recover;
-      arms[1].rotation.z = (-0.55 * wind + 0.25 * strike) * dir;
-      arms[1].rotation.y = 0.5 * wind * dir - 0.7 * strike * dir;
-      if (forearms[1]) forearms[1].rotation.x = -0.9 * wind + (0.35 - 0.9 * strike);
-      arms[0].rotation.x = 0.35 * wind + 0.5 * strike - 0.3 * recover;
-      arms[0].rotation.z = 0.35 * wind;
-      if (forearms[0]) forearms[0].rotation.x = -0.7 * wind - 0.2 * strike;
-
-      bodyYaw = -0.55 * swing * dir + (this.combo === 1 ? 0.3 * swing : 0);
-      bodyPitch = 0.12 * strike - 0.1 * wind;
-      bodyRoll = -0.12 * swing * dir;
-      bodyY = -0.03 * strike;
+      if (this.combo === 2) {
+        // cios kończący: miecz idzie nad głową i spada pionowo w dół
+        arms[1].rotation.x = -2.9 * wind + 3.4 * strike - 0.5 * recover;
+        arms[1].rotation.z = -0.12 * wind;
+        arms[1].rotation.y = -0.1 * wind;
+        if (forearms[1]) forearms[1].rotation.x = -1.25 * wind + 0.5 * strike;
+        arms[0].rotation.x = -2.2 * wind + 2.4 * strike;
+        arms[0].rotation.z = 0.3 * wind;
+        if (forearms[0]) forearms[0].rotation.x = -1.0 * wind + 0.4 * strike;
+        bodyPitch = 0.3 * strike - 0.26 * wind;
+        bodyYaw = -0.08 * swing;
+        bodyRoll = 0.06 * swing;
+        bodyY = -0.09 * strike;
+      } else if (this.combo === 1) {
+        // cięcie poziome z biodra
+        arms[1].rotation.x = -1.4 * wind + 1.9 * strike - 0.6 * recover;
+        arms[1].rotation.z = -0.9 * wind + 0.9 * strike;
+        arms[1].rotation.y = 0.9 * wind * dir - 1.1 * strike * dir;
+        if (forearms[1]) forearms[1].rotation.x = -0.6 * wind + (0.3 - 0.7 * strike);
+        arms[0].rotation.x = 0.2 * wind + 0.3 * strike;
+        arms[0].rotation.z = 0.55 * wind;
+        if (forearms[0]) forearms[0].rotation.x = -0.5 * wind;
+        bodyYaw = -0.85 * swing * dir;
+        bodyPitch = 0.06 * strike;
+        bodyRoll = -0.16 * swing;
+        bodyY = -0.02 * strike;
+      } else {
+        // pierwszy cios: skośne cięcie z prawego ramienia
+        arms[1].rotation.x = -2.1 * wind + 3.1 * strike - 0.8 * recover;
+        arms[1].rotation.z = (-0.55 * wind + 0.25 * strike) * dir;
+        arms[1].rotation.y = 0.5 * wind * dir - 0.7 * strike * dir;
+        if (forearms[1]) forearms[1].rotation.x = -0.9 * wind + (0.35 - 0.9 * strike);
+        arms[0].rotation.x = 0.35 * wind + 0.5 * strike - 0.3 * recover;
+        arms[0].rotation.z = 0.35 * wind;
+        if (forearms[0]) forearms[0].rotation.x = -0.7 * wind - 0.2 * strike;
+        bodyYaw = -0.55 * swing;
+        bodyPitch = 0.12 * strike - 0.1 * wind;
+        bodyRoll = -0.12 * swing;
+        bodyY = -0.03 * strike;
+      }
 
       legs[0].rotation.x = 0.28 * wind - 0.15 * strike;
       legs[1].rotation.x = -0.22 * wind + 0.2 * strike;
@@ -754,6 +912,21 @@ export class Player {
       if (forearms[1]) forearms[1].rotation.x = -0.5 * up;
       bodyPitch = -0.12 * up;
       arms[0].rotation.x = -2.4 * up;
+    } else if (this.blocking) {
+      // postawa blokująca: tarcza/ramię do przodu, nogi w rozkroku
+      const brace = this.parryWindow > 0 ? 1 : 0.62;
+      arms[0].rotation.x = damp(arms[0].rotation.x, -1.15 * brace, 18, dt);
+      arms[0].rotation.z = damp(arms[0].rotation.z, 0.62, 16, dt);
+      if (forearms[0]) forearms[0].rotation.x = damp(forearms[0].rotation.x, -1.35, 18, dt);
+      arms[1].rotation.x = damp(arms[1].rotation.x, -0.55 * brace, 16, dt);
+      arms[1].rotation.z = damp(arms[1].rotation.z, -0.35, 16, dt);
+      if (forearms[1]) forearms[1].rotation.x = damp(forearms[1].rotation.x, -1.05, 16, dt);
+      legs[0].rotation.x = damp(legs[0].rotation.x, 0.26, 12, dt);
+      legs[1].rotation.x = damp(legs[1].rotation.x, -0.2, 12, dt);
+      if (shins[0]) shins[0].rotation.x = damp(shins[0].rotation.x, -0.3, 12, dt);
+      if (shins[1]) shins[1].rotation.x = damp(shins[1].rotation.x, -0.24, 12, dt);
+      bodyPitch = 0.14;
+      bodyY = -0.06;
     } else if (this.state === 'hurt') {
       const t = clamp(this.stateTime / 0.3, 0, 1);
       bodyPitch = 0.35 * Math.sin(t * Math.PI);
@@ -807,6 +980,23 @@ export class Player {
       bodyYaw = damp(body.rotation.y, 0, 4, dt) * 0 + shift * 0.02;
       head.rotation.y = damp(head.rotation.y, shift * 0.12, 3, dt);
       head.rotation.x = damp(head.rotation.x, idle * 0.02, 3, dt);
+    }
+
+    // ---- skradanie: obniżona, przygarbiona postawa ------------------------
+    this._crouch = damp(this._crouch ?? 0, this.sneaking ? 1 : this.stealth ? 0.35 : 0, 7, dt);
+    const c = this._crouch;
+    if (c > 0.01) {
+      legs[0].rotation.x += 0.5 * c;
+      legs[1].rotation.x += 0.44 * c;
+      if (shins[0]) shins[0].rotation.x -= 0.95 * c;
+      if (shins[1]) shins[1].rotation.x -= 0.88 * c;
+      arms[0].rotation.x -= 0.34 * c;
+      arms[1].rotation.x -= 0.3 * c;
+      if (forearms[0]) forearms[0].rotation.x -= 0.45 * c;
+      if (forearms[1]) forearms[1].rotation.x -= 0.4 * c;
+      bodyPitch += 0.3 * c;
+      bodyY -= 0.24 * c;
+      head.rotation.x -= 0.12 * c;
     }
 
     // wygładzenie tułowia — bez tego przejścia między stanami „strzelają”
@@ -881,6 +1071,7 @@ export class Player {
       xp: this.xp,
       attrs: { ...this.attrs },
       points: this.points,
+      perks: this.perks.serialize(),
       hp: this.hp,
       mana: this.mana,
       inventory: this.inventory.serialize(),
@@ -893,6 +1084,8 @@ export class Player {
     this.xp = data.xp ?? 0;
     this.attrs = { ...this.attrs, ...(data.attrs ?? {}) };
     this.points = data.points ?? 0;
+    this.perks.load(data.perks);
+    this.perkPoints = this.perks.points;
     this.inventory.load(data.inventory);
     this.recalc();
     this.hp = data.hp ?? this.maxHP;

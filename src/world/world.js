@@ -67,6 +67,7 @@ export class World {
     this._buildRoadCamp();
     this._buildCoast();
     this._buildAssetProps();
+    this._buildBoard();
     this._scatterNature();
 
     this.batcher.finalize(true);
@@ -304,6 +305,37 @@ export class World {
       id: 'village_chest', kind: 'chest', x: cx - 30, z: cz + 16, radius: 3.2,
       label: 'Stara skrzynia', mesh: this._chestModel(), rotY: 0.7,
       data: { loot: [['bread', 2], ['gold', 35], ['leather_hood', 1]] },
+    });
+  }
+
+  // =========================================================================
+  // TABLICA ZLECEŃ — poboczne kontrakty
+  // =========================================================================
+  _buildBoard() {
+    const x = LOCATIONS.village.x + 16;
+    const z = LOCATIONS.village.z - 12;
+    const g = new THREE.Group();
+    const wood = mat('#4a3624');
+    g.add(mesh(box(0.22, 3.0, 0.22), wood, -1.35, 1.5, 0));
+    g.add(mesh(box(0.22, 3.0, 0.22), wood, 1.35, 1.5, 0));
+    g.add(mesh(box(3.1, 0.18, 0.3), wood, 0, 3.0, 0));
+    g.add(mesh(box(3.0, 1.7, 0.12), mat('#7a5b38'), 0, 2.1, 0));
+    const papers = ['#e6dcc2', '#d8cba8', '#e0d3b4', '#cfc3a2'];
+    for (let i = 0; i < 4; i++) {
+      const paper = mesh(box(0.62, 0.78, 0.02), mat(papers[i]), -1.0 + i * 0.66, 2.2 + (i % 2) * 0.18, 0.08);
+      paper.rotation.z = (i % 2 ? 1 : -1) * 0.05;
+      g.add(paper);
+    }
+    g.add(mesh(box(0.34, 0.5, 0.34), new THREE.MeshStandardMaterial({
+      color: '#ffd9a0', emissive: '#ffae4a', emissiveIntensity: 1.2, roughness: 0.6,
+    }), 1.35, 3.3, 0.2));
+    const lamp = new THREE.PointLight('#ffbe6e', 1.6, 9, 2);
+    lamp.position.set(1.35, 3.4, 0.4);
+    g.add(lamp);
+    this.addStatic(g, x, z, -0.4, { whole: true, collide: 1.2 });
+    this.addInteractive({
+      id: 'job_board', kind: 'board', x: x + 2.2, z: z + 0.6, radius: 3.8,
+      label: 'Tablica zleceń', mesh: null,
     });
   }
 
@@ -993,6 +1025,23 @@ export class World {
     });
     this.batcher.add(makeCrate(0.9), cx + 7, heightAt(cx + 7, cz + 8), cz + 8, 0.2);
     this.batcher.add(makeBarrel(), cx - 8, heightAt(cx - 8, cz + 9), cz + 9, 0.6);
+
+    // wyposażenie z paczki CC0: beczki, skrzynie, pochodnie i stół górników
+    this.addAssetProp('crates', cx + 10, cz + 4, 0.4, { targetHeight: 1.4, collide: 0.8 });
+    this.addAssetProp('barrel', cx - 6, cz + 7, 1.2, { targetHeight: 1.1, collide: 0.5 });
+    this.addAssetProp('barrel', cx - 7.4, cz + 8.2, 2.6, { targetHeight: 1.0, collide: 0.5 });
+    this.addAssetProp('table', cx + 3, cz + 9, 0.3, { targetHeight: 0.85, collide: 0.9 });
+    this.addAssetProp('chair', cx + 4.4, cz + 10, 2.0, { targetHeight: 1.0 });
+    this.addAssetProp('torch', cx - 3.4, cz - 4.2, 0, { targetHeight: 2.4 });
+    this.addAssetProp('torch', cx + 3.6, cz - 4.4, 0, { targetHeight: 2.4 });
+    this.addAssetProp('torch', cx + 12, cz + 10, 0, { targetHeight: 2.4 });
+
+    this.addInteractive({
+      id: 'mine_sign', kind: 'sign', x: cx + 6, z: cz - 10, radius: 3.2,
+      label: 'Tabliczka górników (mapa)', mesh: makeSignpost(),
+    });
+    this.addLight('#ff9440', 2.4, 10, cx - 3.4, cz - 4.2, 2.2);
+    this.addLight('#ff9440', 2.4, 10, cx + 3.6, cz - 4.4, 2.2);
   }
 
   // =========================================================================
