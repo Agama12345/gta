@@ -123,3 +123,28 @@ proceduralnych — nic się nie wysypuje.
    Animacje są przeliczane na szkielet każdej postaci w locie
    (src/entities/clipRetarget.js) — bohater i mieszkańcy mogą więc mieć własne
    modele o dowolnym nazewnictwie kości.
+
+--------------------------------------------------------------------------
+10. CHARS/KK_*.GLB — POSTACIE ŚREDNIOWIECZNE (KayKit)
+   Paczka: Character Pack: Adventurers 1.0
+   Autor:  Kay Lousberg
+   Strona: https://kaylousberg.itch.io/kaykit-adventurers
+   Repo:   https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0
+   Licencja: CC0 1.0 (public domain)
+   Pliki:  kk_Knight.glb, kk_Barbarian.glb, kk_Mage.glb, kk_Rogue.glb,
+           kk_Rogue_Hooded.glb — każdy z 76 klipami animacji (walka, uniki,
+           siadanie, czary). Używane jako bohater i mieszkańcy.
+
+11. NATURE/Q_*.GLB — ROŚLINNOŚĆ I SKAŁY (Quaternius)
+   Paczka: Ultimate Nature Pack
+   Autor:  Quaternius
+   Strona: https://quaternius.com/packs/ultimatenature.html
+   Licencja: CC0 1.0 (public domain)
+   Pliki:  q_pine_*, q_oak_*, q_birch_*, q_willow_*, q_palm_*, q_cactus_*,
+           q_bush_*, q_rock_*, q_grass*, q_flowers, q_log, q_stump
+
+   Sosny, dęby, brzozy i wierzby rosną w klimacie umiarkowanym, palmy
+   i kaktusy na pustyni, ośnieżone sosny w tundrze — dobór zależy od biomu.
+
+12. POSTACIE Z PACZEK QUATERNIUS (postac_*.glb)
+   Uzupełnienie obsady: starosta, zielarka, rybak, pustelnik i zjawa.

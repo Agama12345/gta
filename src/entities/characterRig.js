@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
-import { retargetLibrary } from './clipRetarget.js';
+import { retargetLibrary, collectRigRoles } from './clipRetarget.js';
 
 /**
  * Kolory materiałów modelu (Quaternius nazywa je po kolorach: `Green`,
@@ -92,18 +92,22 @@ export const CLIP_ALIASES = {
   idle: ['idle', 'stand', 'standing', 'breathing', 'unarmedidle', 'idle01', 'idle1'],
   walk: ['walk', 'walking', 'walkforward', 'walkfwd', 'walk01', 'walk1'],
   run: ['run', 'running', 'sprint', 'jog', 'runforward', 'run01'],
-  attack: ['attack', 'attack1', 'slash', 'swordslash', 'melee', 'swordattack', 'attack01'],
-  attack2: ['attack2', 'attack02', 'slash2', 'combo2', 'swordslash2'],
-  attack3: ['attack3', 'attack03', 'heavyslash', 'finisher', 'combo3'],
+  // ataki: nazwy z paczek KayKit („1H_Melee_Attack_Chop”) i z biblioteki UAL
+  attack: ['attack', 'attack1', '1hmeleeattackchop', '1hmeleeattack', 'chop', 'slash', 'swordslash', 'melee', 'swordattack', 'attack01'],
+  attack2: ['attack2', 'attack02', '1hmeleeattackslicehorizontal', '1hmeleeattackslice', 'slice', 'slash2', 'combo2', 'swordslash2'],
+  attack3: ['attack3', 'attack03', '2hmeleeattackspin', '2hmeleeattackchop', 'heavyslash', 'finisher', 'combo3'],
   block: ['block', 'blocking', 'guard', 'shieldblock', 'parry'],
-  dodge: ['dodge', 'roll', 'evade', 'backflip', 'dodgeforward'],
-  cast: ['cast', 'spell', 'magic', 'castspell', 'channel'],
-  hurt: ['hurt', 'hit', 'damage', 'impact', 'flinch', 'hurt01'],
-  death: ['death', 'die', 'dying', 'death01', 'dead'],
-  talk: ['talk', 'speak', 'talk01', 'gesture', 'conversation'],
-  sit: ['sit', 'rest', 'sitting', 'sitidle'],
-  wave: ['wave', 'greet', 'hello'],
-  eat: ['eat', 'drink', 'consume'],
+  dodge: ['dodge', 'roll', 'evade', 'backflip', 'dodgebackward', 'dodgeforward'],
+  cast: ['cast', 'spell', 'magic', 'castspell', 'spellcastshoot', 'spellcastraise', 'channel'],
+  hurt: ['hurt', 'hit', 'hita', 'hitb', 'damage', 'impact', 'flinch', 'hurt01'],
+  death: ['death', 'die', 'dying', 'death01', 'deada', 'dead'],
+  talk: ['talk', 'speak', 'talk01', 'interact', 'gesture', 'conversation'],
+  sit: ['sit', 'rest', 'sitting', 'sitchairidle', 'sitidle'],
+  wave: ['wave', 'cheer', 'greet', 'hello'],
+  eat: ['eat', 'drink', 'useitem', 'consume'],
+  pickup: ['pickup', 'take', 'grab'],
+  jump: ['jumpstart', 'jumpfullshort', 'jumpidle', 'jump'],
+  land: ['jumpland', 'land'],
 };
 
 const norm = (s) => String(s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -214,7 +218,7 @@ export function repairSkinWeights(root) {
       }
     }
     if (!broken) return;
-    const bones = mesh.skeleton?.bones ?? [];
+    const bones = (mesh.skeleton?.bones ?? []).filter((b) => b && b.isObject3D);
     if (!bones.length) return;
     inv.copy(mesh.matrixWorld).invert();
     const boneLocal = bones.map((b) => {
@@ -245,20 +249,37 @@ export function repairSkinWeights(root) {
   return repaired;
 }
 
-/** Wysokość ciała oszacowana po kościach (kość głowy wypada ~86% wzrostu). */
+/**
+ * Wysokość ciała oszacowana po kościach.
+ *
+ * Liczymy od stopy do kości głowy — nie po „skrajnych” kościach szkieletu,
+ * bo rigi mają dodatkowe kości pomocnicze (IK, kontrolki stóp, gniazda broni),
+ * które potrafią leżeć metr nad głową i psuły skalowanie.
+ */
 function skeletonHeight(root) {
+  const roles = collectRigRoles(root);
+  const v = new THREE.Vector3();
+  const y = (node) => {
+    if (!node) return null;
+    node.getWorldPosition(v);
+    return Number.isFinite(v.y) ? v.y : null;
+  };
+  const head = y(roles.head);
+  const foot = Math.min(...[y(roles.footL), y(roles.footR)].filter((n) => n !== null));
+  if (head !== null && Number.isFinite(foot) && head > foot) return (head - foot) / 0.86;
+  // zapas: kości bez „pomocniczych” nazw
   let top = -Infinity;
   let bottom = Infinity;
-  const v = new THREE.Vector3();
   root.traverse((o) => {
     if (!o.isBone) return;
-    o.getWorldPosition(v);
-    if (!Number.isFinite(v.y)) return;
-    top = Math.max(top, v.y);
-    bottom = Math.min(bottom, v.y);
+    if (/ik|control|helper|pole|slot|end/i.test(o.name)) return;
+    const py = y(o);
+    if (py === null) return;
+    top = Math.max(top, py);
+    bottom = Math.min(bottom, py);
   });
   if (!Number.isFinite(top) || !Number.isFinite(bottom) || top <= bottom) return 0;
-  return (top - bottom) / 0.86;
+  return (top - bottom) / 0.9;
 }
 
 /** Skaluje model do docelowego wzrostu i ustawia stopy na y = 0. */
@@ -269,11 +290,19 @@ export function normalizeRig(scene, targetHeight = 1.85) {
   const box = new THREE.Box3().setFromObject(scene);
   const size = new THREE.Vector3();
   box.getSize(size);
-  const meshHeight = Math.max(0.001, Number.isFinite(size.y) ? size.y : 0.001);
+  const meshOk = Number.isFinite(size.y) && size.y > 0.01;
+  const meshHeight = meshOk ? size.y : 0.001;
   const boneHeight = skeletonHeight(scene);
-  // przy płaszczach, kapeluszach czy hełmach bryła bywa wyższa od ciała —
-  // bierzemy mniejszą z wartości, żeby postać nie była karłem
-  const height = boneHeight > 0.2 ? Math.min(meshHeight, boneHeight) : meshHeight;
+  // Bryła bywa wyższa od ciała (płaszcz, kapelusz, hełm), ale bywa też
+  // bezużyteczna (NaN w uszkodzonym eksporcie) i wtedy ratuje nas szkielet.
+  // Gdy oba pomiary się zgadzają — bierzemy mniejszy, żeby nie robić karła.
+  let height = meshHeight;
+  if (boneHeight > 0.2) {
+    const ratio = boneHeight / meshHeight;
+    height = meshOk && ratio > 0.6 && ratio < 1.4 ? Math.min(meshHeight, boneHeight) : meshHeight;
+  } else if (!meshOk) {
+    height = 1.8;
+  }
   const scale = targetHeight / height;
   scene.scale.setScalar(scale);
   scene.updateMatrixWorld(true);
@@ -390,7 +419,8 @@ export class CharacterRig {
       run: ['walk', 'idle'], walk: ['run', 'idle'], attack2: ['attack', 'idle'],
       attack3: ['attack', 'idle'], dodge: ['run', 'walk', 'idle'], cast: ['attack', 'idle'],
       block: ['idle'], hurt: ['idle'], talk: ['idle'], sit: ['idle'], wave: ['talk', 'idle'],
-      eat: ['talk', 'idle'], death: ['hurt', 'idle'],
+      eat: ['talk', 'idle'], death: ['hurt', 'idle'], pickup: ['interact', 'idle'], jump: ['idle'],
+      land: ['idle'], dance: ['idle'], swim: ['walk', 'idle'], crouch: ['idle'],
     }[state] ?? ['idle'];
     let key = this.actions[state] ? state : fallback.find((f) => this.actions[f]);
     if (!key) return null;
@@ -424,6 +454,14 @@ export class CharacterRig {
   attach(object, socket = 'rightHand', { orient = true } = {}) {
     const bone = this.sockets[socket];
     if (!bone) return false;
+    // Kości modeli z zewnątrz bywają w skali 100 (eksport z Blendera), a sama
+    // postać jest potem zmniejszana. Bez kompensacji miecz w dłoni rósł do
+    // kilkudziesięciu metrów i zasłaniał cały ekran.
+    bone.updateWorldMatrix(true, false);
+    const ws = bone.getWorldScale(new THREE.Vector3());
+    const k = Math.max(0.0001, (ws.x + ws.y + ws.z) / 3);
+    object.scale.multiplyScalar(1 / k);
+    object.position.multiplyScalar(1 / k);
     if (orient) {
       const world = new THREE.Quaternion();
       bone.getWorldQuaternion(world);

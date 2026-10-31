@@ -1801,6 +1801,31 @@ export class World {
     const useModels = !!(lib && lib.ready && Object.keys(lib.nature).length);
     const scatter = useModels ? new ModelScatter(this.group) : null;
     const treeKeys = ['tree_a', 'tree_b', 'tree_c', 'tree_medium', 'trees_cluster'];
+    // Prawdziwe modele Quaternius (CC0): osobne zestawy na każdy biom.
+    const BIOME_KEYS = {
+      temperate: ['q_pine_a', 'q_pine_b', 'q_oak_a', 'q_oak_b', 'q_oak_c', 'q_birch_a', 'q_birch_b', 'q_willow_a'],
+      ice: ['q_pine_snow', 'q_pine_snow', 'q_birch_dead', 'q_pine_c'],
+      savanna: ['q_oak_a', 'q_oak_b', 'q_oak_dead', 'q_willow_a'],
+      desert: ['q_cactus_a', 'q_cactus_b', 'q_cactus_c', 'q_cactus_flower', 'q_palm_a', 'q_palm_b'],
+      swamp: ['q_willow_a', 'q_birch_dead', 'q_oak_dead'],
+    };
+    const BIOME_TREE_HEIGHT = {
+      temperate: [7.5, 13], ice: [6, 10], savanna: [5, 8.5], desert: [2.2, 5.5], swamp: [5, 9],
+    };
+    const GROUND_KEYS = {
+      temperate: ['q_grass', 'q_grass_short', 'q_flowers', 'q_bush_a', 'q_bush_berries', 'q_log', 'q_stump'],
+      ice: ['q_bush_snow', 'q_rock_snow', 'q_grass_short'],
+      savanna: ['q_grass', 'q_grass', 'q_grass_short', 'q_bush_b'],
+      desert: ['q_cactus_a', 'q_rock_a', 'q_rock_b', 'q_bush_b'],
+      swamp: ['q_bush_a', 'q_log', 'q_stump', 'q_rock_moss', 'q_grass'],
+    };
+    const ROCK_KEYS = {
+      temperate: ['q_rock_a', 'q_rock_b', 'q_rock_c', 'q_rock_moss'],
+      ice: ['q_rock_snow', 'q_rock_a'],
+      savanna: ['q_rock_a', 'q_rock_b'],
+      desert: ['q_rock_a', 'q_rock_b', 'q_rock_c'],
+      swamp: ['q_rock_moss', 'q_rock_a'],
+    };
     // martwe drzewa i jesienne sosny — dla bagien i wyższych zboczy
     const deadTreeKeys = ['tree_dead_large', 'tree_dead_medium'];
     const autumnTreeKeys = ['pine_autumn_large', 'pine_gold_large'];
@@ -1899,8 +1924,11 @@ export class World {
       const nearSwamp = dist2(x, z, LOCATIONS.swamp.x, LOCATIONS.swamp.z) < 210 * S;
       const biome = dominantBiome(x, z);
       // gęstość roślinności zależy od biomu: pustynia prawie pusta, tundra rzadka
-      const density = biome === 'desert' ? 0.14 : biome === 'ice' ? 0.35 : biome === 'savanna' ? 0.5 : 1;
-      if (forest < 0.3 && !nearSwamp && rng.next() > 0.055 * density) continue;
+      const density = biome === 'desert' ? 0.45 : biome === 'ice' ? 0.5 : biome === 'savanna' ? 1 : 1;
+      // W biomach suchych las jest rzadki z natury — nie może być ich prawie wcale,
+      // bo sawanna i pustynia wyglądały jak puste płaszczyzny.
+      const sparseOk = biome === 'savanna' ? 0.42 : biome === 'desert' ? 0.2 : 0.055;
+      if (forest < 0.3 && !nearSwamp && rng.next() > sparseOk * density) continue;
 
       let variant;
       if (biome === 'desert') {
@@ -1920,26 +1948,29 @@ export class World {
       if (!variant || !variant.geo) continue;
       const scale = biome === 'desert' ? rng.float(0.8, 1.5) : rng.float(1.0, 1.95);
       // ponad połowę drzew stawiamy z prawdziwych modeli (sosny/dęby z paczki CC0)
-      if (scatter && biome !== 'desert' && rng.chance(0.62)) {
-        // wybór gatunku: bagno → uschłe, wysokie zbocze → jesienne iglaki
-        const key = nearSwamp && rng.chance(0.55)
-          ? pick(deadTreeKeys)
-          : (h > 120 && rng.chance(0.4) ? pick(autumnTreeKeys) : pick(treeKeys));
+      if (scatter && rng.chance(0.72)) {
+        // gatunek zależy od biomu i wysokości — pustynia dostaje kaktusy i palmy
+        const biomeKeys = BIOME_KEYS[biome] ?? BIOME_KEYS.temperate;
+        const key = pick(biomeKeys);
         const model = lib.nature[key];
-        // drzewa iglaste skalujemy po wysokości, szerokie korony po rozpiętości
-        const scl = key === 'trees_cluster'
-          ? rng.float(9, 14) / (model?.width || 1)
-          : rng.float(7.5, 12.5) / (model?.height || 1);
-        if (model && scatter.add(key, lib, {
-          x, y: h, z,
-          rotY: rng.float(0, Math.PI * 2),
-          scale: scl,
-          tilt: rng.float(-0.06, 0.06),
-          color: new THREE.Color().setScalar(0.82 + rng.float(0, 0.3)),
-        })) {
-          if (rng.chance(0.4)) this.colliders.push({ x, z, r: 0.55 });
-          trees += 1;
-          continue;
+        if (model) {
+          const [lo, hi] = BIOME_TREE_HEIGHT[biome] ?? [7.5, 12.5];
+          const wantH = rng.float(lo, hi) * (h > 120 ? 0.85 : 1);
+          // kaktusy i palmy są wąskie — skalujemy po wysokości, korony też
+          const scl = wantH / (model.height || 1);
+          // kołysanie na wietrze: lekki przechył zależny od gatunku
+          const tilt = key.includes('palm') || key.includes('birch') ? rng.float(-0.14, 0.14) : rng.float(-0.05, 0.05);
+          if (scatter.add(key, lib, {
+            x, y: h, z,
+            rotY: rng.float(0, Math.PI * 2),
+            scale: scl,
+            tilt,
+            color: new THREE.Color().setScalar(biome === 'desert' ? 0.9 + rng.float(0, 0.25) : 0.78 + rng.float(0, 0.34)),
+          })) {
+            if (wantH > 4 && biome !== 'desert') this.colliders.push({ x, z, r: 0.55 });
+            trees += 1;
+            continue;
+          }
         }
       }
       if (scatter && nearSwamp && rng.chance(0.5)) {
@@ -1980,6 +2011,39 @@ export class World {
       }
     }
 
+    // ---- poszycie: trawa, kwiaty, krzaki, kłody (modele CC0) --------------
+    // Roślinność runa daje wrażenie gęstości; na pustyni zastępują ją suche
+    // krzaki i kamienie, w tundrze ośnieżone krzewy.
+    if (scatter) {
+      let ground = 0;
+      const targetGround = 9000;
+      for (let attempt = 0; attempt < targetGround * 3 && ground < targetGround; attempt++) {
+        const a = rng.float(0, Math.PI * 2);
+        const r = 40 + Math.pow(rng.next(), 0.5) * (landR - 40);
+        const x = Math.cos(a) * r;
+        const z = Math.sin(a) * r;
+        if (isWater(x, z) || isBlocked(x, z) || distanceToPath(x, z) < 5) continue;
+        const h = heightAt(x, z);
+        if (h < WATER_LEVEL + 0.6) continue;
+        if (slopeAt(x, z) > 1.1) continue;
+        const biome = dominantBiome(x, z);
+        const keys = GROUND_KEYS[biome] ?? GROUND_KEYS.temperate;
+        const key = pick(keys);
+        const model = lib.nature[key];
+        if (!model) continue;
+        const isGrass = key.includes('grass') || key.includes('flowers');
+        const wantH = isGrass ? rng.float(0.35, 0.95) : rng.float(0.5, 1.5);
+        if (!scatter.add(key, lib, {
+          x, y: h, z,
+          rotY: rng.float(0, Math.PI * 2),
+          scale: wantH / (model.height || 1),
+          tilt: rng.float(-0.08, 0.08),
+          color: new THREE.Color().setScalar(0.8 + rng.float(0, 0.35)),
+        })) continue;
+        ground += 1;
+      }
+    }
+
     // ---- głazy i skalne żebra --------------------------------------------
     let rocks = 0;
     for (let attempt = 0; attempt < 11000 && rocks < 2000; attempt++) {
@@ -1994,12 +2058,12 @@ export class World {
       if (steep < 0.6 && h < 120 && rng.next() > 0.16) continue;
       const biome = dominantBiome(x, z);
       const rockSize = rng.float(0.8, 2.4);
-      if (scatter && biome !== 'ice' && rockSize < 2.0 && rng.chance(0.55)) {
-        const key = pick(rockKeys);
+      if (scatter && rockSize < 2.0 && rng.chance(0.55)) {
+        const key = pick(ROCK_KEYS[biome] ?? rockKeys);
         const model = lib.nature[key];
         // skały z paczki są niskie i szerokie — skalujemy po szerokości (1,4–3,6 m)
-        const width = model.width || model.height;
-        if (model && scatter.add(key, lib, {
+        const width = model?.width || model?.height || 0;
+        if (model && width > 0 && scatter.add(key, lib, {
           x, y: h - 0.05, z,
           rotY: rng.float(0, 6.28),
           scale: (0.9 + rockSize * 0.9) / width,

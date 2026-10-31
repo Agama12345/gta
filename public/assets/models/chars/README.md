@@ -22,12 +22,19 @@ public/assets/models/chars/
 
 ## Skąd te modele
 
-* **Postacie** — Quaternius, paczki *Ultimate Modular Men* / *Ultimate Modular
-  Women* (licencja **CC0 1.0**, autor: Quaternius).
-* **Animacje** — Quaternius, *Universal Animation Library* (standard, **CC0 1.0**),
-  spakowane do jednego pliku `animacje/ual.glb` (bez siatki manekina, tylko kości
-  i 31 klipów — od `Idle_Loop` przez `Sword_Attack`, `Roll`, `Sitting_Idle_Loop`
-  po `Swim_Fwd_Loop`).
+* **Bohater i większość mieszkańców** — KayKit *Character Pack: Adventurers*
+  (licencja **CC0 1.0**, autor: Kay Lousberg): rycerz, barbarzyńca, mag i dwóch
+  łotrów. Każdy ma **76 własnych animacji** (walka jedną i dwuręczną, blok,
+  uniki, czary, siadanie, wstawanie, śmierć), więc ci mieszkańcy nie potrzebują
+  biblioteki — używają swoich klipów.
+* **Uzupełnienie obsady** — Quaternius, paczki *Ultimate Modular Men* /
+  *Ultimate Modular Women* (licencja **CC0 1.0**, autor: Quaternius):
+  starosta, zielarka, rybak, pustelnik, zjawa.
+* **Animacje dla modeli Quaternius** — Quaternius, *Universal Animation Library*
+  (standard, **CC0 1.0**), spakowane do jednego pliku `animacje/ual.glb` (bez
+  siatki manekina, tylko kości i 31 klipów — od `Idle_Loop` przez `Sword_Attack`,
+  `Roll`, `Sitting_Idle_Loop` po `Swim_Fwd_Loop`). Modele KayKit mają własne klipy,
+  więc biblioteka jest dla nich tylko zapasem.
 
 ## Jak to działa w grze
 

@@ -22,7 +22,9 @@ export const BIOME_INFO = {
 // Regiony w metrach „autorskich” (mnożone przez WORLD_SCALE).
 const REGIONS = [
   { id: 'desert', x: 470, z: -330, r: 250, inner: 90 },
-  { id: 'savanna', x: -430, z: 250, r: 240, inner: 80 },
+  // Sawanna leży na suchym, płaskim zachodzie — poprzednie miejsce wypadało
+  // pod wodą, więc biom istniał tylko na papierze (piach i morze).
+  { id: 'savanna', x: -338, z: 150, r: 255, inner: 85 },
   { id: 'ice', x: -180, z: -560, r: 240, inner: 80 },
   { id: 'swamp', x: -200, z: -430, r: 150, inner: 60 },
 ];

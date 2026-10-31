@@ -1,15 +1,15 @@
 {
   "library": "animacje/ual.glb",
-  "hero": "postac_bohater.glb",
+  "hero": "kk_Rogue_Hooded.glb",
   "npcs": {
     "eryn": "postac_starosta.glb",
-    "borys": "postac_kowal.glb",
+    "borys": "kk_Barbarian.glb",
     "marena": "postac_zielarka.glb",
-    "zorzan": "postac_kupiec.glb",
-    "wilk": "postac_bohater.glb",
-    "iskra": "postac_uczennica.glb",
-    "pustelnik": "postac_pustelnik.glb",
-    "kupiec": "postac_rybak.glb",
+    "zorzan": "kk_Rogue.glb",
+    "wilk": "kk_Knight.glb",
+    "iskra": "kk_Mage.glb",
+    "pustelnik": "postac_bohater.glb",
+    "kupiec": "kk_Rogue.glb",
     "rybak": "postac_rybak.glb",
     "duch": "postac_duch.glb"
   }

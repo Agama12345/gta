@@ -88,11 +88,17 @@ Alternatywy: [paczka ZIP](https://github.com/Agama12345/gta/raw/arena/68dc2b6a-g
 - **Grunt z mikrorzeźbą:** teren ma teraz mapę detalu 512 px z wielkoskalowymi łatami
   (kafel przestaje się „powtarzać”) oraz **bump mapę** z kamykami i garby — ziemia
   pod stopami ma fakturę, nie tylko kolor.
-- **Bohater i mieszkańcy to prawdziwe modele 3D:** 9 postaci z paczek Quaternius
-  (CC0) — bohater w zielonej kurtce z plecakiem, starosta w dostojnym płaszczu,
-  kowal w skórzanym fartuchu, zielarka, kupcy, rybak, uczennica i zjawa. Każda ma
-  własne kolory ubrań, włosów i skóry (z definicji postaci), a miecz i tarcza
-  bohatera siedzą w kościach dłoni.
+- **Średniowieczna obsada:** bohater to łotr w kapturze (KayKit, CC0), kowal —
+  barbarzyńca z gołym torsem, strażnik wioski — rycerz w pełnej zbroi, uczennica —
+  mag w szacie, kupcy — łotrzy. Każdy z tych modeli ma **własne 76 animacji**:
+  walkę jedną i dwuręczną, blok, uniki, czary, siadanie i śmierć. Uzupełnienie
+  stanowią postacie Quaternius (starosta, zielarka, rybak, pustelnik, zjawa),
+  którym animacje przelicza biblioteka ruchu. Miecz i tarcza bohatera siedzą
+  w kościach dłoni i mają poprawną skalę (kości w tych modelach są w skali 100×).
+- **Roślinność dobrana do biomu:** 32 nowe modele Quaternius (CC0) — sosny, dęby,
+  brzozy i wierzby w klimacie umiarkowanym, palmy i kaktusy na pustyni, ośnieżone
+  sosny w tundrze, do tego trawa, kwiaty, krzaki, kłody i pniaki jako poszycie.
+  Sawanna dostała akacje i gęste trawy, bo wcześniej była pustą płaszczyzną.
 - **Jedna biblioteka ruchu dla wszystkich:** 31 klipów *Universal Animation
   Library* (CC0) jest przeliczanych na szkielet każdej postaci w locie
   (`src/entities/clipRetarget.js`) — dopasowanie po rolach kości (biodra,

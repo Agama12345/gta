@@ -861,7 +861,10 @@ function buildChunkGeometry(cx, cz, res) {
   const step = CHUNK_SIZE / res;
   const n = res + 1;
   const vertCount = n * n;
-  const skirtDrop = step * 1.05 + 2.5;
+  // Fartuch zasłania szczelinę tylko między sąsiednimi poziomami LOD.
+  // Wcześniej rósł razem z krokiem siatki (31 m przy najgrubszym LOD) i tworzył
+  // ciemne, 35-metrowe ściany wokół chunków — widoczne jako „gigantyczne klify”.
+  const skirtDrop = Math.min(2.5 + step * 0.35, 9);
   const skirtVerts = res * 8; // 4 krawędzie × res segmentów × 2 wierzchołki
 
   const positions = new Float32Array((vertCount + skirtVerts) * 3);
@@ -1091,7 +1094,7 @@ export class TerrainManager {
     this.chunks = new Map();
     this.queue = [];
     this.lastLodPos = new THREE.Vector2(1e9, 1e9);
-    this.updatesPerFrame = 2;
+    this.updatesPerFrame = 4;
     this.stats = { built: 0, triangles: 0 };
 
     for (let cz = 0; cz < CHUNK_COUNT; cz++) {
@@ -1106,9 +1109,9 @@ export class TerrainManager {
   }
 
   lodForDistance(d) {
-    if (d < 300) return 32; // 7,8 m (siatka wysokości ma 8 m, więcej nie da)
-    if (d < 620) return 16; // 15,6 m
-    return 8; // 31 m
+    if (d < 340) return 32; // 7,8 m (siatka wysokości ma 8 m, więcej nie da)
+    if (d < 1500) return 16; // 15,6 m — dalej trójkąty były widoczne gołym okiem
+    return 12; // 20,8 m tylko na skraju mapy
   }
 
   ensureChunk(chunk, res) {
@@ -1135,7 +1138,7 @@ export class TerrainManager {
     for (const chunk of this.chunks.values()) {
       if (chunk.centerX < -WORLD_RADIUS || chunk.centerZ < -WORLD_RADIUS) continue;
       const d = Math.hypot(chunk.centerX - pos.x, chunk.centerZ - pos.z);
-      this.ensureChunk(chunk, d < 340 ? 32 : 8);
+      this.ensureChunk(chunk, d < 400 ? 32 : 16);
     }
   }
 

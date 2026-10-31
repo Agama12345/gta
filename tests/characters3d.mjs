@@ -6,6 +6,7 @@
 
 import * as fs from 'fs';
 import { JSDOM } from 'jsdom';
+import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', {
   url: 'http://localhost/',
@@ -64,13 +65,18 @@ check(
 
 console.log('\nPOSTACIE 3D — modele i szkielety');
 const hero = await load(manifest.hero);
-const { height: heroHeight } = normalizeRig(hero.scene, 1.82);
-check('bohater ma ~1,82 m wysokości', Math.abs(heroHeight - 1.86) < 0.25, heroHeight.toFixed(2));
+normalizeRig(hero.scene, 1.82);
+const heroBox = new THREE.Box3().setFromObject(hero.scene);
+const heroHeight = heroBox.max.y - heroBox.min.y;
+check('bohater ma ~1,82 m wysokości', Math.abs(heroHeight - 1.82) < 0.15, heroHeight.toFixed(2));
+check('bohater stoi na ziemi', Math.abs(heroBox.min.y) < 0.05, heroBox.min.y.toFixed(3));
 const heroRoles = collectRigRoles(hero.scene);
-const wanted = ['hips', 'spine1', 'spine2', 'spine3', 'neck', 'head', 'upperArmL', 'upperArmR', 'handL', 'handR', 'upperLegL', 'upperLegR', 'lowerLegL', 'lowerLegR', 'footL', 'footR'];
+// zestaw ról wspólny dla każdego humanoidalnego szkieletu (KayKit, Mixamo, UAL)
+const wanted = ['hips', 'spine1', 'spine3', 'head', 'upperArmL', 'upperArmR', 'handL', 'handR', 'upperLegL', 'upperLegR', 'lowerLegL', 'lowerLegR', 'footL', 'footR'];
 const missingRoles = wanted.filter((r) => !heroRoles[r]);
 check('szkielet bohatera ma wszystkie potrzebne kości', missingRoles.length === 0, missingRoles.join(','));
-check('kości dłoni rozpoznane', heroRoles.handL?.name === 'HandL' && heroRoles.handR?.name === 'HandR');
+check('kości dłoni rozpoznane', !!heroRoles.handL && !!heroRoles.handR, `${heroRoles.handL?.name}/${heroRoles.handR?.name}`);
+check('model bohatera ma własne animacje (KayKit)', hero.animations.length >= 50, String(hero.animations.length));
 
 const libRoles = collectRigRoles(lib.scene);
 check('biblioteka używa innego nazewnictwa kości', !!libRoles.hips && libRoles.hips.name.startsWith('DEF-'), libRoles.hips?.name);
@@ -79,8 +85,12 @@ const map = buildBoneMap(lib.scene, hero.scene);
 check('wspólnych kości jest co najmniej 15', Object.keys(map).length >= 15, String(Object.keys(map).length));
 
 console.log('\nPOSTACIE 3D — przeliczanie animacji');
+// Bohater (KayKit) ma własne 76 klipów, więc bibliotekę przeliczamy na model
+// Quaternius — to jego dotyczy retargeting.
+const quat = await load(manifest.npcs.marena);
+const quatRoles = collectRigRoles(quat.scene);
 const t0 = performance.now();
-const converted = retargetLibrary({ scene: lib.scene, clips: lib.animations }, hero.scene, LIBRARY_STATE_MAP);
+const converted = retargetLibrary({ scene: lib.scene, clips: lib.animations }, quat.scene, LIBRARY_STATE_MAP);
 const ms = performance.now() - t0;
 check('przeliczono wszystkie stany', Object.keys(converted.clips).length === needed.length, `${Object.keys(converted.clips).length}/${needed.length}`);
 check('brak brakujących klipów', converted.missing.length === 0, converted.missing.join(','));
@@ -88,18 +98,21 @@ check(`przeliczenie jest szybkie (${Math.round(ms)} ms)`, ms < 3000, `${Math.rou
 
 const walk = converted.clips.walk;
 const trackNames = walk.tracks.map((tr) => tr.name.replace('.quaternion', ''));
-check('ścieżki trafiają w kości modelu', trackNames.includes('UpperLegL') && trackNames.includes('Head'), trackNames.slice(0, 4).join(','));
-check('klip ma ruch bioder', walk.tracks.some((tr) => tr.name === 'Hips.position'));
+const legBone = quatRoles.upperLegL.name;
+const headBone = quatRoles.head.name;
+check('ścieżki trafiają w kości modelu', trackNames.includes(legBone) && trackNames.includes(headBone), trackNames.slice(0, 4).join(','));
+check('klip ma ruch bioder', walk.tracks.some((tr) => tr.name === `${quatRoles.hips.name}.position`));
 const finite = walk.tracks.every((tr) => Array.from(tr.values).every((v) => Number.isFinite(v)));
 check('brak NaN w animacji', finite);
 
 // jakość ruchu: stopa nie może uciekać nad głowę ani zapadać się pod ziemię
-const mixer = new THREE.AnimationMixer(hero.scene);
+normalizeRig(quat.scene, 1.82);
+const mixer = new THREE.AnimationMixer(quat.scene);
 const action = mixer.clipAction(walk);
 action.play();
-hero.scene.updateMatrixWorld(true);
-const foot = hero.scene.getObjectByName('FootL');
-const hips = hero.scene.getObjectByName('Hips');
+quat.scene.updateMatrixWorld(true);
+const foot = quatRoles.footL;
+const hips = quatRoles.hips;
 const p = new THREE.Vector3();
 let minZ = Infinity;
 let maxZ = -Infinity;
@@ -123,7 +136,8 @@ check('biodra na wysokości 0,7–1,0 m', minHipsY > 0.7 && maxHipsY < 1.05, `${
 action.stop();
 
 console.log('\nPOSTACIE 3D — sterownik i mieszkańcy');
-const rig = new CharacterRig({ scene: hero.scene.clone(true), animations: [] }, {
+const freshHero = await load(manifest.hero);
+const rig = new CharacterRig(freshHero, {
   targetHeight: 1.82,
   library: { scene: lib.scene, clips: lib.animations },
 });
@@ -170,15 +184,25 @@ check('obcy szkielet rozpoznany', !!otherRoles.hips && !!otherRoles.handR, Objec
 check('obcy model ma własne animacje', otherGltf.animations.length >= 8, String(otherGltf.animations.length));
 const otherMap = buildBoneMap(lib.scene, otherGltf.scene);
 check('animacje biblioteki pasują też do obcego szkieletu', Object.keys(otherMap).length >= 14, String(Object.keys(otherMap).length));
-check('sygnatury szkieletów się różnią', rigSignature(hero.scene) !== rigSignature(otherGltf.scene));
+const quatHero = await load(manifest.npcs.marena); // Quaternius — inny szkielet niż KayKit
+check('sygnatury szkieletów się różnią', rigSignature(hero.scene) !== rigSignature(quatHero.scene));
 
-// uszkodzony eksport (kobieta-awanturniczka ma NaN w wagach) musi zostać naprawiony
+// uszkodzony eksport (NaN w wagach skórowania) musi zostać naprawiony w locie
 const brokenGltf = await load(manifest.npcs.iskra);
-const brokenRig = new CharacterRig(brokenGltf, { targetHeight: 1.78, library: { scene: lib.scene, clips: lib.animations } });
+const brokenScene = cloneSkinned(brokenGltf.scene);
+let brokenMesh = null;
+brokenScene.traverse((o) => { if (o.isSkinnedMesh && !brokenMesh) brokenMesh = o; });
+const w = brokenMesh.geometry.attributes.skinWeight;
+w.setX(0, NaN);
+w.needsUpdate = true;
+const brokenRig = new CharacterRig({ scene: brokenScene, animations: brokenGltf.animations }, {
+  targetHeight: 1.78,
+  library: { scene: lib.scene, clips: lib.animations },
+});
 const brokenBox = new THREE.Box3().setFromObject(brokenRig.group);
 const brokenH = brokenBox.max.y - brokenBox.min.y;
 check('model z NaN w wagach został naprawiony', brokenRig.repaired >= 1, String(brokenRig.repaired));
-check('naprawiony model ma poprawną wysokość', Number.isFinite(brokenH) && brokenH > 1.5 && brokenH < 2.1, brokenH.toFixed(2));
+check('naprawiony model ma poprawną wysokość', Number.isFinite(brokenH) && brokenH > 1.5 && brokenH < 2.2, brokenH.toFixed(2));
 brokenRig.dispose();
 
 console.log('\nPOSTACIE 3D — wszyscy mieszkańcy');
@@ -208,7 +232,14 @@ for (const [id, file] of Object.entries(manifest.npcs)) {
       if (Object.values(def.visual ?? {}).some((c) => typeof c === 'string' && c.toLowerCase() === hex)) changed += 1;
     }
   });
-  if (changed > 0) tintedOk += 1;
+  let textured = false;
+  rig.group.traverse((o) => {
+    if (!o.isMesh || !o.material) return;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    // model teksturowany (KayKit) nie potrzebuje tintu — ma własną teksturę
+    if (mats.some((m) => m?.map || /texture/i.test(m?.name ?? ''))) textured = true;
+  });
+  if (changed > 0 || textured) tintedOk += 1;
   rig.dispose();
 }
 check(`wszyscy mieszkańcy mają model i animacje (${npcOk}/${Object.keys(manifest.npcs).length})`, npcOk === Object.keys(manifest.npcs).length);

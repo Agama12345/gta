@@ -33,6 +33,42 @@ export const NATURE_MODELS = {
   pine_gold_large: 'halloween/tree_pine_yellow_large.gltf',
 };
 
+export const NATURE_MODELS_EXTRA = {
+  // Quaternius — Ultimate Nature Pack (CC0): drzewa, palmy, kaktusy, krzaki, skały
+  q_pine_a: 'nature/q_pine_a.glb',
+  q_pine_b: 'nature/q_pine_b.glb',
+  q_pine_c: 'nature/q_pine_c.glb',
+  q_pine_snow: 'nature/q_pine_snow.glb',
+  q_birch_a: 'nature/q_birch_a.glb',
+  q_birch_b: 'nature/q_birch_b.glb',
+  q_birch_dead: 'nature/q_birch_dead.glb',
+  q_oak_a: 'nature/q_oak_a.glb',
+  q_oak_b: 'nature/q_oak_b.glb',
+  q_oak_c: 'nature/q_oak_c.glb',
+  q_oak_dead: 'nature/q_oak_dead.glb',
+  q_willow_a: 'nature/q_willow_a.glb',
+  q_palm_a: 'nature/q_palm_a.glb',
+  q_palm_b: 'nature/q_palm_b.glb',
+  q_cactus_a: 'nature/q_cactus_a.glb',
+  q_cactus_b: 'nature/q_cactus_b.glb',
+  q_cactus_c: 'nature/q_cactus_c.glb',
+  q_cactus_flower: 'nature/q_cactus_flower.glb',
+  q_bush_a: 'nature/q_bush_a.glb',
+  q_bush_b: 'nature/q_bush_b.glb',
+  q_bush_berries: 'nature/q_bush_berries.glb',
+  q_bush_snow: 'nature/q_bush_snow.glb',
+  q_rock_a: 'nature/q_rock_q_a.glb',
+  q_rock_b: 'nature/q_rock_q_b.glb',
+  q_rock_c: 'nature/q_rock_q_c.glb',
+  q_rock_moss: 'nature/q_rock_moss.glb',
+  q_rock_snow: 'nature/q_rock_snow.glb',
+  q_grass: 'nature/q_grass_q.glb',
+  q_grass_short: 'nature/q_grass_q_short.glb',
+  q_flowers: 'nature/q_flowers_q.glb',
+  q_log: 'nature/q_log_q.glb',
+  q_stump: 'nature/q_stump_q.glb',
+};
+
 export const PROP_MODELS = {
   barrel: 'props/barrel_large.gltf.glb',
   crate: 'props/box_large.gltf.glb',
@@ -234,14 +270,15 @@ export async function loadAssets(onProgress) {
   const lib = new AssetLibrary();
   const loader = new GLTFLoader();
   const jobs = [];
-  const total = Object.keys(NATURE_MODELS).length + Object.keys(PROP_MODELS).length + Object.keys(CHAR_MODELS).length;
+  const total = Object.keys(NATURE_MODELS).length + Object.keys(NATURE_MODELS_EXTRA).length + Object.keys(PROP_MODELS).length + Object.keys(CHAR_MODELS).length;
   let done = 0;
   const tick = () => {
     done += 1;
     onProgress?.(done / total);
   };
 
-  for (const [key, url] of Object.entries(NATURE_MODELS)) {
+  const natureAll = { ...NATURE_MODELS, ...NATURE_MODELS_EXTRA };
+  for (const [key, url] of Object.entries(natureAll)) {
     jobs.push(loadOne(loader, url).then((gltf) => {
       const scene = gltf.scene;
       const info = measure(scene);
