@@ -5,6 +5,10 @@
 //   node tools/smoke-play.mjs [klatki]
 import { JSDOM } from 'jsdom';
 
+// deklaracje na początku: poniżej są używane przed wczytaniem modeli
+const errors = [];
+const errors0 = [];
+
 const dom = new JSDOM(`<!doctype html><html><body>
   <div id="ui"></div><div id="loading"><div class="loading-sub"></div></div>
   <canvas id="scene" width="1280" height="720"></canvas></body></html>`, {
@@ -78,8 +82,6 @@ const renderer = {
 };
 
 const canvas = document.getElementById('scene');
-const errors = [];
-const errors0 = [];
 const game = new Game(canvas, { renderer, assets });
 try {
   game.ui.applyVideoSettings = () => {}; // bez panelu opcji

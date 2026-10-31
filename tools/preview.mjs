@@ -180,7 +180,7 @@ const fakeRenderer = {
 };
 const assets = withAssets ? await loadAssets() : null;
 if (assets?.failed?.length) console.warn('modele z błędem:', assets.failed.slice(0, 5));
-const game = new Game(document.getElementById('scene'), { renderer: fakeRenderer, assets });
+const game = new Game(document.getElementById('scene'), { renderer: fakeRenderer, assets, disableStaticMerge: argv.includes('--no-merge') });
 game.startNew();
 
 // --- co stoi w pobliżu kamery (diagnostyka) --------------------------------
@@ -838,7 +838,11 @@ function drawGeometry(geometry, matrix, material, useVertexColors, count, meshRe
   const baseColor = materialColor(material, atlasMesh).clone();
   if (tint) baseColor.multiply(tint);
   const total = index ? index.count : pos.count;
-  const step = total > 60000 ? Math.ceil(total / 60000) : 1;
+  // Duże scalone siatki (np. cała wioska w jednym meshu) przy twardym limicie
+  // 60 tys. trójkątów były rysowane „co 50. trójkąt” — wioska znikała z obrazka
+  // i wyglądało to jak brak zabudowy. Limit można podnieść przez PREVIEW_TRIS.
+  const triBudget = Number(process.env.PREVIEW_TRIS ?? 60000);
+  const step = total > triBudget ? Math.ceil(total / triBudget) : 1;
   // Tekstury danych (trawa jako karty, tekstury gruntu) — podgląd nie ma
   // próbkowania per-piksel, więc sprawdzamy alfa w środku trójkąta i barwimy
   // nim trójkąt. Bez tego trawa rysowała się jako białe płachty.

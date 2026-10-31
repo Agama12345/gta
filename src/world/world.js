@@ -19,6 +19,11 @@ import {
 } from './models.js';
 import { dominantBiome, biomeRegionsWorld } from './biomes.js';
 import { PropBatcher, flattenGroup, mergeStaticGroups } from './mergeProps.js';
+import {
+  makeGallows, makeMarketStall, makeCannon, makeBucket, makeScythe, makePitchfork,
+  makeHoe, makePickaxe, makeSpear, makeWeaponRack, makeScroll, makeGrainSack, makeKey,
+  makeWindlass, makeHaystack, makeWoodpile, makeCart,
+} from './craftProps.js';
 import { ModelScatter, placeProp, prepareInstancing } from '../core/assets.js';
 import { tierForQuality } from '../core/quality.js';
 import { makeGrassCardGeometry, createGrassCardMaterial } from './grassCards.js';
@@ -87,12 +92,13 @@ export class World {
     this._buildAssetProps();
     this._buildBoard();
     this._scatterNature();
+    this._buildCraftProps();
 
     this.batcher.finalize(true);
 
     // Scalanie statyki: domy, mosty i drobnica były tysiącami osobnych siatek.
     // Teren, woda, trawa, mewy i obiekty interaktywne zostają nietknięte.
-    if (!game.disableStaticMerge) {
+    if (!game.disableStaticMerge && !game.options?.disableStaticMerge) {
       const protectedRoots = [
         this.terrain.group,
         this.water.mesh,
@@ -629,28 +635,77 @@ export class World {
     const cz = LOCATIONS.village.z;
     const rng = new RNG(77);
 
-    const houses = [
-      { a: 0.5, r: 34, w: 6.2, d: 5.2, wall: '#b7a17c' },
-      { a: 1.15, r: 40, w: 5.4, d: 4.8, wall: '#a89272' },
-      { a: 2.05, r: 36, w: 6.4, d: 5.4, wall: '#bfa987' },
-      { a: 2.8, r: 42, w: 5.2, d: 4.6, wall: '#ad9576' },
-      { a: 3.6, r: 38, w: 6.0, d: 5.0, wall: '#b09a78' },
-      { a: 4.3, r: 44, w: 5.8, d: 4.8, wall: '#b7a382' },
-      { a: 5.1, r: 35, w: 5.0, d: 4.4, wall: '#b3a07f' },
-      { a: 5.75, r: 46, w: 6.6, d: 5.6, wall: '#a58f70' },
-    ];
-    for (const h of houses) {
-      const x = cx + Math.cos(h.a) * h.r;
-      const z = cz + Math.sin(h.a) * h.r;
-      const rot = -h.a + Math.PI / 2;
-      this.addStatic(makeHouse({ w: h.w, d: h.d, wall: h.wall, roof: '#5b3d31' }), x, z, rot, {
-        collide: Math.max(h.w, h.d) * 0.5,
+    // Zabudowa wzdłuż traktu, nie w rzadkim pierścieniu.
+    //
+    // Wcześniej osiem domów stało w promieniu 34–46 m od środka, więc między
+    // nimi i ogniskiem zostawał pusty plac wielkości boiska. Teraz domy stoją
+    // w dwóch rzędach po obu stronach drogi, każde z obejściem: płot, drewutnia,
+    // stóg siana i beczka. To jest gęstość, którą widać od pierwszego kroku.
+    const walls = ['#b7a17c', '#a89272', '#bfa987', '#ad9576', '#b09a78', '#b7a382', '#a58f70'];
+    const plots = [];
+    for (let i = 0; i < 7; i += 1) {
+      plots.push({
+        x: cx - 14.5, z: cz - 36 + i * 11.5, rot: -Math.PI / 2,
+        w: 6.0 + (i % 3) * 0.4, d: 5.0 + (i % 2) * 0.3, wall: walls[i % walls.length],
       });
-      this.batcher.add(makeBarrel(), x + Math.cos(h.a + 0.8) * 3.4, heightAt(x, z), z + Math.sin(h.a + 0.8) * 3.4, rng.float(0, 3));
-      if (rng.chance(0.6)) {
-        this.batcher.add(makeCrate(0.75), x + Math.cos(h.a - 0.9) * 3.2, heightAt(x, z), z + Math.sin(h.a - 0.9) * 3.2, rng.float(0, 3));
+      if (i < 6) {
+        plots.push({
+          x: cx + 14.5, z: cz - 30.5 + i * 11.5, rot: Math.PI / 2,
+          w: 5.6 + (i % 2) * 0.6, d: 4.8, wall: walls[(i + 3) % walls.length],
+        });
       }
     }
+    for (const [index, plot] of plots.entries()) {
+      const yard = new THREE.Group();
+      yard.add(makeHouse({ w: plot.w, d: plot.d, wall: plot.wall, roof: '#5b3d31' }));
+
+      // ogrodzenie obejścia: tył i dwa boki, przód otwarty na drogę
+      const lot = 4.6;
+      const back = makeFence(2 * lot, index + 3);
+      back.position.set(0, 0, -3.6);
+      yard.add(back);
+      for (const sx of [-1, 1]) {
+        const side = makeFence(6.4, index * 2 + sx + 9);
+        side.rotation.y = Math.PI / 2;
+        side.position.set(sx * lot, 0, -0.6);
+        yard.add(side);
+      }
+      // furtka: dwa słupki i poprzeczka
+      for (const sx of [-1, 1]) {
+        const post = mesh(box(0.14, 1.3, 0.14), mat('#4a3322'), sx * 1.15, 0.65, 2.55);
+        yard.add(post);
+      }
+      yard.add(mesh(box(2.3, 0.1, 0.1), mat('#4a3322'), 0, 1.2, 2.55));
+
+      // drewutnia, stóg i beczka w obejściu
+      const pile = makeWoodpile(index + 1);
+      pile.position.set(-3.1, 0, -1.4);
+      pile.rotation.y = 0.2;
+      yard.add(pile);
+      if (index % 2 === 0) {
+        const hay = makeHaystack(index + 2);
+        hay.position.set(3.2, 0, -2.2);
+        yard.add(hay);
+      }
+      const barrel = makeBarrel();
+      barrel.position.set(2.8, 0, 1.8);
+      yard.add(barrel);
+      if (index % 3 === 0) {
+        const crate = makeCrate(0.7);
+        crate.position.set(-2.6, 0, 2.1);
+        crate.rotation.y = 0.6;
+        yard.add(crate);
+      }
+
+      this.addStatic(yard, plot.x, plot.z, plot.rot, { collide: Math.max(plot.w, plot.d) * 0.5 });
+    }
+
+    // wozy i stragan przy gospodie — droga nie może być pusta
+    this.addStatic(makeCart(), cx + 7.5, cz + 26, 0.35, { collide: 1.3 });
+    this.addStatic(makeCart(), cx - 8.4, cz - 44, 2.7, { collide: 1.3 });
+    this.addStatic(makeHaystack(7), cx + 22, cz - 30, 0, { collide: 1.2 });
+    this.addStatic(makeWoodpile(4), cx + 20.5, cz + 16, 0.5);
+    this.addStatic(makeWoodpile(6), cx - 21, cz + 24, 2.1);
 
     // ognisko + ławy + miejsce odpoczynku
     const fire = makeCampfire();
@@ -2071,6 +2126,92 @@ export class World {
     P('shrine_candles', RU.x, RU.z, 8, 10, 1.2, 1.0, 0);
     P('coffin_decorated', RU.x, RU.z, -8, 12, 2.4, 0.9, 0.6);
     P('skull', RU.x, RU.z, 3, 13, 1.0, 0.35, 0);
+  }
+
+  // =========================================================================
+  // NARZĘDZIA, SPRZĘT I BUDOWLE Z LISTY UŻYTKOWNIKA
+  // =========================================================================
+  // Rzeczy, których nie było w paczkach CC0: szubienica, stragan, armata,
+  // wiadro, kosa, widły, motyka, kilof, włócznia, zwój, worek z ziarnem,
+  // klucz, stojak na broń. Stoją tam, gdzie się ich używa, a nie „gdzieś”.
+  _buildCraftProps() {
+    let placed = 0;
+    const S = (prop, key, dx, dz, rotY = 0, collide = 0, dy = 0) => {
+      placed += 1;
+      const L = LOCATIONS[key];
+      const x = L.x + dx;
+      const z = L.z + dz;
+      if (isWater(x, z)) return;
+      this.addStatic(prop, x, z, rotY, { yOffset: dy, collide });
+    };
+    const V = 'village';
+    const T = 'trading';
+    const F = 'forge';
+    const M = 'mine';
+    const C = 'fisherhut';
+    const LH = 'lighthouse';
+    const CR = 'crossroads';
+    const Q = 'quarry';
+    const CA = 'castle';
+    const B = 'bandits';
+
+    // ---- szubienica na rozdrożu (prawo widać z daleka) --------------------
+    S(makeGallows(), CR, 26, -18, -0.5, 1.6);
+
+    // ---- targ: trzy stragany w Kotlinie Kupców ---------------------------
+    S(makeMarketStall(0), T, -9, -2, 0.3, 1.3);
+    S(makeMarketStall(1), T, 2.5, -9.5, -0.2, 1.3);
+    S(makeMarketStall(2), T, 10, -1, 1.8, 1.3);
+    S(makeGrainSack(), T, -7.2, -3.6, 0.5);
+    S(makeGrainSack(), T, -6.6, -4.4, 2.1);
+    S(makeScroll(), T, -2.1, -5.7, 0.7, 0, 0.86);
+    S(makeKey(), T, 1.4, -8.9, 1.2, 0, 0.86);
+    S(makeBucket(), T, 6.2, 3.4, 0.4);
+
+    // ---- kuźnia: kilof, motyka, wiadro przy palenisku --------------------
+    S(makePickaxe(), F, 4.2, 5.4, 1.1);
+    S(makeHoe(), F, -4.6, 5.6, 2.4);
+    S(makeBucket(), F, 2.8, 6.2, 0.9);
+    S(makeWeaponRack(), F, -5.4, -2.2, 0.6, 0.8);
+    S(makeSpear(), F, 5.8, 2.4, 0.2);
+
+    // ---- kopalnia: kilofy, wiadra, kosa w trawie -------------------------
+    S(makePickaxe(), M, 12, 4, 0.4);
+    S(makePickaxe(), M, -10, 8, 2.6);
+    S(makeBucket(), M, 14, 6, 1.4);
+    S(makeWindlass(), M, -14, -6, 0.2, 0.9);
+    S(makeScythe(), Q, 8, -8, 1.9);
+    S(makeScythe(), Q, 9.4, -7.2, 2.4);
+
+    // ---- wioska: widły, kosa, wiadro przy studni, zwój u sołtysa ---------
+    S(makePitchfork(), V, -6.4, -12.6, 0.9);
+    S(makeScythe(), V, 12.6, 6.4, 2.2);
+    S(makeBucket(), V, -3.2, -16.4, 0.6);
+    S(makeBucket(), V, -2.4, -16.9, 2.8);
+    S(makeScroll(), V, 3.4, -11.8, 1.4, 0, 0.86);
+    S(makeKey(), V, 4.8, -12.2, 0.3, 0, 0.86);
+    S(makeGrainSack(), V, -12.8, 4.6, 0.8);
+    S(makeWeaponRack(), V, 8.6, 15.2, -0.3, 0.8);
+
+    // ---- obóz bandytów: łupy i stojak z włóczniami -----------------------
+    S(makeWeaponRack(), B, 6.2, -6.4, 0.6, 0.8);
+    S(makeGrainSack(), B, -4.4, 5.6, 1.3);
+    S(makeCannon(), B, -9.2, -8.4, 1.2, 1.0);
+    S(makeSpear(), B, 3.2, 6.8, 0.8);
+
+    // ---- wybrzeże: armata na cyplu, wiadro, zwój w latarni ---------------
+    S(makeCannon(), LH, -8.4, 6.8, 0.4, 1.0);
+    S(makeBucket(), LH, 3.2, 4.2, 0.5);
+    S(makeGrainSack(), C, -4.2, 6.4, 0.9);
+    S(makeBucket(), C, 5.2, -3.4, 1.1);
+    S(makePitchfork(), C, -6.8, -4.2, 1.7);
+    S(makeScroll(), C, 2.2, 8.6, 0.9, 0, 0.86);
+
+    // ---- warownia i przełęcz: posterunki z włóczniami -------------------
+    S(makeWeaponRack(), CA, 8.4, 6.2, 0.5, 0.8);
+    S(makeCannon(), CA, -9.6, -4.8, -0.7, 1.0);
+    S(makeSpear(), CA, 12.4, -2.2, 0.3);
+    this.craftProps = placed;
   }
 
   // =========================================================================
