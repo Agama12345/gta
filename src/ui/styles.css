@@ -702,3 +702,5 @@ kbd {
 .c-progress .ok { color: #8fbf72; }
 .c-action { margin-top: 8px; }
 .c-wait { font-size: 11px; color: var(--text-dim); font-style: italic; }
+.q-obj.contract { color: #c8b083; }
+.q-obj.contract.done { color: #8fbf72; }

@@ -1485,7 +1485,14 @@ export class UI {
     qs('#qt-objectives').innerHTML = lines
       .map((l) => `<div class="q-obj ${l.done ? 'done' : ''}"><span class="tick">${l.done ? '✔' : '◇'}</span><span>${l.text}</span></div>`)
       .join('');
-    const hasAnything = !!q || lines.length > 0;
+    // zlecenia z tablicy dopisujemy pod głównym wątkiem
+    const contractLines = this.game.contracts?.activeLines?.() ?? [];
+    if (contractLines.length) {
+      qs('#qt-objectives').innerHTML += contractLines
+        .map((c) => `<div class="q-obj contract ${c.done ? 'done' : ''}"><span class="tick">${c.done ? '✔' : '◈'}</span><span>${c.name}: ${c.text}</span></div>`)
+        .join('');
+    }
+    const hasAnything = !!q || lines.length > 0 || contractLines.length > 0;
     tracker.style.display = hasAnything ? 'block' : 'none';
   }
 
