@@ -3,6 +3,7 @@ import { dampAngle, dist2, TAU } from '../core/utils.js';
 import { heightAt, LOCATIONS, distanceToPath } from '../world/terrain.js';
 import { makeHumanoid } from '../world/models.js';
 import { applyGait, applyFootIK, phaseRate, applyTorsoCounter } from '../core/gait.js';
+import { CharacterRig, animStateFor } from './characterRig.js';
 
 export class NPC {
   constructor(game, id, def) {
@@ -24,9 +25,26 @@ export class NPC {
     this.nightPos = this._makeNightSpot(def, this.basePos);
     this.moving = false;
 
-    const built = makeHumanoid(def.visual);
-    this.model = built.group;
-    this.parts = built.parts;
+    // Model mieszkańca z zewnątrz (jeśli człowiek taki dostarczył)
+    const customModel = game.assets?.custom?.npcs?.[id];
+    if (customModel) {
+      try {
+        this.rig = new CharacterRig(customModel, {
+          targetHeight: def.visual?.bulk ? 1.85 * Math.min(1.15, def.visual.bulk) : 1.78,
+          name: def.name,
+        });
+        this.model = this.rig.group;
+        this.parts = null;
+      } catch (err) {
+        console.warn(`Model mieszkańca „${def.name}” nie wystartował`, err);
+        this.rig = null;
+      }
+    }
+    if (!this.model) {
+      const built = makeHumanoid(def.visual);
+      this.model = built.group;
+      this.parts = built.parts;
+    }
     this.model.position.copy(this.pos);
     this.model.rotation.y = this.yaw;
     this.model.traverse((o) => {
@@ -121,6 +139,14 @@ export class NPC {
     }
     this.model.rotation.y = this.yaw;
     this.phase += dt;
+
+    if (this.rig) {
+      this.rig.play(animStateFor({ moving: this.moving, run: false, talking: false }), {
+        rate: this.moving ? 1 : 1,
+      });
+      this.rig.update(dt);
+      return;
+    }
 
     const { arms, body, head } = this.parts;
     const breathing = Math.sin(this.phase * 1.4) * 0.018;

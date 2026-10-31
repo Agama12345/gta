@@ -216,6 +216,11 @@ export class Game {
         return;
       }
     }
+    // ekwipunek: Enter zakłada albo używa wybranego przedmiotu
+    if (code === 'Enter' && this.state === 'ui'
+      && this.ui.heroPanel && !this.ui.heroPanel.classList.contains('hidden')) {
+      if (this.ui.activateSelectedItem?.()) return;
+    }
     if (this.state === 'title') {
       if (code === 'Enter') {
         this.audio.unlock();

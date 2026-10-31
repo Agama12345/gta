@@ -201,6 +201,51 @@ game.ui.setVideoSetting('shadows', true);
 panel.querySelector('[data-close="info"]').click();
 
 // ---------------------------------------------------------------------------
+console.log('\nEKWIPUNEK — nowy układ');
+game.returnToTitle();
+game.startNew();
+const inv = game.player.inventory;
+inv.add('rusty_sword', 1);
+inv.add('health_potion', 3);
+inv.add('herbs', 4);
+game.ui.openHero('inventory');
+check('panel bohatera otwarty', !game.ui.heroPanel.classList.contains('hidden'));
+check('układ trzykolumnowy', !!q('.hero-sheet') && qa('.sheet-col').length === 3);
+check('cztery sloty ekwipunku', qa('.eq-row').length === 4, String(qa('.eq-row').length));
+check('torba ma pełną siatkę', qa('.bag-cell').length >= 24, String(qa('.bag-cell').length));
+check('karta przedmiotu istnieje', !!q('#item-detail .item-card'));
+check('puste pole zachęca do wyboru', (q('#item-detail')?.textContent ?? '').includes('Wybierz przedmiot'));
+
+q('.bag-cell[data-item="health_potion"]')?.click();
+check('wybór pokazuje nazwę', (q('#item-detail h3')?.textContent ?? '').includes('Mikstura'));
+check('mikstura ma przycisk „Użyj”', !!q('#item-detail [data-use]'));
+check('komórka podświetlona', q('.bag-cell[data-item="health_potion"]')?.classList.contains('is-selected'));
+
+q('.bag-cell[data-item="rusty_sword"]')?.click();
+check('miecz ma przycisk „Załóż”', !!q('#item-detail [data-equip]'));
+q('#item-detail [data-equip]')?.click();
+check('miecz założony', game.player.inventory.equipped.weapon === 'rusty_sword');
+check('slot pokazuje nazwę broni', (qa('.eq-row')[0]?.textContent ?? '').includes('Rdzawy'));
+
+// Enter zakłada/używa wybranego
+q('.bag-cell[data-item="health_potion"]')?.click();
+const hpBefore = game.player.hp;
+game.player.takeDamage(30, 'test');
+game._onKeyDown('Enter');
+check('Enter używa mikstury', game.player.hp > hpBefore - 30, `${hpBefore} -> ${game.player.hp}`);
+
+// filtry
+q('[data-inv-filter="gear"]')?.click();
+const gearCells = qa('.bag-cell[data-item]').length;
+check('filtr „Ekwipunek” zawęża listę', gearCells >= 1 && gearCells < 4, String(gearCells));
+q('[data-inv-filter="all"]')?.click();
+
+// karta postaci: paski atrybutów
+game.ui.openHero('character');
+check('atrybuty mają paski', qa('.attr-bar').length === 4, String(qa('.attr-bar').length));
+game.ui.closePanels();
+
+// ---------------------------------------------------------------------------
 console.log('\nMENU — higiena');
 const fs = await import('node:fs');
 const indexHtml = fs.readFileSync('index.html', 'utf8');

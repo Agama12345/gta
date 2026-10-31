@@ -8,7 +8,7 @@
     "dev": "vite --host 0.0.0.0 --port 5173",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0 --port 4173",
-    "test": "node tests/smoke.mjs && node tests/integration.mjs && node tests/story.mjs && node tests/models.mjs && node tests/menu.mjs",
+    "test": "node tests/smoke.mjs && node tests/integration.mjs && node tests/story.mjs && node tests/models.mjs && node tests/character.mjs && node tests/menu.mjs",
     "test:smoke": "node tests/smoke.mjs",
     "shots": "node scripts/shot.mjs",
     "release": "node tools/release.mjs",
@@ -16,7 +16,8 @@
     "launcher": "powershell -NoProfile -ExecutionPolicy Bypass -File launcher/ArcaneSpire.ps1",
     "launcher-pack": "python3 tools/pack_launcher.py",
     "downloads": "python3 tools/pack_downloads.py",
-    "test:menu": "node tests/menu.mjs"
+    "test:menu": "node tests/menu.mjs",
+    "test:character": "node tests/character.mjs"
   },
   "dependencies": {
     "three": "^0.169.0"

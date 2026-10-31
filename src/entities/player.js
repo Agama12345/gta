@@ -6,6 +6,7 @@ import {
 } from '../world/terrain.js';
 import { applyGait, applyFootIK, phaseRate } from '../core/gait.js';
 import { makeHumanoid, makeSword, makeShield } from '../world/models.js';
+import { CharacterRig, animStateFor } from './characterRig.js';
 import { Inventory } from '../systems/inventory.js';
 import { Perks } from '../systems/perks.js';
 import { ITEMS } from '../data/items.js';
@@ -101,6 +102,25 @@ export class Player {
   }
 
   _buildModel() {
+    // 1) Model bohatera dostarczony przez człowieka (GLB z kośćmi i klipami)
+    const custom = this.game.assets?.custom?.hero;
+    if (custom) {
+      try {
+        this.rig = new CharacterRig(custom, { targetHeight: 1.82, name: 'bohater' });
+        this.model = this.rig.group;
+        this.parts = null;
+        this._buildRigWeapons();
+        this.group.add(this.model);
+        this.group.position.copy(this.pos);
+        this._buildAura();
+        return;
+      } catch (err) {
+        console.warn('Model bohatera nie wystartował — zostaje sylwetka proceduralna', err);
+        this.rig = null;
+      }
+    }
+
+    // 2) Sylwetka proceduralna (domyślna, zawsze dostępna)
     const built = makeHumanoid({
       skin: '#dcb08a',
       tunic: '#4f6350',
@@ -139,6 +159,41 @@ export class Player {
       }
     });
 
+    this._buildAura();
+  }
+
+  /** Broń i tarcza dla modelu z zewnątrz — przypięte do kości dłoni. */
+  _buildRigWeapons() {
+    const sword = makeSword({ blade: '#d9e2e8', guard: '#b08a3e', grip: '#3a2a1c' });
+    sword.scale.setScalar(0.9);
+    this.weaponMesh = sword;
+
+    const shield = makeShield('#5d5341');
+    shield.scale.setScalar(0.86);
+
+    const right = this.rig && this.rig.attach(sword, 'rightHand');
+    if (right) {
+      sword.position.set(0, 0.02, 0.02);
+      sword.rotation.set(-0.55, 0, 0.1);
+    } else {
+      // brak kości dłoni — miecz wędruje na plecy, żeby nie wisiał w powietrzu
+      sword.position.set(0.16, 1.32, -0.16);
+      sword.rotation.set(0.5, 0, -1.15);
+      this.group.add(sword);
+    }
+    const left = this.rig && this.rig.attach(shield, 'leftHand');
+    if (left) {
+      shield.position.set(0, 0.04, 0.02);
+      shield.rotation.set(0, Math.PI / 2, 0);
+    } else if (!right) {
+      shield.position.set(-0.2, 1.2, -0.18);
+      shield.rotation.set(0, Math.PI / 2, 0.2);
+      this.group.add(shield);
+    }
+  }
+
+  /** Latarnia, poświata i cień pod stopami — wspólne dla obu wariantów modelu. */
+  _buildAura() {
     // ciepła latarnia — rozjaśnia noc wokół bohatera
     this.lantern = new THREE.PointLight('#ffcf9a', 0, 13, 2);
     this.lantern.position.set(0, 1.5, 0.25);
@@ -835,6 +890,36 @@ export class Player {
 
   _animate(dt, moving, speed) {
     const speedMag = Math.hypot(this.vel.x, this.vel.z);
+
+    // ---- model z zewnątrz: animacje odtwarza mixer, nie kości proceduralne ----
+    if (this.rig) {
+      const state = animStateFor({
+        state: this.state,
+        combo: this.combo,
+        moving,
+        run: this.sprinting || speedMag > this.moveSpeed * 0.82,
+        blocking: this.blocking,
+        dead: this.hp <= 0,
+        talking: false,
+      });
+      const rate = state === 'walk'
+        ? clamp(speedMag / 1.7, 0.55, 1.7)
+        : state === 'run' ? clamp(speedMag / 5.2, 0.7, 1.5) : 1;
+      this.rig.play(state, { rate });
+      this.rig.update(dt);
+      if (this.shadowBlob) {
+        const ground = heightAt(this.pos.x, this.pos.z);
+        this.shadowBlob.position.y = ground - this.pos.y + 0.05;
+        this.shadowBlob.visible = this.hp > 0;
+      }
+      if (this.invuln > 0 && this.state !== 'dodge') {
+        this.model.visible = Math.floor(this.invuln * 18) % 2 === 0;
+      } else {
+        this.model.visible = true;
+      }
+      return;
+    }
+
     const norm = clamp(speedMag / Math.max(3, this.moveSpeed), 0, 2.2);
     // Kadencja wynika z POKONANEGO DYSTANSU, nie z czasu — stopy nie ślizgają
     // się po ziemi przy zmianie prędkości (największy „tell” sztucznej animacji).
@@ -1123,6 +1208,12 @@ export class Player {
   }
 
   _animateDeath(dt) {
+    if (this.rig) {
+      this.rig.play('death', { fade: 0.18 });
+      this.rig.update(dt);
+      if (this.shadowBlob) this.shadowBlob.visible = false;
+      return;
+    }
     const { body } = this.parts;
     body.rotation.x = damp(body.rotation.x, -Math.PI / 2, 3, dt);
     this.model.position.y = damp(this.model.position.y, 0.25, 3, dt);

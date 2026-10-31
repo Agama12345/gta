@@ -997,11 +997,16 @@ export class UI {
     const eq = p.inventory.equipStats();
     const rows = ATTRS.map((a) => {
       const canAdd = p.points > 0;
+      const val = p.attrs[a.id];
+      const pct = Math.max(6, Math.min(100, (val / 30) * 100));
       return `<div class="attr-row">
         <div class="attr-glyph">${a.glyph}</div>
-        <div class="attr-info"><div class="an">${a.name}</div><div class="ad">${a.desc}</div></div>
-        <div class="attr-val">${p.attrs[a.id]}</div>
-        ${canAdd ? `<button class="attr-plus" data-attr="${a.id}">+</button>` : ''}
+        <div class="attr-info">
+          <div class="an">${a.name}<span class="attr-val">${val}</span></div>
+          <div class="attr-bar"><span style="width:${pct.toFixed(0)}%"></span></div>
+          <div class="ad">${a.desc}</div>
+        </div>
+        ${canAdd ? `<button class="attr-plus" data-attr="${a.id}" title="Dodaj punkt">+</button>` : ''}
       </div>`;
     }).join('');
 
@@ -1068,73 +1073,81 @@ export class UI {
       if (this.invFilter === 'mat') return e.def.type === 'material';
       return true;
     });
-    const items = filtered.sort(sorters[this.invSort] ?? sorters.type);
+    const items = [...filtered].sort(sorters[this.invSort] ?? sorters.type);
 
-    const equipHtml = EQUIP_SLOTS.map((slot) => {
+    // ---- kolumna 1: założony ekwipunek -----------------------------------
+    const eqStats = inv.equipStats();
+    const eqRows = EQUIP_SLOTS.map((slot) => {
       const id = inv.equipped[slot.id];
       const it = id ? ITEMS[id] : null;
-      return `<div class="equip-slot ${id ? 'filled' : ''}" data-unequip="${slot.id}" title="${it ? it.name : 'Pusty slot'}">
-        ${icon(it ? it.icon : slot.glyph, 26)}<span class="lbl">${it ? it.name.slice(0, 12) : slot.label}</span>
-      </div>`;
+      if (!it) {
+        return `<div class="eq-row is-empty">
+          <span class="eq-box">${icon(slot.glyph, 20)}</span>
+          <span class="eq-meta"><span class="eq-slot">${slot.label}</span><span class="eq-name">pusty</span></span>
+        </div>`;
+      }
+      const rar = RARITY[it.rarity] ?? RARITY.common;
+      const summary = itemStatSummary(id).split(' · ')[0] ?? '';
+      return `<button class="eq-row ${rar.cls}" data-unequip="${slot.id}" title="Zdejmij: ${it.name}">
+        <span class="eq-box">${icon(it.icon, 20)}</span>
+        <span class="eq-meta">
+          <span class="eq-slot">${slot.label}</span>
+          <span class="eq-name">${it.name}</span>
+        </span>
+        <span class="eq-bonus">${summary}</span>
+      </button>`;
     }).join('');
 
+    // ---- kolumna 2: torba -------------------------------------------------
     const cells = items.map((e) => {
-      const rarity = RARITY[e.def.rarity] ?? RARITY.common;
-      return `<div class="inv-cell ${rarity.cls}" data-item="${e.id}" title="${e.def.name}">
-        ${icon(e.def.icon, 26)}${e.qty > 1 ? `<span class="cnt">${e.qty}</span>` : ''}
-      </div>`;
+      const rar = RARITY[e.def.rarity] ?? RARITY.common;
+      const sel = this.selectedItem === e.id ? ' is-selected' : '';
+      return `<button class="bag-cell ${rar.cls}${sel}" data-item="${e.id}" title="${e.def.name}">
+        ${icon(e.def.icon, 24)}
+        ${e.qty > 1 ? `<span class="bag-count">${e.qty}</span>` : ''}
+      </button>`;
     });
-    while (cells.length < Math.max(12, Math.ceil(cells.length / 6) * 6)) {
-      cells.push('<div class="inv-cell empty">·</div>');
-    }
+    const target = Math.max(24, Math.ceil(cells.length / 6) * 6);
+    while (cells.length < target) cells.push('<span class="bag-cell is-empty" aria-hidden="true"></span>');
 
-    const sel = this.selectedItem && inv.has(this.selectedItem) ? this.selectedItem : null;
-    const selDef = sel ? ITEMS[sel] : null;
-    const detail = selDef
-      ? `<div class="item-detail">
-          <h3 style="color:${RARITY[selDef.rarity].color}"><span class="h-ico">${icon(selDef.icon, 20)}</span>${selDef.name}</h3>
-          <div class="type">${RARITY[selDef.rarity].name} · ${this._typeName(selDef)}</div>
-          <div style="margin-top:10px">${Object.entries(selDef.stats ?? {}).map(([k, v]) => `<div class="stat">${this._statName(k)}: ${v > 0 ? '+' : ''}${v}</div>`).join('')}</div>
-          ${selDef.use ? `<div class="stat">Efekt: ${selDef.use.heal ? `+${selDef.use.heal} życia` : ''}${selDef.use.mana ? `+${selDef.use.mana} many` : ''}${selDef.use.buff ? `+${selDef.use.buff.attack}% obrażeń na ${selDef.use.buff.duration}s` : ''}</div>` : ''}
-          <div class="desc">${selDef.desc}</div>
-          <div class="actions">
-            ${selDef.slot ? `<button class="primary" data-equip="${sel}">Załóż</button>` : ''}
-            ${selDef.use ? `<button data-use="${sel}">Użyj</button>` : ''}
-          </div>
-        </div>`
-      : '<div class="empty-note">Wybierz przedmiot, aby zobaczyć szczegóły.</div>';
+    const seg = (id, label) =>
+      `<button class="seg-btn ${this.invFilter === id ? 'is-on' : ''}" data-inv-filter="${id}">${label}</button>`;
+    const sortLabel = { type: 'Rodzaj', name: 'Nazwa', value: 'Wartość' }[this.invSort] ?? 'Rodzaj';
 
     this.heroBody.innerHTML = `
-      <div class="grid-2">
-        <div>
-          <div class="card">
-            <h4>Założone</h4>
-            <div class="equip-slots">
-              <div class="equip-col">${equipHtml}</div>
-              <div class="panel-note">
-                Kliknij slot, aby zdjąć przedmiot.<br/>
-                Złoto: <b style="color:var(--gold)">${fmt(inv.gold)}</b> szt.<br/>
-                Miejsca: ${inv.items.size} / ${inv.capacity}
-              </div>
+      <div class="hero-sheet">
+        <section class="sheet-col">
+          <div class="sheet-head"><span>Założone</span><span class="sheet-note">klik = zdejmij</span></div>
+          <div class="eq-list">${eqRows}</div>
+          <div class="eq-summary">
+            <div class="kv"><span>Atak</span><b>${p.attackPower.toFixed(1)}${eqStats.attack ? ` <i>+${eqStats.attack}</i>` : ''}</b></div>
+            <div class="kv"><span>Pancerz</span><b>${p.armor.toFixed(1)}</b></div>
+            <div class="kv"><span>Złoto</span><b class="gold">${fmt(inv.gold)}</b></div>
+            <div class="kv"><span>Miejsca</span><b>${inv.items.size}<span class="dim"> / ${inv.capacity}</span></b></div>
+          </div>
+        </section>
+
+        <section class="sheet-col sheet-bag">
+          <div class="sheet-head">
+            <span>Torba</span>
+            <div class="seg">${seg('all', 'Wszystko')}${seg('gear', 'Ekwipunek')}${seg('use', 'Mikstury')}${seg('mat', 'Materiały')}</div>
+          </div>
+          <div class="bag-grid" id="bag-grid">${cells.join('')}</div>
+          ${filtered.length === 0 ? '<div class="sheet-empty">Ta kategoria jest pusta.</div>' : ''}
+          <div class="sheet-foot">
+            <span class="sheet-note">${filtered.length} ${filtered.length === 1 ? 'przedmiot' : 'przedmiotów'} · sortowanie: ${sortLabel}</span>
+            <div class="seg seg-sm">
+              <button class="seg-btn" data-inv-sort="1">Rodzaj</button>
+              <button class="seg-btn" data-inv-sort="1">Nazwa</button>
+              <button class="seg-btn" data-inv-sort="1">Wartość</button>
             </div>
           </div>
-          <div class="card" style="margin-top:14px">
-            <div class="inv-head">
-              <h4>Torba</h4>
-              <div class="inv-filters">
-                ${[['all', 'Wszystko'], ['gear', 'Ekwipunek'], ['use', 'Mikstury'], ['mat', 'Materiały']]
-                  .map(([id, label]) => `<button class="chip ${this.invFilter === id ? 'on' : ''}" data-inv-filter="${id}">${label}</button>`)
-                  .join('')}
-                <button class="chip ${this.invSort !== 'type' ? 'on' : ''}" data-inv-sort="1">↕ ${this.invSort === 'value' ? 'Cena' : this.invSort === 'name' ? 'Nazwa' : 'Rodzaj'}</button>
-              </div>
-            </div>
-            <div class="inv-grid">${cells.join('')}</div>
-            ${filtered.length === 0 ? '<div class="empty-note">Brak przedmiotów w tej kategorii.</div>' : ''}
-          </div>
-        </div>
-        <div>${detail}</div>
+        </section>
+
+        <aside class="sheet-col sheet-detail" id="item-detail">${this._renderItemDetail()}</aside>
       </div>`;
 
+    // ---- zdarzenia --------------------------------------------------------
     this.heroBody.querySelectorAll('[data-inv-filter]').forEach((b) => {
       b.addEventListener('click', () => {
         this.invFilter = b.dataset.invFilter;
@@ -1142,29 +1155,101 @@ export class UI {
         this.renderInventory();
       });
     });
-    this.heroBody.querySelector('[data-inv-sort]')?.addEventListener('click', () => {
-      const cycle = ['type', 'name', 'value'];
-      this.invSort = cycle[(cycle.indexOf(this.invSort) + 1) % cycle.length];
-      this.game.audio?.uiClick();
-      this.renderInventory();
+    this.heroBody.querySelectorAll('[data-inv-sort]').forEach((b, i) => {
+      b.addEventListener('click', () => {
+        this.invSort = ['type', 'name', 'value'][i] ?? 'type';
+        this.game.audio?.uiClick();
+        this.renderInventory();
+      });
     });
     this.heroBody.querySelectorAll('[data-item]').forEach((c) => {
-      c.addEventListener('click', () => {
-        this.selectedItem = c.dataset.item;
-        this.renderInventory();
-        this.game.audio?.uiClick();
-      });
+      c.addEventListener('click', () => this.selectItem(c.dataset.item));
     });
     this.heroBody.querySelectorAll('[data-unequip]').forEach((c) => {
       c.addEventListener('click', () => {
         if (!this.game.player.inventory.equipped[c.dataset.unequip]) return;
         this.game.player.inventory.unequip(c.dataset.unequip);
         this.game.player.recalc();
+        this.game.audio?.uiClick();
         this.renderInventory();
         this.refreshHud();
       });
     });
-    this.heroBody.querySelectorAll('[data-equip]').forEach((b) => {
+    this._bindItemDetail();
+  }
+
+  /** Wybór przedmiotu nie przerysowuje całej torby — tylko podświetlenie i opis. */
+  selectItem(id) {
+    this.selectedItem = id;
+    this.game.audio?.uiClick();
+    this.heroBody?.querySelectorAll('[data-item]').forEach((c) => {
+      c.classList.toggle('is-selected', c.dataset.item === id);
+    });
+    const box = this.heroBody?.querySelector('#item-detail');
+    if (box) {
+      box.innerHTML = this._renderItemDetail();
+      this._bindItemDetail();
+    }
+  }
+
+  _renderItemDetail() {
+    const p = this.game.player;
+    const inv = p.inventory;
+    const sel = this.selectedItem && inv.has(this.selectedItem) ? this.selectedItem : null;
+    const def = sel ? ITEMS[sel] : null;
+    if (!def) {
+      return `<div class="item-card is-empty"><div class="item-empty">Wybierz przedmiot z torby,<br/>aby zobaczyć szczegóły.</div></div>`;
+    }
+    const rar = RARITY[def.rarity] ?? RARITY.common;
+    const equippedId = def.slot ? inv.equipped[def.slot] : null;
+    const equipped = equippedId ? ITEMS[equippedId] : null;
+    const keys = [...new Set([...Object.keys(def.stats ?? {}), ...Object.keys(equipped?.stats ?? {})])];
+
+    const statLines = keys.map((k) => {
+      const v = def.stats?.[k] ?? 0;
+      const cur = equipped?.stats?.[k] ?? 0;
+      const diff = def.slot ? v - cur : 0;
+      const delta = diff > 0 ? `<i class="delta up">+${diff}</i>`
+        : diff < 0 ? `<i class="delta down">${diff}</i>` : '';
+      return `<div class="stat-line"><span>${this._statName(k)}</span><b>${v > 0 ? '+' : ''}${v}</b>${delta}</div>`;
+    }).join('');
+
+    const effect = def.use
+      ? `<div class="stat-line effect"><span>Efekt</span><b>${
+        [def.use.heal ? `+${def.use.heal} życia` : '', def.use.mana ? `+${def.use.mana} many` : '',
+          def.use.buff ? `+${def.use.buff.attack}% obrażeń / ${def.use.buff.duration}s` : '']
+          .filter(Boolean).join(' · ') || 'natychmiastowy'
+      }</b></div>`
+      : '';
+
+    const compare = equipped && equippedId !== sel
+      ? `<div class="item-compare">Zamiast: <b>${equipped.name}</b></div>` : '';
+
+    return `<div class="item-card ${rar.cls}">
+      <div class="item-top">
+        <span class="item-icon">${icon(def.icon, 30)}</span>
+        <div class="item-head">
+          <h3>${def.name}</h3>
+          <div class="item-sub"><span class="rarity">${rar.name}</span> · ${this._typeName(def)}</div>
+        </div>
+      </div>
+      <div class="item-stats">${statLines}${effect}</div>
+      ${compare}
+      <p class="item-desc">${def.desc ?? ''}</p>
+      <div class="item-foot"><span>Wartość</span><b>${def.value ? `${fmt(def.value)} szt.` : '—'}</b></div>
+      <div class="item-actions">
+        ${def.slot ? `<button class="primary" data-equip="${sel}">Załóż</button>` : ''}
+        ${def.use ? `<button class="primary" data-use="${sel}">Użyj</button>` : ''}
+        <button data-close="hero">Zamknij</button>
+      </div>
+      <div class="item-hint">${def.slot ? 'Enter — załóż' : def.use ? 'Enter — użyj' : 'Enter — nic nie robi'} · Esc — zamknij</div>
+    </div>`;
+  }
+
+  _bindItemDetail() {
+    const box = this.heroBody?.querySelector('#item-detail');
+    if (!box) return;
+    box.querySelectorAll('[data-equip]').forEach((b) => {
       b.addEventListener('click', () => {
         if (this.game.player.inventory.equip(b.dataset.equip)) {
           this.game.player.recalc();
@@ -1174,7 +1259,7 @@ export class UI {
         }
       });
     });
-    this.heroBody.querySelectorAll('[data-use]').forEach((b) => {
+    box.querySelectorAll('[data-use]').forEach((b) => {
       b.addEventListener('click', () => {
         if (this.game.player.useItem(b.dataset.use)) {
           this.renderInventory();
@@ -1182,6 +1267,29 @@ export class UI {
         }
       });
     });
+  }
+
+  /** Enter w ekwipunku: założ albo użyj wybranego przedmiotu. */
+  activateSelectedItem() {
+    const id = this.selectedItem;
+    if (!id || !this.game.player.inventory.has(id)) return false;
+    const def = ITEMS[id];
+    if (!def) return false;
+    if (def.slot) {
+      if (this.game.player.inventory.equip(id)) {
+        this.game.player.recalc();
+        this.renderInventory();
+        this.refreshHud();
+        this.game.audio?.uiClick();
+        return true;
+      }
+    }
+    if (def.use && this.game.player.useItem(id)) {
+      this.renderInventory();
+      this.refreshHud();
+      return true;
+    }
+    return false;
   }
 
   _typeName(def) {

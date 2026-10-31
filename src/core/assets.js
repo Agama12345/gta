@@ -134,6 +134,8 @@ class AssetLibrary {
     this.nature = {};
     this.props = {};
     this.chars = {};
+    // modele postaci dostarczone przez człowieka (opcjonalne, patrz chars/README.md)
+    this.custom = { hero: null, npcs: {} };
     this.failed = [];
     this.loaded = 0;
   }
@@ -150,6 +152,65 @@ class AssetLibrary {
 async function loadOne(loader, url) {
   const gltf = await loader.loadAsync(BASE + url);
   return gltf;
+}
+
+/**
+ * Opcjonalne modele bohatera i mieszkańców.
+ *
+ * Wystarczy wrzucić pliki do `public/assets/models/chars/` i dopisać je w
+ * `chars/models.json`:
+ *   { "hero": "hero.glb", "npcs": { "eryn": "npc_eryn.glb" } }
+ *
+ * Brak manifestu albo brak pliku = gra zostaje przy sylwetkach proceduralnych.
+ * @returns {Promise<void>}
+ */
+export async function loadCustomCharacters(loader, lib, base = BASE) {
+  let manifest = null;
+  try {
+    const res = await fetch(`${base}chars/models.json`, { cache: 'no-cache' });
+    if (res.ok) {
+      const text = await res.text();
+      if (text.trim().startsWith('{')) manifest = JSON.parse(text);
+    }
+  } catch (err) {
+    return; // brak manifestu to nie błąd
+  }
+  if (!manifest) return;
+
+  const jobs = [];
+  if (manifest.hero) jobs.push(['hero', manifest.hero]);
+  for (const [id, file] of Object.entries(manifest.npcs ?? {})) jobs.push([`npc:${id}`, file]);
+
+  await Promise.all(jobs.map(async ([key, spec]) => {
+    // wpis może być nazwą pliku albo obiektem { file, anims }
+    const file = typeof spec === 'string' ? spec : spec?.file;
+    const animsFile = typeof spec === 'object' ? spec?.anims : null;
+    if (!file) return;
+    try {
+      const gltf = await loader.loadAsync(`${base}chars/${file}`);
+      let animations = gltf.animations ?? [];
+      // klipy w osobnym pliku (np. eksport „animations only” z Mixamo/Blendera)
+      if (animsFile) {
+        try {
+          const anim = await loader.loadAsync(`${base}chars/${animsFile}`);
+          animations = anim.animations ?? animations;
+        } catch (err) {
+          lib.failed.push(`chars/${key} (animacje): ${err?.message ?? err}`);
+        }
+      }
+      const entry = {
+        scene: gltf.scene,
+        animations,
+        height: measure(gltf.scene).height,
+        file,
+      };
+      if (key === 'hero') lib.custom.hero = entry;
+      else lib.custom.npcs[key.slice(4)] = entry;
+      lib.loaded += 1;
+    } catch (err) {
+      lib.failed.push(`chars/${key}: ${err?.message ?? err}`);
+    }
+  }));
 }
 
 /**
@@ -189,6 +250,9 @@ export async function loadAssets(onProgress) {
       lib.loaded += 1;
     }).catch((err) => { lib.failed.push(`props/${key}: ${err?.message ?? err}`); }).finally(tick));
   }
+
+  // modele od człowieka ładują się równolegle z paczką CC0
+  jobs.push(loadCustomCharacters(loader, lib));
 
   for (const [key, url] of Object.entries(CHAR_MODELS)) {
     jobs.push(loadOne(loader, url).then((gltf) => {
