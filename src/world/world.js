@@ -49,7 +49,9 @@ export class World {
     this.rng = new RNG(20260413);
 
     this.terrain = new TerrainManager(this.group);
-    this.viewDistance = 1450; // zasięg rysowania roślinności (mgła i tak dalej nie sięga)
+    this.viewDistance = 1200; // zasięg rysowania roślinności (mgła sięga 1150, dalej nic nie widać)
+    // od tej odległości drzewa i krzaki przechodzą na uproszczoną bryłę (~9x mniej trójkątów)
+    this.lodDistance = 120;
     this.water = createWater();
     this.group.add(this.water.mesh);
 
@@ -193,7 +195,7 @@ export class World {
       this._cullTimer = (this._cullTimer ?? 0) + dt;
       if (this._cullTimer > 0.35) {
         this._cullTimer = 0;
-        this.scatter.cullByDistance(playerPos.x, playerPos.z, this.viewDistance ?? 1450);
+        this.scatter.cullByDistance(playerPos.x, playerPos.z, this.viewDistance ?? 1200, this.lodDistance ?? 120);
       }
     }
     if (this.beacon) {
@@ -3100,7 +3102,9 @@ export class World {
   /** Zasięg rysowania roślinności (zależny od poziomu jakości). */
   setViewDistance(d) {
     this.viewDistance = Math.max(260, Math.min(1600, d));
-    if (this.scatter) this.scatter.cullByDistance(this._lastCullX ?? 0, this._lastCullZ ?? 0, this.viewDistance);
+    if (this.scatter) {
+      this.scatter.cullByDistance(this._lastCullX ?? 0, this._lastCullZ ?? 0, this.viewDistance, this.lodDistance ?? 120);
+    }
   }
 
   /** Gęstość trawy w polu wokół gracza — sterowana poziomem jakości. */

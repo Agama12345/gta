@@ -93,24 +93,48 @@ export function decimateGeometry(geo, cells = 22) {
  * Sprawdza, czy uproszczenie ma sens (czy naprawdę zdejmuje trójkąty).
  * Zwraca geometrię lub `null`, gdy zysk jest znikomy.
  */
-export function farLod(geo, { minTris = 700, ratio = 0.1 } = {}) {
+export function decimateTo(geo, target = 0.28, { minTris = 420, floor = 30 } = {}) {
   const tris = (geo.index ? geo.index.count : geo.attributes.position.count) / 3;
   if (tris < minTris) return null;
+  geo.computeBoundingBox();
+  const size = new THREE.Vector3();
+  geo.boundingBox.getSize(size);
+  const span = Math.max(size.x, size.y, size.z);
+  if (!(span > 0)) return null;
+  let best = null;
+  let bestScore = Infinity;
   try {
-    geo.computeBoundingBox();
-    const size = new THREE.Vector3();
-    geo.boundingBox.getSize(size);
-    const span = Math.max(size.x, size.y, size.z);
-    // liczba komórek tak dobrana, by zostało ok. `ratio` trójkątów
-    // celujemy w ~`ratio` trójkątów: liczba komórek rośnie z liczbą trójkątów
-    const cells = Math.max(5, Math.round(Math.cbrt(tris * ratio) * 4.2));
-    const out = decimateGeometry(geo, cells);
-    if (!out) return null;
-    const outTris = out.index.count / 3;
-    if (outTris >= tris * 0.62) return null; // zbyt mały zysk — szkoda pamięci
-    out.userData = { sourceTris: tris, farTris: outTris, span };
-    return out;
+    // Dobieramy gęstość siatki tak, by zejść do ~`target` trójkątów — ani mniej
+    // (drzewo zamienia się w ziemniaka), ani więcej (nie ma z czego oszczędzać).
+    for (const cells of [6, 9, 12, 16, 20, 25, 31, 38, 46]) {
+      const out = decimateGeometry(geo, cells);
+      if (!out) continue;
+      const outTris = out.index.count / 3;
+      if (outTris < floor) continue;
+      const score = Math.abs(outTris / tris - target);
+      if (score < bestScore) {
+        bestScore = score;
+        best = out;
+      }
+    }
   } catch (err) {
     return null;
   }
+  if (!best) return null;
+  best.userData = { sourceTris: tris, farTris: best.index.count / 3, span };
+  return best;
+}
+
+/** Wersja dla dalszego planu: ~28% trójkątów, o ile to w ogóle coś daje. */
+export function farLod(geo, opts = {}) {
+  const out = decimateTo(geo, 0.28, opts);
+  if (!out) return null;
+  return out.userData.farTris >= out.userData.sourceTris * 0.7 ? null : out;
+}
+
+/** Wersja „na stałe”, tuż przy graczu: ~60% trójkątów, różnica niewidoczna. */
+export function midLod(geo, opts = {}) {
+  const out = decimateTo(geo, 0.6, opts);
+  if (!out) return null;
+  return out.userData.farTris >= out.userData.sourceTris * 0.85 ? null : out;
 }

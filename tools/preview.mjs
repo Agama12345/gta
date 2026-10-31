@@ -928,8 +928,11 @@ function skinVertex(mesh, index, target) {
 
 // --- statystyki geometrii (--tris) -----------------------------------------
 if (argv.includes('--tris')) {
+  // wymuś kulling i LOD dla pozycji kamery, żeby liczby były prawdziwe
+  game.world?.scatter?.cullByDistance?.(px, pz, game.world.viewDistance ?? 1200, game.world.lodDistance ?? 120);
   const agg = new Map();
-  game.scene.traverse((o) => {
+  // tylko to, co faktycznie trafia do rysowania (widoczność po całej hierarchii)
+  game.scene.traverseVisible((o) => {
     if (!o.isMesh && !o.isInstancedMesh) return;
     const idx = o.geometry?.index;
     const tri = idx ? idx.count / 3 : (o.geometry?.attributes?.position?.count ?? 0) / 3;

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { farLod } from './decimate.js';
+import { farLod, midLod } from './decimate.js';
 
 // ---------------------------------------------------------------------------
 // ZASOBY ZEWNĘTRZNE (darmowe modele CC0)
@@ -201,7 +201,10 @@ export function prepareInstancing(scene, { mergeAll = false } = {}) {
       merged.computeBoundingBox();
       // dalszy plan: uproszczona bryła (patrz `decimate.js`)
       merged.userData = merged.userData ?? {};
-      return [{ geometry: merged, material, farGeometry: farLod(merged) }];
+      // Roślinność: bryła „przy graczu” też jest upraszczana (60% trójkątów —
+      // tego nie widać), a dalsze kafle dostają wersję 28%.
+      const mid = midLod(merged);
+      return [{ geometry: mid ?? merged, material, farGeometry: farLod(merged) }];
     }
   }
   for (const g of collected) g.dispose();
@@ -213,7 +216,8 @@ export function prepareInstancing(scene, { mergeAll = false } = {}) {
     if (geometries.length > 1) for (const g of geometries) g.dispose();
     merged.computeBoundingSphere();
     merged.computeBoundingBox();
-    parts.push({ geometry: merged, material, farGeometry: farLod(merged) });
+    const mid = midLod(merged);
+    parts.push({ geometry: mid ?? merged, material, farGeometry: farLod(merged) });
   }
   return parts;
 }

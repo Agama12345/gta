@@ -12,25 +12,25 @@ export const QUALITY_TIERS = [
     id: 0, name: 'oszczędny',
     pixelRatio: 0.85, shadows: false, shadowMap: 512, shadowEvery: 0,
     fogScale: 0.55, terrainNear: 24, terrainBudget: 3, grass: 1400,
-    particles: 0.5,
+    particles: 0.5, lodDistance: 55,
   },
   {
     id: 1, name: 'niski',
     pixelRatio: 1.0, shadows: true, shadowMap: 1024, shadowEvery: 3,
     fogScale: 0.72, terrainNear: 32, terrainBudget: 4, grass: 2400,
-    particles: 0.7,
+    particles: 0.7, lodDistance: 75,
   },
   {
     id: 2, name: 'średni',
     pixelRatio: 1.25, shadows: true, shadowMap: 1536, shadowEvery: 2,
     fogScale: 0.88, terrainNear: 40, terrainBudget: 5, grass: 4000,
-    particles: 0.85,
+    particles: 0.85, lodDistance: 95,
   },
   {
     id: 3, name: 'wysoki',
     pixelRatio: 1.5, shadows: true, shadowMap: 2048, shadowEvery: 2,
     fogScale: 1.0, terrainNear: 48, terrainBudget: 7, grass: 6000,
-    particles: 1,
+    particles: 1, lodDistance: 120,
   },
 ];
 
@@ -88,6 +88,8 @@ export function applyQualityTier(game, index, { shadowsOverride = null } = {}) {
     terrain.frameBudget = tier.terrainBudget;
   }
   game.world?.setViewDistance?.(1150 * tier.fogScale);
+  // od tej odległości roślinność rysuje się uproszczoną bryłą (4-5x mniej trójkątów)
+  if (game.world) game.world.lodDistance = tier.lodDistance;
   game.world?.setGrassDensity?.(tier.grass);
 
   game.shadowEvery = tier.shadowEvery;

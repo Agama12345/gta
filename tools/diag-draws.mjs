@@ -115,6 +115,26 @@ console.log('w świecie:', inWorld, 'poza światem:', outside);
 let trulyVisible = 0;
 game.scene.traverseVisible((o) => { if (o.isMesh || o.isInstancedMesh) trulyVisible += 1; });
 console.log('realnie rysowane (cała hierarchia widoczna):', trulyVisible);
+let lodMeshes = 0, onFar = 0, nearTris = 0, farTris = 0;
+game.scene.traverse((o) => {
+  if (!o.userData?.farGeometry) return;
+  lodMeshes += 1;
+  if (o.geometry === o.userData.farGeometry) onFar += 1;
+  const t = (g) => (g.index ? g.index.count : g.attributes.position.count) / 3;
+  nearTris += t(o.userData.nearGeometry) * (o.count ?? 1);
+  farTris += t(o.userData.farGeometry) * (o.count ?? 1);
+});
+console.log(`LOD: ${lodMeshes} siatek instancjonowanych, na dalszym planie ${onFar}, trójkąty ${(nearTris / 1e6).toFixed(1)}M → ${(farTris / 1e6).toFixed(1)}M`);
+let bound = 0;
+const offenders = [];
+game.scene.traverse((o) => {
+  if (!(o.isMesh || o.isInstancedMesh) || !o.geometry) return;
+  const t = ((o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3) * (o.count ?? 1);
+  bound += t;
+  if (t > 200000) offenders.push([o.name || o.type, Math.round(t / 1000)]);
+});
+console.log(`związane trójkąty (wszystkie siatki): ${(bound / 1e6).toFixed(1)}M`);
+offenders.sort((a, b) => b[1] - a[1]).slice(0, 8).forEach(([n, k]) => console.log(`   ${String(k).padStart(6)}k  ${n}`));
 const prot = new Set();
 for (const it of w.interactables ?? []) it.mesh?.traverse?.((o) => prot.add(o));
 let protMeshes = 0;
