@@ -327,7 +327,47 @@ export function naturalizeFoliage(root, { saturation = 0.55, darken = 0.82, hueS
       m.needsUpdate = true;
     }
   });
+  addFoliageTonality(root);
   return root;
+}
+
+/**
+ * Liście bez UV dostają tonalną wariację w kolorach wierzchołków.
+ *
+ * Modele z paczek nie mają ani tekstur, ani map UV — liście to jedna płaska
+ * plama koloru, która z bliska wygląda jak plastik. Wariacja liczona z pozycji
+ * wierzchołka (plus przyciemnienie od spodu) daje wrażenie gęstej korony.
+ */
+function addFoliageTonality(root) {
+  root.traverse?.((obj) => {
+    if (!obj.isMesh || !obj.geometry || !obj.material) return;
+    const list = Array.isArray(obj.material) ? obj.material : [obj.material];
+    const green = list.some((m) => m?.color && m.color.g > m.color.r + 0.01 && m.color.g > m.color.b + 0.01);
+    if (!green) return;
+    const geo = obj.geometry;
+    if (!geo.attributes.position || geo.attributes.color) return;
+    const pos = geo.attributes.position;
+    const colors = new Float32Array(pos.count * 3);
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      const z = pos.getZ(i);
+      // tani, deterministyczny „szum” z pozycji — bez tablic i losowania
+      const n = Math.sin(x * 3.7 + y * 2.3) * Math.cos(z * 4.1 - y * 1.7);
+      const shade = 0.78 + n * 0.16 + Math.max(-0.1, Math.min(0.12, y * 0.02));
+      colors[i * 3] = shade;
+      colors[i * 3 + 1] = shade * (0.98 + n * 0.04);
+      colors[i * 3 + 2] = shade * (0.94 + n * 0.05);
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    for (const m of list) {
+      if (!m) continue;
+      m.vertexColors = true;
+      m.metalness = 0;
+      m.roughness = Math.max(0.85, m.roughness ?? 1);
+      m.needsUpdate = true;
+    }
+  });
 }
 /**
  * Dociąga wszystkie modele. Nigdy nie rzuca błędem — brak pliku to tylko wpis

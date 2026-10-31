@@ -26,6 +26,13 @@ Alternatywy: [paczka ZIP](https://github.com/Agama12345/gta/raw/arena/68dc2b6a-g
 - **Pięć biomów:** umiarkowane łąki i lasy, **pustynia** (wydmy, kaktusy, czerwone skały),
   **sawanna** (akacje, sucha trawa), **tundra** (sopel lodu, śnieżne głazy, blade sosny)
   oraz **bagno**. Granice biomów przenikają się płynnie.
+- **Teksturowany grunt (nowość 1.4):** powierzchnia nie jest już jednolitym kolorem —
+  w shaderze mieszają się cztery proceduralne warstwy: **trawa** (gęste źdźbła),
+  **ubity grunt i koleiny dróg**, **spękana skała** (bloki Voronoi) oraz **piasek/śnieg**.
+  Waga drogi liczona jest analitycznie z osi traktów (z koleinami biegnącymi wzdłuż drogi),
+  waga skały z nachylenia, a drobna siatka szczegółu rozbija powtarzalność kafla.
+- **Trawa jako karty z przezroczystością** — trzy skrzyżowane, wygięte pasy z proceduralną
+  teksturą źdźbeł zamiast stożków; 6000 kępek wędruje za graczem, gęstość zależy od biomu.
 - **Skały w górach:** zbocza od 0,38 nachylenia pokrywa kamień, wyżej żwir i odsłonięte
   granie; do tego piargi, skalne żebra i głazy z mchem — teren przestał być jednolitą trawą.
 - **Rzeki, jeziora i mosty:** trzy główne rzeki z meandrami (Szeptu, Milcząca, Bagienna)
