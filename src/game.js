@@ -4,7 +4,7 @@ import { DayNight } from './core/time.js';
 import { clamp, dist2 } from './core/utils.js';
 import { World } from './world/world.js';
 import { Sky, skyColors } from './world/sky.js';
-import { LOCATIONS, heightAt, forestMask, COAST_RADIUS, WATER_LEVEL, isWater } from './world/terrain.js';
+import { LOCATIONS, heightAt, forestMask, COAST_RADIUS } from './world/terrain.js';
 import { Player } from './entities/player.js';
 import { NPC } from './entities/npc.js';
 import { EnemyManager } from './entities/enemy.js';

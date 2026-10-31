@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { clamp, damp, dampAngle, angleDelta } from '../core/utils.js';
 import {
-  heightAt, isWater, WATER_LEVEL, WORLD_RADIUS, WORLD_SCALE, waterDepth, waterLevelAt, isInRiver,
+  heightAt, isWater, WORLD_RADIUS, WORLD_SCALE, waterDepth, waterLevelAt, isInRiver,
   distanceToPath, slopeAt,
 } from '../world/terrain.js';
 import { makeHumanoid, makeSword, makeShield } from '../world/models.js';
@@ -689,7 +689,8 @@ export class Player {
     // W rzece zawsze można brodzić (tyle że wolniej — nurt ciągnie za nogi).
     const levelNext = waterLevelAt(next.x, next.z);
     const wading = isInRiver(next.x, next.z);
-    const deepWater = !wading && isWater(next.x, next.z) && groundNext < levelNext - 0.9;
+    const onBridge = this.game.world?.bridgeDeckAt?.(next.x, next.z) ?? null;
+    const deepWater = onBridge === null && !wading && isWater(next.x, next.z) && groundNext < levelNext - 0.9;
     if (!deepWater) {
       if (wading) {
         // nurt spowalnia — brodzenie po rzece ma swój ciężar
@@ -707,7 +708,9 @@ export class Player {
       }
     }
 
-    const ground = heightAt(this.pos.x, this.pos.z);
+    // mostek: idziemy po deskach, nie po dnie koryta
+    const deck = this.game.world?.bridgeDeckAt?.(this.pos.x, this.pos.z) ?? null;
+    const ground = deck !== null ? Math.max(deck, heightAt(this.pos.x, this.pos.z)) : heightAt(this.pos.x, this.pos.z);
     const fallSpeed = (this.pos.y - ground) / Math.max(dt, 1e-3);
     this.pos.y = damp(this.pos.y, ground, 18, dt);
     // lądowanie po zejściu ze zbocza: krótkie ugięcie kolan i kompresja tułowia

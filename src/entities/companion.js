@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { clamp, damp, dampAngle } from '../core/utils.js';
 import { makeWolf } from '../world/models.js';
-import { heightAt, isWater, WATER_LEVEL, waterLevelAt } from '../world/terrain.js';
+import { heightAt, isWater, waterLevelAt } from '../world/terrain.js';
 
 /**
  * Szara — wilczy towarzysz bohatera.

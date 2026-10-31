@@ -7,7 +7,7 @@ import {
   RIVER_SURFACES, LAKE_SURFACES,
 } from '../world/terrain.js';
 import { TIPS } from '../data/dialogue.js';
-import { clamp, dist2, fbm } from '../core/utils.js';
+import { clamp, dist2 } from '../core/utils.js';
 import { SHOPS } from '../data/dialogue.js';
 import { icon } from './icons.js';
 import { biomeLabel } from '../world/biomes.js';
@@ -161,6 +161,7 @@ export class UI {
           </div>
           <div class="hero-gold" id="hero-gold">0 szt.</div>
         </div>
+        <div class="hero-status" id="hero-status"></div>
         <div class="bar hp"><i id="bar-hp"></i><span class="bar-label" id="label-hp">100 / 100</span></div>
         <div class="bar stam"><i id="bar-stam"></i><span class="bar-label" style="font-size:9px" id="label-stam"></span></div>
         <div class="bar mana"><i id="bar-mana"></i><span class="bar-label" style="font-size:9px" id="label-mana"></span></div>
@@ -1698,6 +1699,22 @@ export class UI {
       const weather = w ? `${icon} ${w.label}` : '';
       tag.textContent = [weather, biome].filter(Boolean).join(' · ');
       tag.classList.toggle('night', !!this.game.dayNight?.isNight);
+    }
+
+    // stan bohatera: skradanie, blok, bieg, brodzenie w rzece
+    const status = qs('#hero-status');
+    if (status) {
+      const chips = [];
+      if (p.stealth) chips.push(['◐', 'Skradanie', 'stealth']);
+      if (p.blocking) chips.push(['⛨', 'Blok', 'block']);
+      if (p.sprinting) chips.push(['»', 'Bieg', 'sprint']);
+      if (this.game.world?.bridgeDeckAt?.(p.pos.x, p.pos.z) !== null) chips.push(['⌒', 'Most', 'bridge']);
+      if (this.game.weather?.rain > 0.25) chips.push(['☂', 'Deszcz', 'rain']);
+      const html = chips.map(([g, t, c]) => `<span class="hchip ${c}"><b>${g}</b>${t}</span>`).join('');
+      if (status.dataset.sig !== html) {
+        status.innerHTML = html;
+        status.dataset.sig = html;
+      }
     }
 
     // niski poziom zdrowia — pulsująca obwódka

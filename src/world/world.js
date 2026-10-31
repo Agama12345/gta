@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import {
   heightAt, isWater, distanceToPath, slopeAt, forestMask,
   LOCATIONS, WATER_LEVEL, WORLD_RADIUS, WORLD_SCALE, LAND_RADIUS, COAST_RADIUS,
-  CHUNK_SIZE, TerrainManager, createWater,
-  RIVER_SURFACES, LAKE_SURFACES, pathRiverCrossings, riverSurfaceAt, isInRiver,
+  TerrainManager, createWater,
+  RIVER_SURFACES, LAKE_SURFACES, pathRiverCrossings, riverSurfaceAt,
   distanceToRiver,
 } from './terrain.js';
 import { RNG, dist2 } from '../core/utils.js';
@@ -448,8 +448,34 @@ export class World {
       });
       bridge.name = 'bridge';
       this.group.add(bridge);
-      this.bridges.push({ x: c.x, z: c.z, angle: c.angle, width: c.width });
+      this.bridges.push({
+        x: c.x, z: c.z, angle: c.angle, width: c.width,
+        deckY: y + 0.55 + 0.07,
+        halfWidth: 4.8 / 2 - 0.35,
+        halfLength: (c.width * 2.1 + 7) / 2,
+      });
     }
+  }
+
+  /**
+   * Wysokość pomostu, jeśli stoimy na moście (null = nie ma mostu).
+   * Dzięki temu bohater idzie po deskach, a nie brodzi w korycie pod nimi.
+   */
+  bridgeDeckAt(x, z) {
+    for (const b of this.bridges ?? []) {
+      const dx = x - b.x;
+      const dz = z - b.z;
+      const cos = Math.cos(-b.angle);
+      const sin = Math.sin(-b.angle);
+      const lx = dx * cos - dz * sin;
+      const lz = dx * sin + dz * cos;
+      if (Math.abs(lx) <= b.halfWidth && Math.abs(lz) <= b.halfLength) {
+        // delikatne wybrzuszenie pomostu, jak w modelu
+        const camber = 0.55 * (1 - Math.pow((lz / (b.halfLength || 1)) * 2, 2) * 0.35);
+        return b.deckY - 0.55 + camber;
+      }
+    }
+    return null;
   }
 
   _buildRiverProps() {
