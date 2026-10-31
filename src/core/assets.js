@@ -321,6 +321,7 @@ export async function loadCustomCharacters(loader, lib, base = BASE) {
         height: measure(gltf.scene).height,
         file,
         library: lib.animLibrary,
+        hideParts: (typeof spec === 'object' ? spec?.hide : null) ?? (key === 'hero' ? manifest.heroHide : null),
       };
       if (key === 'hero') lib.custom.hero = entry;
       else lib.custom.npcs[key.slice(4)] = entry;

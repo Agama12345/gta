@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { AutoQuality, applyQualityTier, tierForQuality } from './core/quality.js';
+import { AutoQuality, DynamicResolution, applyQualityTier, tierForQuality } from './core/quality.js';
 import { Input } from './core/input.js';
 import { DayNight } from './core/time.js';
 import { clamp, dist2 } from './core/utils.js';
@@ -469,6 +469,10 @@ export class Game {
     this.autoQuality = new AutoQuality(this, { startTier: this.softwareRendering ? 0 : 3 });
     if (this.softwareRendering) this.autoQuality.locked = true;
     this.autoQuality.setTier(this.softwareRendering ? 0 : tierForQuality(this.ui.videoSettings().quality));
+    // Płynna regulacja rozdzielczości: działa szybciej niż zmiana poziomu
+    // jakości i nie widać jej tak jak skokowej zmiany ustawień.
+    this.dynamicRes = new DynamicResolution(this, { min: 0.55, max: 1 });
+    this.dynamicRes.apply();
     this.clock.start();
     const loop = () => {
       requestAnimationFrame(loop);
@@ -518,6 +522,7 @@ export class Game {
    */
   _watchPerformance(dt) {
     this.autoQuality?.update(dt);
+    this.dynamicRes?.update(dt);
   }
 
   /** Ręczne ustawienie poziomu (panel opcji / komenda). */
@@ -527,6 +532,11 @@ export class Game {
       this.autoQuality.tier = tier.id;
       this.autoQuality.ema = 16.7;
       this.autoQuality.samples = 0;
+    }
+    if (this.dynamicRes) {
+      this.dynamicRes.scale = 1; // po zmianie poziomu startujemy od pełnej rozdzielczości
+      this.dynamicRes.samples = 0;
+      this.dynamicRes.apply();
     }
     return tier;
   }

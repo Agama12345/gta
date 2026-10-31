@@ -39,6 +39,7 @@ export class NPC {
           name: def.name,
           library: customModel.library,
           tint: def.visual,
+          hideParts: customModel.hideParts,
         });
         this.model = this.rig.group;
         this.parts = null;

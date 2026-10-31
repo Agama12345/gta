@@ -151,3 +151,64 @@ export class AutoQuality {
     }
   }
 }
+
+/**
+ * Skalowanie rozdzielczości w locie.
+ *
+ * Poziomy jakości zmieniają ustawienia skokowo i tylko wtedy, gdy gracz ma
+ * naprawdę słaby sprzęt. To narzędzie działa szybciej i subtelniej: mierzy
+ * płynność i dokręca rozdzielczość renderu w zakresie 55–100% — jeśli karta
+ * nie wyrabia, obraz robi się odrobinę miększy, ale **nie ma przycięć**.
+ * Gracz rzadko to zauważa, a klatki trzymają się celu.
+ */
+export class DynamicResolution {
+  constructor(game, { min = 0.55, max = 1, target = 16.7, step = 0.06 } = {}) {
+    this.game = game;
+    this.min = min;
+    this.max = max;
+    this.target = target;
+    this.step = step;
+    this.scale = max;
+    this.ema = target;
+    this.timer = 0;
+    this.enabled = true;
+    this.samples = 0;
+  }
+
+  /** Bazowy pixelRatio z aktualnego poziomu jakości (bez naszego skalowania). */
+  baseRatio() {
+    const tier = this.game?.qualityTier ?? 3;
+    const t = QUALITY_TIERS[Math.max(0, Math.min(QUALITY_TIERS.length - 1, tier))];
+    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+    return Math.max(0.6, Math.min(dpr, t.pixelRatio));
+  }
+
+  apply() {
+    const renderer = this.game?.renderer;
+    if (!renderer?.setPixelRatio) return;
+    renderer.setPixelRatio(this.baseRatio() * this.scale);
+    if (typeof window !== 'undefined' && renderer.setSize) {
+      renderer.setSize(window.innerWidth, window.innerHeight, false);
+    }
+  }
+
+  update(dt) {
+    if (!this.enabled) return;
+    const ms = dt * 1000;
+    if (!(ms > 0) || ms > 400) return;
+    this.ema += (ms - this.ema) * 0.1;
+    this.samples += 1;
+    this.timer += dt;
+    if (this.samples < 30) return; // nie reaguj na klatki startowe
+    if (this.timer < 0.5) return;
+    this.timer = 0;
+    let next = this.scale;
+    if (this.ema > this.target * 1.25) next = Math.max(this.min, this.scale - this.step);
+    else if (this.ema < this.target * 0.82) next = Math.min(this.max, this.scale + this.step * 0.5);
+    if (Math.abs(next - this.scale) > 0.001) {
+      this.scale = next;
+      this.apply();
+      this.game.onResolutionChange?.(this.scale);
+    }
+  }
+}

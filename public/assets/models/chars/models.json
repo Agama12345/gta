@@ -12,5 +12,8 @@
     "kupiec": "q_casual.glb",
     "rybak": "q_farmer.glb",
     "duch": "postac_duch.glb"
-  }
+  },
+  "heroHide": [
+    "Backpack"
+  ]
 }

@@ -112,6 +112,7 @@ export class Player {
           name: 'bohater',
           library: custom.library,
           tint: { skin: '#dcb08a' },
+          hideParts: custom.hideParts,
         });
         this.model = this.rig.group;
         this.parts = null;

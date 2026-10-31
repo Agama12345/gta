@@ -14,6 +14,7 @@
 // ---------------------------------------------------------------------------
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
+import { mergeSkinnedParts } from './characterMerge.js';
 import { CharacterRig } from './characterRig.js';
 
 /**
@@ -116,6 +117,11 @@ export class BeastRig {
         o.frustumCulled = false;
       }
     });
+
+    // Bestie z paczek CC0 mają po kilkadziesiąt osobnych brył (łapy, uszy,
+    // ogon...). Sklejamy je w jedną siatkę — jedno wywołanie rysowania zamiast
+    // czterdziestu kilku na każde zwierzę.
+    this.mergeStats = mergeSkinnedParts(this.source);
 
     this.group = new THREE.Group();
     this.group.add(this.source);

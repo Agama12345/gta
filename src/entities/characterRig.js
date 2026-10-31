@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeSkinnedParts } from './characterMerge.js';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { retargetLibrary, collectRigRoles } from './clipRetarget.js';
 
@@ -373,6 +374,16 @@ export class CharacterRig {
     this.repaired = repairSkinWeights(this.source);
     if (opts.tint) tintCharacter(this.source, opts.tint);
     tuneCharacterMaterials(this.source);
+    // Części, których nie chcemy na postaci (np. plecak zasłaniający bohatera
+    // z kamery zza pleców) — chowane po nazwie siatki.
+    if (opts.hideParts?.length) {
+      const re = new RegExp(opts.hideParts.join('|'), 'i');
+      this.source.traverse((o) => {
+        if (o.isMesh && re.test(o.name)) o.visible = false;
+      });
+    }
+    // Jedna siatka na postać zamiast kilkunastu (kolor materiału → kolor wierzchołka).
+    this.mergeStats = mergeSkinnedParts(this.source);
     this.mixer = new THREE.AnimationMixer(this.source);
     const { clips, unmatched } = matchClips(gltf.animations ?? []);
     this.clips = clips;

@@ -19,6 +19,11 @@ Alternatywy: [paczka ZIP](https://github.com/Agama12345/gta/raw/arena/68dc2b6a-g
 (rozpakuj → `Uruchom-gre.cmd`) albo launcher **Arcane Spire**
 ([`ArcaneSpire.exe`](https://github.com/Agama12345/gta/releases/download/launcher-latest/ArcaneSpire.exe)).
 
+## Plan rozwoju
+
+Lista tego, co jest w trakcie robienia (silnik, materiały ubrań, animacje walki):
+[ROADMAP.md](ROADMAP.md).
+
 ## Co jest w świecie (wersja 1.3)
 
 - **Mapa 5 × 5 km (25 km², ~5× więcej terenu niż wcześniej)** — góry, przełęcze, lasy,
