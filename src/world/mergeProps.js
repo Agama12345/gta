@@ -146,3 +146,89 @@ export class PropBatcher {
     this.meshes.length = 0;
   }
 }
+
+/**
+ * Skleja statyczne siatki świata w kilka dużych brył — jeden materiał = jedna siatka.
+ *
+ * Powód: pojedyncze domy, mosty i drobne props były osobnymi mesh-ami, więc scena
+ * miała ponad 4 tysiące wywołań rysowania na klatkę. Każde z nich to koszt po
+ * stronie procesora (przygotowanie stanu, uniformy), niezależny od GPU — i to on
+ * najbardziej „dławi” starsze karty. Po scaleniu tego samego obrazu broni
+ * kilkaset siatek.
+ *
+ * Czego NIE ruszamy:
+ *  - instancji (`InstancedMesh`) — już są tanie,
+ *  - siatek animowanych i materiałów przezroczystych (kolejność mieszania!),
+ *  - wody, terenu, trawy, mew i wszystkiego, co ma własne `update()`,
+ *  - obiektów interaktywnych (skrzynie, ogniska — zmieniają wygląd i animację).
+ *
+ * @returns {{before:number, after:number, merged:number}}
+ */
+export function mergeStaticGroups(root, { protect = [], skipName = /chunk|water|sea|foam|river|lake|gull|firefl|trawa|inst-|ciek/ } = {}) {
+  const protectedNodes = new Set();
+  for (const p of protect) p?.traverse?.((o) => protectedNodes.add(o));
+  root.updateMatrixWorld(true);
+  const toLocal = new THREE.Matrix4().copy(root.matrixWorld).invert();
+
+  const isProtected = (o) => {
+    let node = o;
+    while (node && node !== root) {
+      if (protectedNodes.has(node)) return true;
+      if (skipName.test(node.name || '')) return true;
+      node = node.parent;
+    }
+    return false;
+  };
+
+  const buckets = new Map();
+  let before = 0;
+  const candidates = [];
+  root.traverse((o) => {
+    if (!o.isMesh || o.isInstancedMesh || o.isSkinnedMesh) return;
+    if (o.visible === false) return;
+    before += 1;
+    const mat = o.material;
+    if (!mat || mat.transparent || mat.isShaderMaterial) return;
+    const geo = o.geometry;
+    if (!geo?.attributes?.position || geo.morphAttributes && Object.keys(geo.morphAttributes).length) return;
+    if (isProtected(o)) return;
+    const attrs = Object.keys(geo.attributes).sort().join(',');
+    const key = `${mat.uuid}|${attrs}`;
+    let bucket = buckets.get(key);
+    if (!bucket) {
+      bucket = { material: mat, geometries: [], nodes: [] };
+      buckets.set(key, bucket);
+    }
+    const copy = geo.clone();
+    const m = new THREE.Matrix4().multiplyMatrices(toLocal, o.matrixWorld);
+    copy.applyMatrix4(m);
+    bucket.geometries.push(copy);
+    bucket.nodes.push(o);
+    candidates.push(o);
+  });
+
+  let merged = 0;
+  let removed = 0;
+  for (const bucket of buckets.values()) {
+    if (bucket.nodes.length < 2) {
+      for (const g of bucket.geometries) g.dispose();
+      continue;
+    }
+    // różne siatki mogą mieć różne zestawy atrybutów tylko wewnątrz tego samego
+    // klucza, więc merge jest bezpieczny
+    const geo = mergeGeometries(bucket.geometries, false);
+    for (const g of bucket.geometries) g.dispose();
+    if (!geo) continue;
+    const mesh = new THREE.Mesh(geo, bucket.material);
+    mesh.castShadow = bucket.nodes.some((n) => n.castShadow);
+    mesh.receiveShadow = bucket.nodes.some((n) => n.receiveShadow);
+    mesh.matrixAutoUpdate = false;
+    mesh.name = `scalone-${bucket.material.name || 'mat'}-${merged}`;
+    geo.computeBoundingSphere();
+    root.add(mesh);
+    for (const n of bucket.nodes) n.parent?.remove(n);
+    removed += bucket.nodes.length;
+    merged += 1;
+  }
+  return { before, after: before - removed + merged, merged, removed };
+}

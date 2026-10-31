@@ -206,6 +206,7 @@ const fakeLib = {
   },
 };
 game.assets = fakeLib;
+game.disableStaticMerge = true; // test sprawdza pojedyncze obiekty, nie scalone bryły
 const modelWorld = new World(game);
 const instanced = modelWorld.group.children.filter((c) => c.isInstancedMesh && c.name.startsWith('inst-'));
 check('drzewa i skały z modeli instancjonowane', instanced.length >= 7, `(${instanced.length})`);
@@ -213,6 +214,20 @@ check('instancje mają wiele egzemplarzy', instanced.every((m) => m.count > 0) &
 check('skrzynie używają modelu GLB', !!modelWorld.interactables.find((n) => n.id === 'barrow_chest')?.mesh.getObjectByName('fake-chest'));
 check('propsy z paczki stoją w osadach', modelWorld.group.children.some((c) => c.getObjectByName?.('fake-prop')));
 const propTest = modelWorld.addAssetProp('barrel', 6, 40, 0.5, { targetHeight: 1.1, collide: 0.5 });
+// scalanie statyki: mniej wywołań rysowania przy tym samym obrazie
+game.disableStaticMerge = false;
+const mergedWorld = new World(game);
+const countDrawables = (root) => {
+  let n = 0;
+  root.traverse((o) => { if ((o.isMesh || o.isInstancedMesh) && o.visible !== false) n += 1; });
+  return n;
+};
+const mergedStats = mergedWorld.mergeStats ?? { before: 0, after: 0, merged: 0 };
+check('scalanie statyki faktycznie zmniejsza liczbę siatek',
+  mergedStats.merged > 3 && mergedStats.after < mergedStats.before, JSON.stringify(mergedStats));
+const plainWorld = modelWorld;
+check('po scaleniu scena ma mniej obiektów rysowalnych',
+  countDrawables(mergedWorld.group) <= countDrawables(plainWorld.group), `${countDrawables(mergedWorld.group)} vs ${countDrawables(plainWorld.group)}`);
 check('addAssetProp skaluje model do wysokości', !!propTest && Math.abs(propTest.scale.x - 0.55) < 0.02);
 game.assets = null;
 

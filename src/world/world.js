@@ -18,7 +18,7 @@ import {
   makeBridge,
 } from './models.js';
 import { dominantBiome, biomeRegionsWorld } from './biomes.js';
-import { PropBatcher, flattenGroup } from './mergeProps.js';
+import { PropBatcher, flattenGroup, mergeStaticGroups } from './mergeProps.js';
 import { ModelScatter, placeProp } from '../core/assets.js';
 import { makeGrassCardGeometry, createGrassCardMaterial } from './grassCards.js';
 
@@ -83,6 +83,17 @@ export class World {
     this._scatterNature();
 
     this.batcher.finalize(true);
+
+    // Scalanie statyki: domy, mosty i drobnica były tysiącami osobnych siatek.
+    // Teren, woda, trawa, mewy i obiekty interaktywne zostają nietknięte.
+    if (!game.disableStaticMerge) {
+      const protectedRoots = [
+        this.terrain.group,
+        this.water.mesh,
+        ...this.interactables.map((n) => n.mesh).filter(Boolean),
+      ];
+      this.mergeStats = mergeStaticGroups(this.group, { protect: protectedRoots });
+    }
 
     // Światła punktowe (ogniska, pochodnie, kapliczki) liczą się w shaderze
     // tylko gdy są włączone — dlatego trzymamy je na liście i wygaszamy
@@ -2941,8 +2952,9 @@ export class World {
       const a = i * 2.3999632 + rng.float(-0.16, 0.16);
       const x = Math.cos(a) * r + rng.float(-0.9, 0.9);
       const z = Math.sin(a) * r + rng.float(-0.9, 0.9);
-      const s = rng.float(0.62, 1.35);
-      const sy = s * rng.float(0.7, 1.55);
+      // kępki to niska okrywa (20–45 cm), nie krzaki do pasa
+      const s = rng.float(0.42, 0.95);
+      const sy = s * rng.float(0.65, 1.2);
       const rot = rng.float(0, 6.283);
       const cos = Math.cos(rot);
       const sin = Math.sin(rot);

@@ -949,6 +949,68 @@ if (argv.includes('--tris')) {
     console.log(`${(v.tris / 1000).toFixed(0).padStart(7)}k  ${String(v.inst).padStart(6)} szt.  ${String(v.meshes).padStart(4)} siatek  ${k}`);
   }
   console.log(`SUMA: ${(total / 1e6).toFixed(2)} M trójkątów, obiektów rysowalnych: ${[...agg.values()].reduce((a, b) => a + b.meshes, 0)}`);
+  if (argv.includes('--draws')) {
+    const byRoot = new Map();
+    for (const root of game.scene.children) {
+      let meshes = 0;
+      root.traverse((o) => { if ((o.isMesh || o.isInstancedMesh) && o.visible !== false) meshes += 1; });
+      const key = `${root.name || root.type}${root.isGroup ? `(${root.children.length} dzieci)` : ''}`;
+      byRoot.set(key, (byRoot.get(key) ?? 0) + meshes);
+    }
+    console.log('--- obiekty rysowalne wg korzenia sceny ---');
+    for (const [k, v] of [...byRoot.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20)) {
+      console.log(`${String(v).padStart(6)}  ${k}`);
+    }
+    const deep = new Map();
+    for (const root of game.scene.children) {
+      for (const child of root.children) {
+        let meshes = 0;
+        child.traverse((o) => { if ((o.isMesh || o.isInstancedMesh) && o.visible !== false) meshes += 1; });
+        if (!meshes) continue;
+        const key = `${child.name || child.type}`;
+        deep.set(key, (deep.get(key) ?? 0) + meshes);
+      }
+    }
+    const samples = new Map();
+    for (const root of game.scene.children) {
+      for (const child of root.children) {
+        let meshes = 0;
+        const names = new Set();
+        child.traverse((o) => {
+          if ((o.isMesh || o.isInstancedMesh) && o.visible !== false) {
+            meshes += 1;
+            if (names.size < 6) names.add((o.name || o.type).slice(0, 26));
+          }
+        });
+        if (meshes < 1000) continue;
+        const kids = child.children.slice(0, 4).map((c) => {
+          let m = 0; c.traverse((o) => { if (o.isMesh) m += 1; });
+          return `${c.name || c.type}[${c.children.length}c,${m}m]`;
+        });
+        const key = `${child.name || child.type} (${child.children.length} dzieci): ${kids.join(' | ')}`;
+        samples.set(key, meshes);
+      }
+    }
+    const heavy = [];
+    const walk = (o, path) => {
+      let m = 0;
+      o.traverse((c) => { if ((c.isMesh || c.isInstancedMesh) && c.visible !== false) m += 1; });
+      const self = (o.isMesh || o.isInstancedMesh) ? 1 : 0;
+      if (m - self >= 80) heavy.push({ path, m });
+      for (const c of o.children) walk(c, `${path}/${c.name || c.type}`);
+    };
+    for (const root of game.scene.children) walk(root, root.name || root.type);
+    console.log('--- ścieżki z największą liczbą siatek ---');
+    for (const h of heavy.sort((a, b) => b.m - a.m).slice(0, 12)) console.log(`${String(h.m).padStart(6)}  ${h.path.slice(0, 90)}`);
+    console.log('--- co siedzi w dużych grupach ---');
+    for (const [k, v] of [...samples.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)) {
+      console.log(`${String(v).padStart(6)}  ${k}`);
+    }
+    console.log('--- najcięższe grupy (poziom 2) ---');
+    for (const [k, v] of [...deep.entries()].sort((a, b) => b[1] - a[1]).slice(0, 15)) {
+      console.log(`${String(v).padStart(6)}  ${k}`);
+    }
+  }
 }
 
 game.scene.traverse((o) => {
