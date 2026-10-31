@@ -1036,6 +1036,7 @@ export class UI {
       d.innerHTML = `
         <div class="dialogue-box">
           <div class="dialogue-speaker"></div>
+          <button class="dialogue-voice" id="dialogue-voice" title="Przeczytaj kwestię ponownie">🔊 Głos</button>
           <div class="dialogue-text"></div>
           <div class="dialogue-choices"></div>
           <div class="dialogue-hint">ESC — zakończ rozmowę</div>
@@ -1048,6 +1049,18 @@ export class UI {
     this.dialogueOpen = true;
     qs('.dialogue-speaker', d).textContent = role ? `${speaker} — ${role}` : speaker;
     qs('.dialogue-text', d).textContent = text;
+    const voiceBtn = qs('#dialogue-voice', d);
+    if (voiceBtn) {
+      const voice = this.game.voice;
+      const ok = voice?.available || voice?.supported;
+      voiceBtn.style.display = ok ? '' : 'none';
+      voiceBtn.title = voice?.status?.() ?? '';
+      voiceBtn.onclick = (e) => {
+        e.stopPropagation();
+        voice?.stop?.();
+        voice?.speak?.(text, this.game.dialogue?.npcId ?? 'narrator');
+      };
+    }
     const ch = qs('.dialogue-choices', d);
     ch.innerHTML = '';
     choices.forEach((c, i) => {

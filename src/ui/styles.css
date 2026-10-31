@@ -638,3 +638,13 @@ kbd {
 }
 .chip.on { color: #1a1206; background: linear-gradient(180deg, #d9b578, #a7813f); border-color: #d9b578; }
 .chip:hover { border-color: rgba(216, 178, 122, 0.6); }
+
+/* przycisk „Głos” w oknie rozmowy */
+.dialogue-voice {
+  position: absolute; top: 10px; right: 12px;
+  padding: 4px 10px; font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(216, 178, 122, 0.35);
+  color: var(--gold-dim); border-radius: 3px; cursor: pointer;
+}
+.dialogue-voice:hover { background: rgba(216, 178, 122, 0.16); color: var(--gold); }
+.dialogue-box { position: relative; }

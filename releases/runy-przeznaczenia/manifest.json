@@ -2,20 +2,20 @@
   "game": "runy-przeznaczenia",
   "title": "Runy Przeznaczenia",
   "version": "1.0.0",
-  "commit": "8d78c1f92459931b54ac021edc051bde6b114129",
-  "builtAt": "2026-10-31T09:06:26.606Z",
+  "commit": "25309915809933dd17a27ac5220f06d23e407ff8",
+  "builtAt": "2026-10-31T09:11:12.873Z",
   "files": [
     {
       "path": "ArcaneSpire.ico",
       "size": 2699
     },
     {
-      "path": "assets/index-CF4Ga-7N.css",
-      "size": 27876
+      "path": "assets/index-BfJPsn0J.css",
+      "size": 28218
     },
     {
-      "path": "assets/index-glaP_M3I.js",
-      "size": 765983
+      "path": "assets/index-DMzZpsje.js",
+      "size": 766345
     },
     {
       "path": "favicon.png",
