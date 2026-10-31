@@ -233,6 +233,14 @@ export class UI {
     this.root.appendChild(layer);
     this.panelLayer = layer;
 
+    // ---- dymki postaci (barks) ----
+    const bark = document.createElement('div');
+    bark.className = 'bark-layer hidden';
+    bark.innerHTML = `<div class="bark"><div class="bark-name"></div><div class="bark-text"></div></div>`;
+    this.root.appendChild(bark);
+    this.barkEl = bark;
+    this.barkTimer = null;
+
     // ---- panel bohatera ----
     const hero = document.createElement('div');
     hero.className = 'modal-layer hidden';
@@ -528,6 +536,8 @@ export class UI {
       if (!btn || btn.disabled) return;
       const a = btn.dataset.menu;
       this.game.audio?.unlock();
+      this.game.music?.setEnabled?.(this.game.music?.enabled ?? true);
+      this.game.music?.start?.();
       this.game.audio?.uiClick();
       if (a === 'new') this.game.startNew();
       if (a === 'continue') this.game.loadGame();
@@ -653,6 +663,13 @@ export class UI {
           <div class="setting-ctrl"><button id="set-mute">${audio?.enabled ? 'Włączony' : 'Wyłączony'}</button></div>
         </div>
         <div class="setting-row">
+          <div><b>Muzyka tła</b><div class="sub">Harfa, drony i bębny w walce (klawisz B)</div></div>
+          <div class="setting-ctrl">
+            <button id="set-music">${this.game.music?.enabled === false ? 'Wyłączona' : 'Włączona'}</button>
+            <input type="range" id="set-music-vol" min="0" max="100" value="${Math.round((this.game.music?.volume ?? 0.16) * 100)}" />
+          </div>
+        </div>
+        <div class="setting-row">
           <div><b>Głosy postaci</b><div class="sub" id="set-voice-sub">${voice?.status?.() ?? 'niedostępne'}</div></div>
           <div class="setting-ctrl"><button id="set-voice">${voice?.enabled ? 'Włączone' : 'Wyłączone'}</button></div>
         </div>
@@ -678,6 +695,14 @@ export class UI {
     panel.querySelector('#set-mute')?.addEventListener('click', (e) => {
       const on = this.game.audio?.toggleMute();
       e.target.textContent = on ? 'Włączony' : 'Wyłączony';
+    });
+    panel.querySelector('#set-music')?.addEventListener('click', (e) => {
+      const on = this.game.music?.toggle?.();
+      this.game.music?.start?.();
+      e.target.textContent = on ? 'Włączona' : 'Wyłączona';
+    });
+    panel.querySelector('#set-music-vol')?.addEventListener('input', (e) => {
+      this.game.music?.setVolume?.(Number(e.target.value) / 100);
     });
     panel.querySelector('#set-voice')?.addEventListener('click', (e) => {
       const on = this.game.voice?.toggle();
@@ -712,6 +737,28 @@ export class UI {
     for (const c of this.panelLayer.children) c.classList.add('hidden');
     if (this.dialogueOpen) return;
     if (!this.anyScreenOpen()) this.game.resumeFromUi();
+  }
+
+  // ---------------- dymki mieszkańców ----------------
+  /** Krótki dymek z kwestią postaci (barks) — znika sam po kilku sekundach. */
+  showBark(text, name = '') {
+    if (!this.barkEl || !text) return;
+    qs('.bark-name', this.barkEl).textContent = name;
+    qs('.bark-text', this.barkEl).textContent = text;
+    this.barkEl.classList.remove('hidden');
+    this.barkEl.classList.add('show');
+    clearTimeout(this.barkTimer);
+    this.barkTimer = setTimeout(() => {
+      this.barkEl.classList.remove('show');
+      setTimeout(() => this.barkEl.classList.add('hidden'), 400);
+    }, Math.min(9000, 2600 + text.length * 42));
+  }
+
+  hideBark() {
+    if (!this.barkEl) return;
+    clearTimeout(this.barkTimer);
+    this.barkEl.classList.remove('show');
+    this.barkEl.classList.add('hidden');
   }
 
   // ---------------- tablica zleceń ----------------
@@ -1203,17 +1250,27 @@ export class UI {
   }
 
   // ---------------- dialog ----------------
-  showDialogue({ speaker, role, text, choices, onChoose, onClose }) {
+  showDialogue({ speaker, role, text, choices, onChoose, onClose, myLine = false }) {
     if (!this.dialogueEl) {
       const d = document.createElement('div');
       d.className = 'dialogue-layer';
       d.innerHTML = `
         <div class="dialogue-box">
-          <div class="dialogue-speaker"></div>
-          <button class="dialogue-voice" id="dialogue-voice" title="Przeczytaj kwestię ponownie">🔊 Głos</button>
-          <div class="dialogue-text"></div>
-          <div class="dialogue-choices"></div>
-          <div class="dialogue-hint">ESC — zakończ rozmowę</div>
+          <div class="dialogue-portrait" id="dialogue-portrait"><span></span></div>
+          <div class="dialogue-main">
+            <div class="dialogue-head">
+              <div class="dialogue-speaker"></div>
+              <div class="dialogue-mood" id="dialogue-mood"></div>
+            </div>
+            <div class="dialogue-text"></div>
+            <div class="dialogue-choices"></div>
+            <div class="dialogue-hint">
+              <span class="hint-keys">1–4 — wybór</span>
+              <span class="hint-space">Spacja — dalej</span>
+              <span>ESC — zakończ rozmowę</span>
+            </div>
+          </div>
+          <button class="dialogue-voice" id="dialogue-voice" title="Przeczytaj kwestię ponownie">🔊</button>
         </div>`;
       this.root.appendChild(d);
       this.dialogueEl = d;
@@ -1221,34 +1278,130 @@ export class UI {
     const d = this.dialogueEl;
     d.classList.remove('hidden');
     this.dialogueOpen = true;
+    this.dialogueSpeaker = speaker;
+    this.dialogueMyLine = !!myLine;
+
+    // ---- portret: medalion z inicjałami i kolorem postaci ----
+    const portrait = qs('#dialogue-portrait', d);
+    if (portrait) {
+      const initials = (speaker || '?')
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(-2)
+        .map((w) => w[0])
+        .join('')
+        .toUpperCase();
+      const hue = [...String(speaker ?? '')].reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
+      portrait.style.setProperty('--portrait-hue', hue);
+      portrait.classList.toggle('player-line', myLine);
+      const span = qs('span', portrait);
+      if (span) span.textContent = initials || '?';
+      portrait.title = role ? `${speaker} — ${role}` : speaker;
+    }
+
     qs('.dialogue-speaker', d).textContent = role ? `${speaker} — ${role}` : speaker;
-    qs('.dialogue-text', d).textContent = text;
+
+    const moodEl = qs('#dialogue-mood', d);
+    const textEl = qs('.dialogue-text', d);
+    const narrator = this.game.voice?.currentEmotion;
+
+    // ---- efekt „pisania” + podświetlanie wypowiadanego słowa ----
+    const full = String(text ?? '');
+    this._dialogueFull = full;
+    this._dialogueShown = 0;
+    this._dialogueWordFrom = -1;
+    this._dialogueWordTo = -1;
+    textEl.innerHTML = '';
+    const words = full.split(/(\s+)/);
+    let idx = 0;
+    for (const w of words) {
+      const span = document.createElement('span');
+      span.className = w.trim() ? 'dw' : 'ds';
+      span.textContent = w;
+      span.dataset.from = String(idx);
+      span.dataset.to = String(idx + w.length);
+      textEl.appendChild(span);
+      idx += w.length;
+    }
+    const wordSpans = [...textEl.querySelectorAll('.dw')];
+    wordSpans.forEach((w, i) => { w.style.animationDelay = `${Math.min(900, i * 26)}ms`; });
+
+    const voice = this.game.voice;
+    if (moodEl) {
+      moodEl.textContent = '';
+      moodEl.className = 'dialogue-mood';
+    }
+
+    const highlight = (charIndex) => {
+      for (const w of wordSpans) {
+        const from = Number(w.dataset.from);
+        const to = Number(w.dataset.to);
+        w.classList.toggle('speaking', charIndex >= from && charIndex < to);
+      }
+    };
+
+    const speakLine = () => {
+      if (moodEl) {
+        const emo = this.game.voice?.currentEmotion;
+        moodEl.textContent = emo === 'pytanie' ? '? pytanie' : emo === 'gniew' ? '! gniew' : emo === 'wahanie' ? '… wahanie' : '';
+      }
+      voice?.speak?.(full, this.game.dialogue?.npcId ?? (myLine ? 'player' : 'narrator'), {
+        onWord: (i) => highlight(i),
+      });
+    };
+    speakLine();
+
     const voiceBtn = qs('#dialogue-voice', d);
     if (voiceBtn) {
-      const voice = this.game.voice;
       const ok = voice?.available || voice?.supported;
       voiceBtn.style.display = ok ? '' : 'none';
       voiceBtn.title = voice?.status?.() ?? '';
       voiceBtn.onclick = (e) => {
         e.stopPropagation();
         voice?.stop?.();
-        voice?.speak?.(text, this.game.dialogue?.npcId ?? 'narrator');
+        voice?.speak?.(full, this.game.dialogue?.npcId ?? (myLine ? 'player' : 'narrator'), {
+          onWord: (i) => highlight(i),
+        });
       };
     }
+
     const ch = qs('.dialogue-choices', d);
     ch.innerHTML = '';
     choices.forEach((c, i) => {
       const b = document.createElement('button');
-      b.innerHTML = `<span class="arrow">▸</span>${c.label}`;
+      b.innerHTML = `<span class="num">${i + 1}</span><span class="arrow">▸</span>${c.label}`;
       if (c.special) b.classList.add('special');
+      b.dataset.choice = String(i);
       b.addEventListener('click', () => {
         this.game.audio?.uiClick();
         onChoose(i);
       });
       ch.appendChild(b);
     });
+    this.dialogueChoices = choices;
+    this.dialogueOnChoose = onChoose;
     this.dialogueOnClose = onClose;
     this.game.openUI(true);
+  }
+
+  /** Podświetla wypowiadane słowo (wywoływane przez syntezę mowy). */
+  highlightDialogueWord(charIndex) {
+    if (!this.dialogueEl) return;
+    for (const w of this.dialogueEl.querySelectorAll('.dialogue-text .dw')) {
+      const from = Number(w.dataset.from);
+      const to = Number(w.dataset.to);
+      w.classList.toggle('speaking', charIndex >= from && charIndex < to);
+    }
+  }
+
+  /** Wybór opcji dialogowej z klawiatury (1–4). */
+  chooseDialogueByKey(index) {
+    if (!this.dialogueOpen) return false;
+    const choice = this.dialogueChoices?.[index];
+    if (!choice) return false;
+    this.game.audio?.uiClick();
+    this.dialogueOnChoose?.(index);
+    return true;
   }
 
   hideDialogue() {

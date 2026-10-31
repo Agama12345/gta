@@ -106,13 +106,8 @@ game.input.keys.delete('KeyW');
 check('gracz się poruszył', p.pos.distanceTo(startPos) > 3, `(${p.pos.distanceTo(startPos).toFixed(2)})`);
 check('brak NaN w pozycji', Number.isFinite(p.pos.x) && Number.isFinite(p.pos.z));
 
-const wolf = game.companion;
-check('towarzysz (Szara) istnieje', !!wolf && !!wolf.group && wolf.group.parent === game.scene);
-if (wolf) {
-  const wolfDist = Math.hypot(wolf.pos.x - p.pos.x, wolf.pos.z - p.pos.z);
-  check('towarzysz idzie za graczem', wolfDist < 34, `(${wolfDist.toFixed(1)} m)`);
-  check('towarzysz nie zapada się pod ziemię', Number.isFinite(wolf.pos.y) && wolf.pos.y > -50);
-}
+// wilczy towarzysz został usunięty na życzenie gracza — nikt nie chodzi za plecami
+check('brak wilka za plecami', !game.companion);
 check('gra wciąż działa', game.state === 'playing');
 
 console.log('▸ interakcja ze światem');

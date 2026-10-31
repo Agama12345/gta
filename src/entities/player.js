@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { clamp, damp, dampAngle } from '../core/utils.js';
 import {
-  heightAt, isWater, WATER_LEVEL, WORLD_RADIUS, WORLD_SCALE, waterDepth,
+  heightAt, isWater, WATER_LEVEL, WORLD_RADIUS, WORLD_SCALE, waterDepth, waterLevelAt, isInRiver,
   distanceToPath, slopeAt,
 } from '../world/terrain.js';
 import { makeHumanoid, makeSword, makeShield } from '../world/models.js';
@@ -684,9 +684,18 @@ export class Player {
       this.vel.multiplyScalar(0.4);
     }
     const groundNext = heightAt(next.x, next.z);
-    // tylko głęboka woda jeziora blokuje ruch — bagno i mokradła są przechodnie
-    const deepWater = isWater(next.x, next.z) && groundNext < WATER_LEVEL - 0.9;
+    // tylko głęboka woda blokuje ruch — bagno, mokradła i brody są przechodnie.
+    // Poziom tafli liczymy lokalnie, bo jeziora górskie i rzeki są ponad morzem.
+    // W rzece zawsze można brodzić (tyle że wolniej — nurt ciągnie za nogi).
+    const levelNext = waterLevelAt(next.x, next.z);
+    const wading = isInRiver(next.x, next.z);
+    const deepWater = !wading && isWater(next.x, next.z) && groundNext < levelNext - 0.9;
     if (!deepWater) {
+      if (wading) {
+        // nurt spowalnia — brodzenie po rzece ma swój ciężar
+        this.vel.x *= 0.985;
+        this.vel.z *= 0.985;
+      }
       this.pos.x = next.x;
       this.pos.z = next.z;
     } else {

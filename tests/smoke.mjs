@@ -62,6 +62,9 @@ const { DialogueSystem } = await import('../src/systems/dialogue.js');
 const { UI } = await import('../src/ui/ui.js');
 const { DayNight } = await import('../src/core/time.js');
 const { heightAt, WORLD_RADIUS, LOCATIONS, WATER_LEVEL, COAST_RADIUS, WORLD_SCALE } = await import('../src/world/terrain.js');
+const {
+  RIVER_SURFACES, LAKE_SURFACES, waterLevelAt, waterDepth, isWater, isInRiver, riverSurfaceAt,
+} = await import('../src/world/terrain.js');
 const { NPCS } = await import('../src/data/dialogue.js');
 const { ITEMS } = await import('../src/data/items.js');
 const { QUESTS } = await import('../src/data/quests.js');
@@ -418,6 +421,35 @@ check('zlecenie wchodzi w odnowienie', contracts.cooldowns.wolf_cull > 0);
 const contractSave = contracts.serialize();
 contracts.load(contractSave);
 check('zapis zleceń wraca', contracts.completedCount === contractSave.completedCount);
+
+console.log('▸ rzeki i jeziora');
+check('są co najmniej trzy rzeki', RIVER_SURFACES.length >= 3);
+check('każda rzeka ma bieg', RIVER_SURFACES.every((r) => r.points.length > 40));
+let riverUnder = 0;
+let riverSamples = 0;
+for (const r of RIVER_SURFACES) {
+  for (const p of r.points) {
+    riverSamples += 1;
+    if (p.y <= heightAt(p.x, p.z) + 0.05) riverUnder += 1;
+  }
+}
+check('tafla rzeki leży nad dnem', riverUnder === 0, `${riverUnder}/${riverSamples}`);
+const riverMid = RIVER_SURFACES[0].points[Math.floor(RIVER_SURFACES[0].points.length / 2)];
+check('środek rzeki to woda', isWater(riverMid.x, riverMid.z));
+check('środek rzeki to brodzenie', isInRiver(riverMid.x, riverMid.z));
+check('głębokość rzeki jest sensowna', waterDepth(riverMid.x, riverMid.z) < 2.6, waterDepth(riverMid.x, riverMid.z).toFixed(2));
+check('riverSurfaceAt zwraca taflę', !!riverSurfaceAt(riverMid.x, riverMid.z));
+check('są jeziora', LAKE_SURFACES.length >= 3);
+let lakeLeaks = 0;
+for (const l of LAKE_SURFACES) {
+  for (let k = 0; k < 24; k++) {
+    const a = (k / 24) * Math.PI * 2;
+    if (heightAt(l.x + Math.cos(a) * l.r * 0.99, l.z + Math.sin(a) * l.r * 0.99) < l.level - 0.05) lakeLeaks += 1;
+  }
+  check(`jezioro ${l.name}: woda w środku`, isWater(l.x, l.z));
+}
+check('brzegi jezior trzymają wodę', lakeLeaks === 0, String(lakeLeaks));
+check('poziom wody zależy od miejsca', waterLevelAt(riverMid.x, riverMid.z) > WATER_LEVEL + 0.5);
 
 console.log('▸ czas');
 const dn = new DayNight(12);

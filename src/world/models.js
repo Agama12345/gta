@@ -1446,6 +1446,68 @@ export function makeNetFrame() {
   return g;
 }
 
+/** Most drewniany na kamiennych przyczółkach — długość wzdłuż osi Z. */
+export function makeBridge({ length = 22, width = 4.6, height = 2.4, seed = 5 } = {}) {
+  const rng = new RNG(seed);
+  const g = new THREE.Group();
+  const wood = mat('#5b4127', { rough: 0.94 });
+  const woodDark = mat('#46311d', { rough: 0.96 });
+  const stone = mat('#7b766c', { rough: 0.95 });
+  const iron = mat('#3d3a35', { metal: 0.6, rough: 0.55 });
+
+  const camber = (z) => 0.55 * (1 - Math.pow((z / (length / 2)) * 2, 2) * 0.35);
+
+  // pomost — deski w poprzek
+  const planks = Math.max(8, Math.round(length / 0.62));
+  for (let i = 0; i < planks; i++) {
+    const t = i / (planks - 1);
+    const z = (t - 0.5) * length;
+    const p = mesh(box(width + rng.float(-0.06, 0.06), 0.13, 0.5), i % 3 ? wood : woodDark, 0, camber(z), z);
+    p.rotation.y = rng.float(-0.01, 0.01);
+    g.add(p);
+  }
+
+  // dźwigary
+  for (const sx of [-1, 1]) {
+    const beam = mesh(box(0.28, 0.3, length + 0.4), woodDark, sx * (width / 2 - 0.35), camber(0) - 0.2, 0);
+    g.add(beam);
+  }
+
+  // balustrady
+  for (const sx of [-1, 1]) {
+    const posts = Math.max(3, Math.round(length / 2.6));
+    for (let i = 0; i < posts; i++) {
+      const z = ((i / (posts - 1)) - 0.5) * length;
+      const post = mesh(box(0.14, 1.1, 0.14), wood, sx * (width / 2), camber(z) + 0.6, z);
+      g.add(post);
+    }
+    const railTop = mesh(box(0.12, 0.12, length), wood, sx * (width / 2), camber(0) + 1.12, 0);
+    g.add(railTop);
+    const railMid = mesh(box(0.08, 0.08, length - 0.6), iron, sx * (width / 2), camber(0) + 0.74, 0);
+    g.add(railMid);
+  }
+
+  // pale w wodzie
+  for (const sz of [-0.34, 0.34]) {
+    for (const sx of [-1, 1]) {
+      const pile = mesh(cyl(0.16, 0.19, height + 2.2, 6), woodDark, sx * (width / 2 - 0.5), -1.1 + height * 0.1, sz * length);
+      g.add(pile);
+      const brace = mesh(box(0.1, 0.1, Math.abs(sz * length) * 0.9), wood, sx * (width / 2 - 0.5), 0.2, sz * length * 0.5);
+      g.add(brace);
+    }
+  }
+
+  // przyczółki kamienne
+  for (const sz of [-1, 1]) {
+    const base = mesh(box(width + 1.6, height + 2.0, 2.6), stone, 0, -(height + 2.0) / 2 + 0.15, sz * (length / 2 + 0.9));
+    base.rotation.y = rng.float(-0.03, 0.03);
+    g.add(base);
+    const cap = mesh(box(width + 1.9, 0.22, 2.4), mat('#8d877c', { rough: 0.9 }), 0, 0.32, sz * (length / 2 + 0.9));
+    g.add(cap);
+  }
+  return g;
+}
+
 // ---------------------------------------------------------------------------
 // ROŚLINNOŚĆ I FORMACJE BIOMÓW
 // ---------------------------------------------------------------------------

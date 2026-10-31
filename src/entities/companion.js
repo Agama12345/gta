@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { clamp, damp, dampAngle } from '../core/utils.js';
 import { makeWolf } from '../world/models.js';
-import { heightAt, isWater, WATER_LEVEL } from '../world/terrain.js';
+import { heightAt, isWater, WATER_LEVEL, waterLevelAt } from '../world/terrain.js';
 
 /**
  * Szara — wilczy towarzysz bohatera.
@@ -137,7 +137,7 @@ export class Companion {
       const nextX = this.pos.x + this.vel.x * dt;
       const nextZ = this.pos.z + this.vel.z * dt;
       const groundNext = heightAt(nextX, nextZ);
-      const deep = isWater(nextX, nextZ) && groundNext < WATER_LEVEL - 0.8;
+      const deep = isWater(nextX, nextZ) && groundNext < waterLevelAt(nextX, nextZ) - 0.8;
       if (!deep) {
         this.pos.x = nextX;
         this.pos.z = nextZ;

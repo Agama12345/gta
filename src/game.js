@@ -6,7 +6,6 @@ import { World } from './world/world.js';
 import { Sky, skyColors } from './world/sky.js';
 import { LOCATIONS, heightAt, forestMask, COAST_RADIUS, WATER_LEVEL, isWater } from './world/terrain.js';
 import { Player } from './entities/player.js';
-import { Companion } from './entities/companion.js';
 import { NPC } from './entities/npc.js';
 import { EnemyManager } from './entities/enemy.js';
 import { FX } from './systems/fx.js';
@@ -18,7 +17,8 @@ import { DialogueSystem } from './systems/dialogue.js';
 import { AudioSystem } from './systems/audio.js';
 import { VoiceSystem } from './systems/voice.js';
 import { Weather } from './systems/weather.js';
-import { NPCS } from './data/dialogue.js';
+import { MusicSystem } from './systems/music.js';
+import { NPCS, BARKS } from './data/dialogue.js';
 import { ITEMS, RECIPES } from './data/items.js';
 
 const SAVE_KEY = 'runy-przeznaczenia-save';
@@ -121,18 +121,17 @@ export class Game {
     this.cameraRig.yaw = 0;
   }
 
-  /** Wilczy towarzysz — tworzony raz, przeżywa respawn gracza. */
+  /**
+   * Wilczy towarzysz został usunięty na życzenie gracza — nikt już nie depcze
+   * po piętach i nie wchodzi w kadr. Metoda zostaje jako bezpieczny no-op,
+   * żeby stare zapisy i zewnętrzne wywołania nie wybuchały.
+   */
   _ensureCompanion() {
-    if (this.companion && this.companion.group && this.companion.group.parent) {
-      this.companion._placeNearPlayer(true);
-      return this.companion;
-    }
     if (this.companion) {
       try { this.scene.remove(this.companion.group); } catch { /* scena już wyczyszczona */ }
+      this.companion = null;
     }
-    this.companion = new Companion(this);
-    this.scene.add(this.companion.group);
-    return this.companion;
+    return null;
   }
 
   _initGame() {
@@ -144,12 +143,13 @@ export class Game {
     this.player = new Player(this);
     this.player.group.rotation.y = this.player.yaw;
     this.scene.add(this.player.group);
-    this._ensureCompanion();
 
     this.world = new World(this);
     this.enemies = new EnemyManager(this);
     this.quests = new QuestSystem(this);
     this.contracts = new Contracts(this);
+    this.music = new MusicSystem(this.audio);
+    this.barkTimer = 12;
     this.ui = new UI(this, document.getElementById('ui'));
     this.dialogue = new DialogueSystem(this);
 
@@ -189,6 +189,21 @@ export class Game {
   }
 
   _onKeyDown(code) {
+    // rozmowa: cyfry wybierają kwestię, spacja powtarza głos
+    if (this.ui.dialogueOpen) {
+      const digit = /^Digit([1-4])$/.exec(code);
+      if (digit) {
+        this.ui.chooseDialogueByKey(Number(digit[1]) - 1);
+        return;
+      }
+      if (code === 'Space') {
+        this.voice?.stop?.();
+        this.voice?.speak?.(this.ui._dialogueFull ?? '', this.dialogue?.npcId ?? 'narrator', {
+          onWord: (i) => this.ui.highlightDialogueWord?.(i),
+        });
+        return;
+      }
+    }
     if (this.state === 'title') {
       if (code === 'Enter') {
         this.audio.unlock();
@@ -241,6 +256,11 @@ export class Game {
       case 'KeyV':
         this.toggleVoice();
         break;
+      case 'KeyB': {
+        const on = this.music?.toggle?.();
+        this.ui?.log(on ? 'Muzyka włączona.' : 'Muzyka wyłączona.', 'info');
+        break;
+      }
       case 'KeyX':
         this.player.toggleStealth();
         break;
@@ -285,13 +305,13 @@ export class Game {
   // STANY
   // ------------------------------------------------------------------
   startNew() {
+    this.music?.start?.();
     this.audio.unlock();
     // świeży gracz
     this.scene.remove(this.player.group);
     this.player = new Player(this);
     this.player.yaw = Math.PI;
     this.scene.add(this.player.group);
-    this._ensureCompanion();
 
     this.quests = new QuestSystem(this);
     this.contracts = new Contracts(this);
@@ -434,7 +454,6 @@ export class Game {
     this._updateLighting();
 
     this.player.update(dt, this.input);
-    this.companion?.update(dt);
     this.enemies.update(dt);
     this.world.update(dt, this.time, this.player.pos);
     this.fx.update(dt);
@@ -452,6 +471,8 @@ export class Game {
 
     this.weather?.update(dt, this.camera);
     this._updateAudio(dt);
+    this._updateMusic(dt);
+    this._updateBarks(dt);
 
     if (this.player.hp <= 0 && this.state === 'playing') {
       // stan śmierci ustawiany w takeDamage
@@ -472,6 +493,46 @@ export class Game {
       ? `Głosy włączone — ${this.voice.status()}`
       : 'Głosy wyłączone. Klawisz V włącza je ponownie.';
     this.ui?.log(msg, 'info');
+  }
+
+  /** Muzyka: nastrój zależy od miejsca, pory dnia i walki. */
+  _updateMusic(dt) {
+    if (!this.music) return;
+    if (!this.music.nodes && this.audio?.ctx && this.audio.enabled) this.music.start();
+    const p = this.player;
+    if (!p) return;
+    let combat = 0;
+    let boss = false;
+    for (const e of this.enemies?.list ?? []) {
+      if (!e.active || e.dead) continue;
+      const d = dist2(e.pos.x, e.pos.z, p.pos.x, p.pos.z);
+      if (d < 34 && e.aggro) {
+        combat = Math.max(combat, 1 - d / 34);
+        if (e.boss) boss = true;
+      }
+    }
+    const dv = Math.min(
+      dist2(p.pos.x, p.pos.z, LOCATIONS.village.x, LOCATIONS.village.z),
+      dist2(p.pos.x, p.pos.z, LOCATIONS.trading.x, LOCATIONS.trading.z)
+    );
+    const village = clamp(1 - dv / 160, 0, 1);
+    const night = this.dayNight.nightF ?? (this.dayNight.isNight ? 1 : 0);
+    this.music.update(dt, { combat, village, night, boss });
+  }
+
+  /** Mieszkańcy odzywają się, gdy przechodzisz obok. */
+  _updateBarks(dt) {
+    if (this.state !== 'playing' || this.ui.dialogueOpen) return;
+    this.barkTimer -= dt;
+    if (this.barkTimer > 0) return;
+    this.barkTimer = 22 + Math.random() * 26;
+    const npc = this._nearestNpc();
+    if (!npc) return;
+    const lines = BARKS[npc.id];
+    if (!lines?.length) return;
+    const text = lines[Math.floor(Math.random() * lines.length)];
+    this.ui.showBark(text, npc.name);
+    this.voice?.speak?.(text, npc.id);
   }
 
   /** Dźwięk otoczenia: morze, las, wiatr, ogień, noc, deszcz. */
@@ -1094,10 +1155,10 @@ export class Game {
       return;
     }
     this.audio.unlock();
+    this.music?.start?.();
     this.scene.remove(this.player.group);
     this.player = new Player(this);
     this.scene.add(this.player.group);
-    this._ensureCompanion();
     this.player.load(data.player);
     if (this.player.hp <= 0) this.player.hp = Math.max(1, Math.round(this.player.maxHP * 0.5));
     this.quests = new QuestSystem(this);

@@ -111,6 +111,94 @@ const ISLANDS = [
 // Mielizna łącząca brzeg z największą wyspą.
 const SHOAL = [[540, -360], [610, -392], [660, -412], [700, -430]];
 
+// ---------------------------------------------------------------------------
+// RZEKI I DODATKOWE JEZIORA
+// Rzeki płyną w niskich dolinach: rzeźba terenu jest w nich delikatnie wcięta,
+// a tafla wody (osobna siatka w `world.js`) biegnie po lokalnej wysokości.
+// Dzięki temu strumień w górach nie musi być „kanałem na poziomie morza”.
+// ---------------------------------------------------------------------------
+const AUTHOR_RIVERS = [
+  {
+    name: 'Rzeka Szeptu', width: 9, depth: 1.05,
+    pts: [[250, 180], [205, 265], [150, 330], [100, 366], [60, 400], [46, 470], [70, 540], [88, 660], [92, 700]],
+  },
+  {
+    name: 'Rzeka Milcząca', width: 7.5, depth: 0.95,
+    pts: [[-430, 335], [-355, 352], [-285, 376], [-215, 402], [-150, 435], [-95, 468], [-40, 500], [20, 528], [70, 556], [96, 585]],
+  },
+  {
+    name: 'Rzeka Bagienna', width: 8, depth: 1.0,
+    pts: [[-215, -420], [-275, -395], [-335, -372], [-395, -358], [-455, -368], [-515, -390], [-570, -420], [-612, -452]],
+  },
+  {
+    name: 'Rzeka Popielna', width: 8.5, depth: 1.0,
+    pts: [[420, -300], [430, -360], [420, -430], [396, -500], [362, -562], [318, -616], [268, -660], [212, -694]],
+  },
+  {
+    name: 'Potok Kamienny', width: 5.5, depth: 0.8,
+    pts: [[120, -120], [96, -180], [78, -244], [70, -310], [74, -372], [88, -430]],
+  },
+];
+
+const AUTHOR_LAKES = [
+  { name: 'Jezioro Ciemne', x: -90, z: -150, r: 82, inner: 30, level: 19.4, depth: 3.2 },
+  { name: 'Jezioro Wierzbowe', x: 150, z: 470, r: 74, inner: 26, level: 19.6, depth: 3.0 },
+  { name: 'Staw Wierzbowy', x: -338, z: 192, r: 22, inner: 8, level: 30.2, depth: 2.6 },
+  { name: 'Jezioro Mgliste', x: 315, z: -215, r: 30, inner: 11, level: 53.5, depth: 3.4 },
+  { name: 'Jezioro Kamienne', x: 269, z: -377, r: 26, inner: 10, level: 62.0, depth: 3.0 },
+];
+
+/**
+ * Bieg rzeki: dzielimy polilinię na krótkie odcinki i dokładamy meandry,
+ * a potem przedłużamy ujście aż do morza (albo do zaklęśnięcia terenu).
+ * Rzeka wygląda wtedy jak ciek, a nie jak odcinek narysowany linijką.
+ */
+function meanderPath(pts, width, seed) {
+  const out = [];
+  const rnd = (i) => Math.sin(i * 12.9898 + seed * 78.233) * 0.5 + 0.5;
+  const step = 14;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [ax, az] = pts[i];
+    const [bx, bz] = pts[i + 1];
+    const len = Math.hypot(bx - ax, bz - az);
+    const n = Math.max(2, Math.ceil(len / step));
+    const nx = -(bz - az) / (len || 1);
+    const nz = (bx - ax) / (len || 1);
+    const phase = rnd(i) * Math.PI * 2;
+    for (let k = 0; k < n; k++) {
+      const t = k / n;
+      const amp = width * (0.55 + 0.45 * Math.sin(phase + t * 4.2 + i));
+      const wobble = Math.sin(phase + t * Math.PI * 2 + i * 1.7) * amp;
+      const taper = Math.sin(t * Math.PI) * 0.9 + 0.1;
+      out.push([ax + (bx - ax) * t + nx * wobble * taper, az + (bz - az) * t + nz * wobble * taper]);
+    }
+  }
+  out.push(pts[pts.length - 1]);
+  return out;
+}
+
+export const RIVERS = AUTHOR_RIVERS.map((r, idx) => ({
+  ...r,
+  width: r.width * WORLD_SCALE,
+  depth: r.depth * HEIGHT_SCALE,
+  path: meanderPath(
+    r.pts.map(([x, z]) => [x * WORLD_SCALE, z * WORLD_SCALE]),
+    r.width * WORLD_SCALE,
+    idx + 1
+  ),
+}));
+
+export const LAKES = AUTHOR_LAKES.map((l) => ({
+  ...l,
+  x: l.x * WORLD_SCALE,
+  z: l.z * WORLD_SCALE,
+  r: l.r * WORLD_SCALE,
+  inner: l.inner * WORLD_SCALE,
+  bed: (l.level - l.depth) * HEIGHT_SCALE,
+  level: l.level * HEIGHT_SCALE,
+  depth: l.depth * HEIGHT_SCALE,
+}));
+
 // Miejsca wyrównane (osady, obozy, plateau kuźni) — w metrach świata.
 const AUTHOR_FLATS = [
   { ...AUTHOR_LOCATIONS.village, r: 62, inner: 40, lift: 0.2 },
@@ -274,6 +362,287 @@ for (let j = 0; j < GRID_N; j++) {
     heightGrid[j * GRID_N + i] = exactHeight(x, z);
   }
 }
+
+// ---------------------------------------------------------------------------
+// RZEKI I JEZIORA — wcinamy je w gotową siatkę wysokości, po wyrównaniach.
+// Dno rzeki biegnie po profilu wymuszonym monotonicznie (woda nie płynie
+// pod górkę), a tafla wody to osobna wstęga w `world.js`.
+// ---------------------------------------------------------------------------
+const gridX = (i) => -WORLD_RADIUS + (i / GRID_SEG) * WORLD_SIZE;
+const gridZ = (j) => -WORLD_RADIUS + (j / GRID_SEG) * WORLD_SIZE;
+const cellOf = (v) => clamp(Math.round(((v + WORLD_RADIUS) / WORLD_SIZE) * GRID_SEG), 0, GRID_SEG);
+
+function baseHeightAtWorld(x, z) {
+  const i = clamp(Math.round(((x + WORLD_RADIUS) / WORLD_SIZE) * GRID_SEG), 0, GRID_SEG);
+  const j = clamp(Math.round(((z + WORLD_RADIUS) / WORLD_SIZE) * GRID_SEG), 0, GRID_SEG);
+  return heightGrid[j * GRID_N + i];
+}
+
+
+
+/** Profile rzek: próbki co ~10 m, wygładzone i wymuszone „w dół”. */
+function buildProfiles() {
+  const out = [];
+  for (const river of RIVERS) {
+    const pts = river.path;
+    const samples = [];
+    let total = 0;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [ax, az] = pts[i];
+      const [bx, bz] = pts[i + 1];
+      const len = Math.hypot(bx - ax, bz - az);
+      const step = Math.max(8, len / Math.ceil(len / 12));
+      const n = Math.max(1, Math.ceil(len / step));
+      for (let k = 0; k < n; k++) {
+        const t = k / n;
+        const x = ax + (bx - ax) * t;
+        const z = az + (bz - az) * t;
+        samples.push({ x, z, d: total + len * t });
+      }
+      total += len;
+    }
+    const last = pts[pts.length - 1];
+    samples.push({ x: last[0], z: last[1], d: total });
+
+    // Ujście: jeśli ciek kończy się na lądzie, dokładamy bieg w dół zbocza,
+    // aż wpada do morza albo do lokalnego zagłębienia.
+    {
+      let [ex, ez] = [last[0], last[1]];
+      let [qx, qz] = [pts[pts.length - 2][0], pts[pts.length - 2][1]];
+      let dx = ex - qx;
+      let dz = ez - qz;
+      const dl = Math.hypot(dx, dz) || 1;
+      dx /= dl;
+      dz /= dl;
+      for (let guard = 0; guard < 60; guard++) {
+        const here = heightAt(ex, ez);
+        if (here <= WATER_LEVEL + 0.8) break;
+        let best = null;
+        for (let k = -5; k <= 5; k++) {
+          const ang = Math.atan2(dx, dz) + k * 0.17;
+          const nx = Math.sin(ang);
+          const nz = Math.cos(ang);
+          const tx = ex + nx * 18;
+          const tz = ez + nz * 18;
+          if (Math.hypot(tx, tz) > WORLD_RADIUS - 20) continue;
+          const h = heightAt(tx, tz);
+          const cost = h + Math.abs(k) * 0.7;
+          if (!best || cost < best.cost) best = { cost, tx, tz, h, nx, nz };
+        }
+        if (!best) break;
+        if (best.h > here + 2.2) break; // w górę rzeka już nie popłynie
+        ex = best.tx;
+        ez = best.tz;
+        dx = best.nx;
+        dz = best.nz;
+        total += 18;
+        samples.push({ x: ex, z: ez, d: total });
+      }
+    }
+
+    // wysokość bazowa terenu w próbkach (biliniowo — tak samo, jak widzi ją gra)
+    for (const smp of samples) smp.base = heightAt(smp.x, smp.z);
+
+    // wygładzenie (średnia krocząca) — profil nie skacze po pagórkach
+    const smooth = samples.map((smp, i) => {
+      let sum = 0;
+      let cnt = 0;
+      for (let k = -3; k <= 3; k++) {
+        const s2 = samples[i + k];
+        if (!s2) continue;
+        sum += s2.base;
+        cnt += 1;
+      }
+      return sum / cnt;
+    });
+    // Tafla trzyma się lokalnego terenu: nigdy nie wisi nad zboczem (bo wtedy
+    // woda „leciałaby” nad suchą ziemią), a wygładzenie daje spokojny spadek.
+    const level = smooth.map((h) => h - 0.2);
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 1; i < level.length - 1; i++) {
+        level[i] = (level[i - 1] + level[i] * 2 + level[i + 1]) / 4;
+      }
+    }
+    for (let i = 0; i < level.length; i++) {
+      let lowest = samples[i].base;
+      for (let k = -2; k <= 2; k++) {
+        const s2 = samples[i + k];
+        if (s2) lowest = Math.min(lowest, s2.base);
+      }
+      samples[i].level = Math.min(level[i], lowest - 0.25);
+    }
+    out.push({ ...river, samples, length: total });
+  }
+  return out;
+}
+
+const riverProfiles = buildProfiles();
+
+
+function carveRivers() {
+  for (const river of riverProfiles) {
+    const half = river.width * 0.42;
+    const outer = river.width * 1.55;
+    const samples = river.samples;
+    for (let i = 0; i < samples.length - 1; i++) {
+      const a = samples[i];
+      const b = samples[i + 1];
+      const minX = Math.min(a.x, b.x) - outer;
+      const maxX = Math.max(a.x, b.x) + outer;
+      const minZ = Math.min(a.z, b.z) - outer;
+      const maxZ = Math.max(a.z, b.z) + outer;
+      const i0 = cellOf(minX);
+      const i1 = cellOf(maxX);
+      const j0 = cellOf(minZ);
+      const j1 = cellOf(maxZ);
+      const vx = b.x - a.x;
+      const vz = b.z - a.z;
+      const vlen2 = vx * vx + vz * vz || 1;
+      for (let j = j0; j <= j1; j++) {
+        const z = gridZ(j);
+        for (let i = i0; i <= i1; i++) {
+          const x = gridX(i);
+          const t = clamp(((x - a.x) * vx + (z - a.z) * vz) / vlen2, 0, 1);
+          const px = a.x + vx * t;
+          const pz = a.z + vz * t;
+          const d = Math.hypot(x - px, z - pz);
+          if (d > outer) continue;
+          const level = a.level + (b.level - a.level) * t;
+          const bed = level - river.depth;
+          const shore = bed + river.depth * 0.95;
+          const idx = j * GRID_N + i;
+          const h = heightGrid[idx];
+          // koryto nie może się wcinać głęboko poniżej miejscowego terenu —
+          // inaczej na stromym zboczu powstaje kanion zamiast dolinki
+          const floor = baseGridCopy[idx] - (river.depth + 2.6);
+          if (d <= half) {
+            heightGrid[idx] = Math.min(h, Math.max(bed, floor));
+          } else {
+            const t2 = smoothstep(half, outer, d);
+            const target = Math.max(lerp(bed, shore, t2), floor);
+            heightGrid[idx] = Math.min(h, target);
+          }
+        }
+      }
+    }
+  }
+
+  // jeziora: misa z płaskim dnem i uszczelnioną groblą. Dla każdego kierunku
+  // szukamy miejsca, w którym naturalny teren wznosi się ponad taflę — i tylko
+  // do niego dociągamy groblę, więc woda nigdy nie „wycieka” po zboczu.
+  for (const lake of LAKES) {
+    const RAYS = 84;
+    const MAX_D = lake.r * 4.2;
+    const closeAt = new Float32Array(RAYS).fill(MAX_D);
+    for (let k = 0; k < RAYS; k++) {
+      const a = (k / RAYS) * Math.PI * 2;
+      const dx = Math.cos(a);
+      const dz = Math.sin(a);
+      for (let d = lake.r * 0.9; d <= MAX_D; d += 5) {
+        if (heightAtRaw(dx * d + lake.x, dz * d + lake.z) >= lake.level + 0.45) {
+          closeAt[k] = d;
+          break;
+        }
+      }
+    }
+    const reach = MAX_D + 40;
+    const i0 = cellOf(lake.x - reach);
+    const i1 = cellOf(lake.x + reach);
+    const j0 = cellOf(lake.z - reach);
+    const j1 = cellOf(lake.z + reach);
+    for (let j = j0; j <= j1; j++) {
+      const z = gridZ(j);
+      for (let i = i0; i <= i1; i++) {
+        const x = gridX(i);
+        const dx = x - lake.x;
+        const dz = z - lake.z;
+        const d = Math.hypot(dx, dz);
+        if (d > reach) continue;
+        const idx = j * GRID_N + i;
+        const h = heightGrid[idx];
+        if (d <= lake.inner) {
+          heightGrid[idx] = lake.bed;
+          continue;
+        }
+        if (d <= lake.r) {
+          const t = (d - lake.inner) / Math.max(1, lake.r - lake.inner);
+          heightGrid[idx] = lerp(lake.bed, lake.level + 0.25, smoothstep(0.12, 1, t));
+          continue;
+        }
+        const k = Math.round((((Math.atan2(dz, dx) + Math.PI * 2) % (Math.PI * 2)) / (Math.PI * 2)) * RAYS) % RAYS;
+        const damEnd = Math.min(closeAt[k], MAX_D);
+        if (d <= damEnd) {
+          const t = (d - lake.r) / Math.max(1, damEnd - lake.r);
+          heightGrid[idx] = Math.max(h, lerp(lake.level + 1.0, lake.level + 0.45, t));
+        } else if (d <= damEnd + 45) {
+          const t = smoothstep(0, 1, (d - damEnd) / 45);
+          heightGrid[idx] = Math.max(h, lerp(lake.level + 0.45, h, t));
+        }
+      }
+    }
+  }
+}
+
+/** Tafla wody rzek — wyeksportowana, żeby świat mógł zbudować wstęgę. */
+function buildRiverSurfaces() {
+  return riverProfiles.map((r) => {
+    const points = r.samples.map((smp) => ({
+      x: smp.x,
+      z: smp.z,
+      y: heightAt(smp.x, smp.z) + r.depth * 0.8,
+    }));
+    // wygładzenie tafli, żeby nie „schodkowała” po komórkach siatki
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 1; i < points.length - 1; i++) {
+        points[i].y = (points[i - 1].y + points[i].y * 2 + points[i + 1].y) / 4;
+      }
+    }
+    // …ale tafla nigdy nie może zniknąć pod ziemią po wygładzeniu
+    for (const pt of points) {
+      pt.y = Math.max(pt.y, heightAt(pt.x, pt.z) + 0.12);
+    }
+    let minX = Infinity; let maxX = -Infinity;
+    let minZ = Infinity; let maxZ = -Infinity;
+    for (const pt of points) {
+      minX = Math.min(minX, pt.x); maxX = Math.max(maxX, pt.x);
+      minZ = Math.min(minZ, pt.z); maxZ = Math.max(maxZ, pt.z);
+    }
+    const pad = r.width * 2;
+    // indeks przestrzenny segmentów (siatka 60 m), żeby zapytania o wodę
+    // w dowolnym punkcie mapy nie przeglądały całej rzeki
+    const CELL = 60;
+    const buckets = new Map();
+    const keyOf = (x, z) => `${Math.floor(x / CELL)},${Math.floor(z / CELL)}`;
+    for (let i = 0; i < points.length - 1; i++) {
+      const k = keyOf(points[i].x, points[i].z);
+      let arr = buckets.get(k);
+      if (!arr) buckets.set(k, (arr = []));
+      arr.push(i);
+    }
+    return {
+      name: r.name,
+      width: r.width,
+      depth: r.depth,
+      points,
+      buckets,
+      cellSize: CELL,
+      minX: minX - pad, maxX: maxX + pad, minZ: minZ - pad, maxZ: maxZ + pad,
+    };
+  });
+}
+
+const baseGridCopy = Float32Array.from(heightGrid);
+function heightAtRaw(x, z) {
+  const i = clamp(Math.round(((x + WORLD_RADIUS) / WORLD_SIZE) * GRID_SEG), 0, GRID_SEG);
+  const j = clamp(Math.round(((z + WORLD_RADIUS) / WORLD_SIZE) * GRID_SEG), 0, GRID_SEG);
+  return baseGridCopy[j * GRID_N + i];
+}
+
+carveRivers();
+export const RIVER_SURFACES = buildRiverSurfaces();
+export const LAKE_SURFACES = LAKES.map((l) => ({
+  name: l.name, x: l.x, z: l.z, r: l.r, level: l.level,
+}));
 export const terrainBuildTime = performance.now() - gridStart;
 
 /**
@@ -309,14 +678,30 @@ export function slopeAt(x, z) {
   return Math.hypot(hx, hz) / (2 * e);
 }
 
-/** Czy w tym miejscu jest woda (jezioro, bagno albo morze). */
+/** Poziom tafli wody w danym punkcie (morze, jezioro albo rzeka). */
+export function waterLevelAt(x, z) {
+  let level = WATER_LEVEL;
+  for (const l of LAKE_SURFACES) {
+    if (l.level <= WATER_LEVEL + 0.2) continue;
+    const d = dist2(x, z, l.x, l.z);
+    if (d < l.r * 1.02) level = Math.max(level, l.level);
+  }
+  for (const r of RIVER_SURFACES) {
+    if (x < r.minX || x > r.maxX || z < r.minZ || z > r.maxZ) continue;
+    const s = surfaceOnRiver(r, x, z);
+    if (s && s.y > level) level = s.y;
+  }
+  return level;
+}
+
+/** Czy w tym miejscu jest woda (morze, jezioro, rzeka albo bagno). */
 export function isWater(x, z) {
-  return heightAt(x, z) < WATER_LEVEL - 0.05;
+  return heightAt(x, z) < waterLevelAt(x, z) - 0.05;
 }
 
 /** Głębokość wody (0 = sucho). */
 export function waterDepth(x, z) {
-  return Math.max(0, WATER_LEVEL - heightAt(x, z));
+  return Math.max(0, waterLevelAt(x, z) - heightAt(x, z));
 }
 
 export function isSea(x, z) {
@@ -901,6 +1286,170 @@ export function createWater() {
   swampFoam.position.y = Math.max(swampBase + 0.3, WATER_LEVEL + 0.06);
   group.add(swampFoam);
 
+  // ---- rzeki i jeziora ----------------------------------------------------
+  // Tafla rzek to wstęga wodna prowadzona po osi koryta; jeziora dostają
+  // własne tafle tam, gdzie leżą wyżej niż morze (górskie stawy i oczka).
+  const freshMat = new THREE.MeshStandardMaterial({
+    color: '#2e6472',
+    transparent: true,
+    opacity: 0.84,
+    roughness: 0.14,
+    metalness: 0.28,
+    vertexColors: true,
+    side: THREE.DoubleSide,
+  });
+  const fresh = new THREE.Group();
+  fresh.name = 'fresh-water';
+  group.add(fresh);
+  const freshSurfaces = [];
+
+  const RIVER_ACROSS = 5;
+  for (const river of RIVER_SURFACES) {
+    const pts = river.points;
+    const half = river.width * 1.12;
+    const positions = [];
+    const colors = [];
+    const indices = [];
+    const phases = [];
+    const baseY = [];
+    const deepColor = new THREE.Color('#22525f');
+    const edgeColor = new THREE.Color('#a9d6d6');
+    const tmp = new THREE.Color();
+    let dist = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const prev = pts[Math.max(0, i - 1)];
+      const nextP = pts[Math.min(pts.length - 1, i + 1)];
+      let tx = nextP.x - prev.x;
+      let tz = nextP.z - prev.z;
+      const len = Math.hypot(tx, tz) || 1;
+      tx /= len;
+      tz /= len;
+      const nx = -tz;
+      const nz = tx;
+      const p = pts[i];
+      if (i > 0) dist += Math.hypot(p.x - pts[i - 1].x, p.z - pts[i - 1].z);
+      // źródło i ujście zwężają się łagodnie
+      const fade = Math.min(1, Math.min(i, pts.length - 1 - i) / 5);
+      const w = half * (0.5 + 0.5 * fade);
+      for (let k = 0; k <= RIVER_ACROSS; k++) {
+        const u = (k / RIVER_ACROSS) * 2 - 1;
+        const x = p.x + nx * u * w;
+        const z = p.z + nz * u * w;
+        const y = p.y + 0.06 * (1 - u * u) - 0.45 * Math.pow(Math.abs(u), 3);
+        positions.push(x, y, z);
+        baseY.push(y);
+        phases.push(dist * 0.32 + u * 1.7);
+        tmp.copy(deepColor).lerp(edgeColor, Math.pow(Math.abs(u), 3));
+        colors.push(tmp.r, tmp.g, tmp.b);
+      }
+    }
+    const stride = RIVER_ACROSS + 1;
+    for (let i = 0; i < pts.length - 1; i++) {
+      for (let k = 0; k < RIVER_ACROSS; k++) {
+        const a = i * stride + k;
+        const b = a + 1;
+        const c = a + stride;
+        const d = c + 1;
+        indices.push(a, c, b, b, c, d);
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    const mesh = new THREE.Mesh(geo, freshMat);
+    mesh.name = `river-${river.name}`;
+    mesh.receiveShadow = false;
+    fresh.add(mesh);
+    freshSurfaces.push({
+      mesh,
+      kind: 'river',
+      baseY: Float32Array.from(baseY),
+      phases: Float32Array.from(phases),
+      width: river.width,
+      colors: geo.attributes.color,
+      baseColors: Float32Array.from(colors),
+    });
+  }
+
+  const LAKE_RINGS = 7;
+  const LAKE_SEG = 56;
+  for (const lake of LAKE_SURFACES) {
+    if (lake.level <= WATER_LEVEL + 1.5) continue; // morze już ją przykrywa
+    const positions = [];
+    const colors = [];
+    const indices = [];
+    const phases = [];
+    const baseY = [];
+    const deepColor = new THREE.Color('#1f4a56');
+    const edgeColor = new THREE.Color('#9fcbcb');
+    const tmp = new THREE.Color();
+    for (let r = 0; r <= LAKE_RINGS; r++) {
+      const rad = (r / LAKE_RINGS) * lake.r * 0.98;
+      for (let a = 0; a < LAKE_SEG; a++) {
+        const ang = (a / LAKE_SEG) * Math.PI * 2;
+        positions.push(lake.x + Math.cos(ang) * rad, lake.level, lake.z + Math.sin(ang) * rad);
+        baseY.push(lake.level);
+        phases.push(rad * 0.22 + ang * 1.3);
+        tmp.copy(deepColor).lerp(edgeColor, Math.pow(r / LAKE_RINGS, 2.6));
+        colors.push(tmp.r, tmp.g, tmp.b);
+      }
+    }
+    for (let r = 0; r < LAKE_RINGS; r++) {
+      for (let a = 0; a < LAKE_SEG; a++) {
+        const a2 = (a + 1) % LAKE_SEG;
+        const i0 = r * LAKE_SEG + a;
+        const i1 = r * LAKE_SEG + a2;
+        const i2 = (r + 1) * LAKE_SEG + a;
+        const i3 = (r + 1) * LAKE_SEG + a2;
+        indices.push(i0, i2, i1, i1, i2, i3);
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    const mesh = new THREE.Mesh(geo, freshMat);
+    mesh.name = `lake-${lake.name}`;
+    fresh.add(mesh);
+    freshSurfaces.push({
+      mesh,
+      kind: 'lake',
+      baseY: Float32Array.from(baseY),
+      phases: Float32Array.from(phases),
+      colors: geo.attributes.color,
+      baseColors: Float32Array.from(colors),
+    });
+  }
+
+  let freshTime = 0;
+  const updateFresh = (dt) => {
+    freshTime += dt;
+    for (const srf of freshSurfaces) {
+      const posAttr = srf.mesh.geometry.attributes.position;
+      const arr = posAttr.array;
+      const amp = srf.kind === 'river' ? 0.035 : 0.05;
+      for (let i = 0; i < srf.baseY.length; i++) {
+        arr[i * 3 + 1] = srf.baseY[i] + Math.sin(freshTime * 1.9 + srf.phases[i]) * amp;
+      }
+      posAttr.needsUpdate = true;
+      // ruchome smugi — jasna „piana” pełznąca z nurtem
+      const col = srf.colors;
+      const baseCol = srf.baseColors;
+      for (let i = 0; i < srf.baseY.length; i++) {
+        const pulse = 0.5 + 0.5 * Math.sin(freshTime * 1.5 - srf.phases[i] * 1.6);
+        const boost = srf.kind === 'river' ? pulse * 0.16 : pulse * 0.07;
+        col.array[i * 3] = Math.min(1, baseCol[i * 3] + boost);
+        col.array[i * 3 + 1] = Math.min(1, baseCol[i * 3 + 1] + boost);
+        col.array[i * 3 + 2] = Math.min(1, baseCol[i * 3 + 2] + boost * 0.9);
+      }
+      col.needsUpdate = true;
+    }
+    freshMat.opacity = 0.83 + Math.sin(freshTime * 0.7) * 0.02;
+  };
+
   // ---- fale ---------------------------------------------------------------
   const base = Float32Array.from(seaGeo.attributes.position.array);
   const pos = seaGeo.attributes.position;
@@ -956,6 +1505,106 @@ export function createWater() {
       lakeFoam.position.y = WATER_LEVEL + 0.1 + lift;
       swampFoam.position.y = Math.max(swampBase + 0.3, WATER_LEVEL + 0.06) + lift;
       seaMat.opacity = 0.88 + Math.sin(t * 0.4) * 0.02;
+      updateFresh(dt);
     },
   };
+}
+
+
+/** Odległość do najbliższej rzeki (w metrach świata, 0 = w korycie). */
+export function distanceToRiver(x, z) {
+  let best = Infinity;
+  for (const r of RIVERS) {
+    const d = distToPolyline(x, z, r.path);
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+/** Szerokość rzeki w danym miejscu (0 = poza korytem). */
+export function riverWidthAt(x, z) {
+  let best = null;
+  for (const r of RIVERS) {
+    const d = distToPolyline(x, z, r.path);
+    if (!best || d < best.d) best = { d, r };
+  }
+  if (!best || best.d > best.r.width * 0.5) return 0;
+  return best.r.width;
+}
+
+/** Najbliższy punkt tafli rzeki (null = poza rzeką). */
+function surfaceOnRiver(river, x, z) {
+  let best = null;
+  const pts = river.points;
+  const reach = river.width * 0.95;
+  const cs = river.cellSize;
+  const cx = Math.floor(x / cs);
+  const cz = Math.floor(z / cs);
+  const candidates = [];
+  for (let ox = -1; ox <= 1; ox++) {
+    for (let oz = -1; oz <= 1; oz++) {
+      const arr = river.buckets.get(`${cx + ox},${cz + oz}`);
+      if (arr) candidates.push(...arr);
+    }
+  }
+  for (const i of candidates) {
+    const a = pts[i];
+    const b = pts[i + 1];
+    const vx = b.x - a.x;
+    const vz = b.z - a.z;
+    const t = clamp(((x - a.x) * vx + (z - a.z) * vz) / (vx * vx + vz * vz || 1), 0, 1);
+    const d = Math.hypot(x - (a.x + vx * t), z - (a.z + vz * t));
+    if (d <= reach && (!best || d < best.d)) {
+      best = { d, y: a.y + (b.y - a.y) * t, width: river.width, name: river.name };
+    }
+  }
+  return best;
+}
+
+/** Czy gracz brodzi w strumieniu (ale nie w morzu ani jeziorze). */
+export function isInRiver(x, z) {
+  const w = riverWidthAt(x, z);
+  return w > 0 && distanceToRiver(x, z) < w * 0.5;
+}
+
+/** Wysokość tafli rzeki w danym punkcie (null = poza rzeką). */
+export function riverSurfaceAt(x, z) {
+  let best = null;
+  for (const r of RIVER_SURFACES) {
+    if (x < r.minX || x > r.maxX || z < r.minZ || z > r.maxZ) continue;
+    const hit = surfaceOnRiver(r, x, z);
+    if (hit && (!best || hit.d < best.d)) best = hit;
+  }
+  return best;
+}
+
+/**
+ * Przecięcia dróg z rzekami — tam stawiamy mosty.
+ * Zwraca [{ x, z, angle, width }] w metrach świata.
+ */
+export function pathRiverCrossings() {
+  const out = [];
+  for (const [ax, az, bx, bz] of PATHS) {
+    const vx = bx - ax;
+    const vz = bz - az;
+    for (const river of RIVERS) {
+      const pts = river.path;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const cx = pts[i][0];
+        const cz = pts[i][1];
+        const dx = pts[i + 1][0] - cx;
+        const dz = pts[i + 1][1] - cz;
+        const den = vx * dz - vz * dx;
+        if (Math.abs(den) < 1e-6) continue;
+        const t = ((cx - ax) * dz - (cz - az) * dx) / den;
+        const u = ((cx - ax) * vz - (cz - az) * vx) / den;
+        if (t < 0 || t > 1 || u < 0 || u > 1) continue;
+        const x = ax + vx * t;
+        const z = az + vz * t;
+        if (out.some((o) => dist2(o.x, o.z, x, z) < 30)) continue;
+        out.push({ x, z, angle: Math.atan2(vx, vz), width: river.width });
+      }
+    }
+  }
+  return out;
 }

@@ -3,6 +3,7 @@ import {
   heightAt, isWater, distanceToPath, slopeAt, forestMask,
   LOCATIONS, WATER_LEVEL, WORLD_RADIUS, WORLD_SCALE, LAND_RADIUS, COAST_RADIUS,
   CHUNK_SIZE, TerrainManager, createWater,
+  RIVER_SURFACES, LAKE_SURFACES, pathRiverCrossings, riverSurfaceAt, isInRiver,
 } from './terrain.js';
 import { RNG, dist2 } from '../core/utils.js';
 import {
@@ -13,6 +14,7 @@ import {
   makeWolfTotem, makeSignpost, makeFern, makeReed, makeGull,
   makeLighthouse, makeShipwreck, makeFishRack, makeNetFrame,
   makeCactus, makeAcacia, makeDeadBush, makeIceSpire, makeSnowRock, mat,
+  makeBridge,
 } from './models.js';
 import { dominantBiome } from './biomes.js';
 import { PropBatcher, flattenGroup } from './mergeProps.js';
@@ -66,6 +68,9 @@ export class World {
     this._buildHighlands();
     this._buildRoadCamp();
     this._buildCoast();
+    this._buildBridges();
+    this._buildRiverProps();
+    this._buildLakeShores();
     this._buildAssetProps();
     this._buildBoard();
     this._scatterNature();
@@ -162,6 +167,119 @@ export class World {
     node.timer = node.cooldown;
     if (node.mesh) node.mesh.visible = false;
     return true;
+  }
+
+  // =========================================================================
+  // RZEKI I JEZIORA — mosty, trzciny, kamienie, łodzie
+  // =========================================================================
+  _buildBridges() {
+    const rng = new RNG(8181);
+    this.bridges = [];
+    for (const c of pathRiverCrossings()) {
+      const surf = riverSurfaceAt(c.x, c.z);
+      const y = surf ? surf.y : heightAt(c.x, c.z);
+      if (y <= WATER_LEVEL + 0.9) continue; // przy morzu wystarczy bród
+      const bridge = makeBridge({
+        length: c.width * 2.1 + 7,
+        width: 4.8,
+        height: 2.6,
+        seed: rng.int(1, 999),
+      });
+      bridge.position.set(c.x, y + 0.55, c.z);
+      bridge.rotation.y = c.angle;
+      bridge.traverse((o) => {
+        if (o.isMesh) {
+          o.castShadow = true;
+          o.receiveShadow = true;
+        }
+      });
+      bridge.name = 'bridge';
+      this.group.add(bridge);
+      this.bridges.push({ x: c.x, z: c.z, angle: c.angle, width: c.width });
+    }
+  }
+
+  _buildRiverProps() {
+    const rng = new RNG(5150);
+    for (const river of RIVER_SURFACES) {
+      const pts = river.points;
+      const width = river.width;
+      for (let i = 3; i < pts.length - 2; i += 2) {
+        const a = pts[i - 1];
+        const b = pts[i + 1];
+        let tx = b.x - a.x;
+        let tz = b.z - a.z;
+        const len = Math.hypot(tx, tz) || 1;
+        tx /= len;
+        tz /= len;
+        const nx = -tz;
+        const nz = tx;
+        const p = pts[i];
+        const surfY = p.y;
+        for (const side of [-1, 1]) {
+          if (!rng.chance(0.45)) continue;
+          const off = width * 0.55 + rng.float(0.5, 4.5);
+          const x = p.x + nx * off * side;
+          const z = p.z + nz * off * side;
+          if (heightAt(x, z) < surfY + 0.05) continue;
+          if (slopeAt(x, z) > 0.7) continue;
+          if (distanceToPath(x, z) < 4) continue;
+          const reed = makeReed(rng.int(1, 997));
+          this.addStatic(reed, x, z, rng.float(0, Math.PI * 2), {});
+        }
+        if (rng.chance(0.34)) {
+          const x = p.x + nx * rng.float(-width * 0.32, width * 0.32);
+          const z = p.z + nz * rng.float(-width * 0.32, width * 0.32);
+          const rock = makeRock(rng.int(1, 997), rng.float(0.35, 0.85));
+          this.addStatic(rock, x, z, rng.float(0, Math.PI * 2), { yOffset: 0.05 });
+        }
+        if (rng.chance(0.06) && distanceToPath(p.x, p.z) > 14) {
+          // przewalone drzewo nad wodą
+          const logX = p.x + nx * (width * 0.5 + 1.5);
+          const logZ = p.z + nz * (width * 0.5 + 1.5);
+          const log = mesh(cyl(0.28, 0.34, rng.float(5, 8), 6), mat('#4b3a28'), 0, 0.3, 0);
+          log.rotation.z = Math.PI / 2;
+          const grp = new THREE.Group();
+          grp.add(log);
+          this.addStatic(grp, logX, logZ, Math.atan2(nx, nz) + rng.float(-0.4, 0.4), { yOffset: 0.15 });
+        }
+      }
+    }
+  }
+
+  _buildLakeShores() {
+    const rng = new RNG(6262);
+    for (const lake of LAKE_SURFACES) {
+      if (lake.level <= WATER_LEVEL + 0.5) continue;
+      const count = Math.round(lake.r * 1.6);
+      for (let i = 0; i < count; i++) {
+        const ang = rng.float(0, Math.PI * 2);
+        const rad = lake.r * rng.float(0.98, 1.16);
+        const x = lake.x + Math.cos(ang) * rad;
+        const z = lake.z + Math.sin(ang) * rad;
+        if (heightAt(x, z) < lake.level + 0.1) continue;
+        if (rng.chance(0.55)) {
+          this.addStatic(makeReed(rng.int(1, 997)), x, z, rng.float(0, Math.PI * 2), {});
+        } else if (rng.chance(0.5)) {
+          this.addStatic(makeRock(rng.int(1, 997), rng.float(0.4, 1.1)), x, z, rng.float(0, Math.PI * 2), {});
+        }
+      }
+      // łódź przy jednym z jezior
+      if (lake.name === 'Jezioro Wierzbowe') {
+        const boat = makeBoat();
+        const x = lake.x + lake.r * 0.72;
+        const z = lake.z + lake.r * 0.32;
+        boat.position.set(x, lake.level + 0.18, z);
+        boat.rotation.y = rng.float(0, Math.PI * 2);
+        this.group.add(boat);
+        this.animated.push({
+          update: (dt) => {
+            boat.position.y = lake.level + 0.18 + Math.sin(performance.now() * 0.0009) * 0.06;
+            boat.rotation.z = Math.sin(performance.now() * 0.0007) * 0.02;
+          },
+        });
+      }
+    }
   }
 
   // =========================================================================

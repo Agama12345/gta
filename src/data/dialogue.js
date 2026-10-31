@@ -298,66 +298,315 @@ const rybakTree = (ctx) => ({
   },
 });
 
+
+// ---------------------------------------------------------------------------
+// DODATKOWE ROZMOWY — każdy mieszkaniec ma własne tematy: pogodę, wieści,
+// plotki i „co słychać w dolinie”. Dzięki temu rozmowa nie kończy się na
+// jednym pytaniu o zadanie, tylko pozwala pociągnąć temat (jak w Gothicu).
+// ---------------------------------------------------------------------------
+const CHATTER = {
+  eryn: {
+    weather: [
+      '„Deszcz idzie od morza. Czujesz? Wilki też go czują — będą głodne.”',
+      '„Mgła nad kurhanem gęstsza niż zwykle. To nie zima, chłopcze. To coś pod ziemią.”',
+      '„Słońce w końcu wyszło. Trzy dni temu myślałem, że utoniemy w błocie.”',
+    ],
+    news: [
+      '„Kupcy mówią, że na trakcie znowu znikają wozy. Rada nie chce tego słuchać, ale ja słucham.”',
+      '„Rybacy z nadmorskich chat przysłali sól i wieść: na mieliźnie leży wrak, którego nikt nie zgłosił.”',
+      '„Marena znowu nie spała. Twierdzi, że coś chodziło wokół jej zielnika. Może i chodziło.”',
+    ],
+    rumor: [
+      '„Powiadają, że Kaldras nie umarł — tylko stoi po drugiej stronie wrót i czeka, żeby ktoś je uchylił.”',
+      '„Twój ojciec był tu lubiany. Ale kiedy wracał z Kowalskiej Góry, nie chciał mówić, co widział.”',
+      '„Stara studnia za kuźnią jest zasypana nie bez powodu. Nie kop tam, dobrze radzę.”',
+    ],
+  },
+  borys: {
+    weather: [
+      '„Wilgoć w powietrzu. Stal będzie rdzewieć szybciej niż schnąć.”',
+      '„Mróz przyjdzie w tym tygodniu. Węgiel z kopalni będzie na wagę złota.”',
+      '„Taka pogoda to dobra pogoda. Ogień trzyma ciepło, metal się nie skręca.”',
+    ],
+    news: [
+      '„Górnicy z Kopalni Żelaznej mówią, że w sztolni słychać stukanie. Nie ich stukanie.”',
+      '„Rada zamówiła cztery nowe lemiesze. Cztery! Jakbyśmy mieli czym orać.”',
+      '„Zorzan sprzedaje „starą“ rudę z nowych wykopalisk. Uważaj na jego ceny.”',
+    ],
+    rumor: [
+      '„Mówią, że w moim piecu pali się coś więcej niż węgiel. Bzdura. Ale piec pamięta.”',
+      '„Rudy Wilk kupował u mnie noże. Płacił dobrze i nie pytał o nic. To powinno mi było dać do myślenia.”',
+      '„Kamieniołom na zachodzie był kiedyś kopalnią czegoś, co nie ma nazwy po ludzku.”',
+    ],
+  },
+  marena: {
+    weather: [
+      '„Po deszczu zioła mają więcej mocy. Zbieraj wtedy, jeśli możesz.”',
+      '„Noc bez księżyca — nie chodź wtedy do kurhanu. Wieszczka widzi wtedy najlepiej.”',
+      '„Takie słońce wysusza korzenie. Podleję grządki dwa razy.”',
+    ],
+    news: [
+      '„Iskra znalazła dziś krwawnik o siedmiu liściach. Mówi, że to znak. Może i znak.”',
+      '„W bagnie zakwitło coś, czego nie znam. Nie podchodź tam bez pochodni.”',
+      '„Wiejska studnia ma metaliczny posmak. Ktoś musiał coś wrzucić.”',
+    ],
+    rumor: [
+      '„Mój mistrz twierdził, że Ostrze Świtu wyrosło z gwiazdy, która spadła w jezioro. Woda pamięta więcej niż ludzie.”',
+      '„Pustelnik z Ciemnego Lasu leczy lepiej niż ja. Ale nie pytaj go o przeszłość.”',
+      '„Każda mikstura ma cenę. Ta, którą ci sprzedaję, kosztuje tylko monety.”',
+    ],
+  },
+  zorzan: {
+    weather: [
+      '„Deszcz psuje towar. Dlatego mam ceny jak mam.”',
+      '„W taki upał sprzedaję więcej wody niż mikstur. Ludzie są przewidywalni.”',
+      '„Mgła na trakcie? Doskonale. Bandyci też jej nie lubią.”',
+    ],
+    news: [
+      '„Z południa idą wieści o wojnie. Nie naszej wojnie, więc nie moja sprawa.”',
+      '„Rada Wilczej Doliny płaci za wilcze łby. Wiesz, ile ja płacę za skóry? Mniej.”',
+      '„Kupcy z Kotliny mówią, że trakt jest bezpieczniejszy. Nie wierzę im.”',
+    ],
+    rumor: [
+      '„Widziałem, jak ktoś w nocy szedł do Mglistych Wrót i wrócił odmieniony. Nie pytaj kto.”',
+      '„Twoje ostrze? Wykute z trzech okruchów? Sprzedaj mi je, a będziesz bogaty. Nie? Trudno.”',
+      '„Kiedyś handlowałem w Warowni Popiołu. Dopóki nie zaczęli tam chodzić ci, którzy nie powinni.”',
+    ],
+  },
+  wilk: {
+    weather: [
+      '„W deszczu warta jest dwa razy dłuższa. Wiesz dlaczego? Bo nikt nie chce jej pełnić.”',
+      '„Noc będzie ciemna. Trzymaj się blisko ognia.”',
+      '„Zimno. Dobrze. Mniej bandytów na trakcie.”',
+    ],
+    news: [
+      '„Trzy noce temu ktoś próbował przejść przez bramę po zmroku. Nie miał twarzy, którą bym pamiętał.”',
+      '„Rada chce więcej patroli, ale ja mam czterech ludzi i dwie włócznie.”',
+      '„Mówiłem Erynowi, że powinniśmy zamknąć trakt na noc. Nie posłuchał.”',
+    ],
+    rumor: [
+      '„Służyłem w Warowni Popiołu, zanim się zawaliła. Nie opowiadam o tym przy ogniu.”',
+      '„Rudy Wilk był kiedyś strażnikiem. Potem zobaczył coś w kurhanie i przestał wracać do domu.”',
+      '„Mój ojciec mówił: jeśli wilk patrzy ci w oczy i nie ucieka, to nie jest wilk.”',
+    ],
+  },
+  iskra: {
+    weather: [
+      '„Po deszczu robaki wychodzą z ziemi. Wiesz, ile one mówią? Ja nie wiem, ale mówią.”',
+      '„Marena mówi, że mam nie biegać w nocy po lesie. Biegam.”',
+      '„Śnieg? Nigdy nie widziałam śniegu w dolinie. Podobno na północy jest cały biały.”',
+    ],
+    news: [
+      '„Znalazłam dziś ptasie gniazdo w starym dębie. Było puste. Nie podoba mi się to.”',
+      '„Borys dał mi ćwiek z żelaza. Mówi, że to na szczęście. Noszę go.”',
+      '„Wiesz, że w kurhanie słychać czasem śpiew? Marena mówi, że mi się wydaje.”',
+    ],
+    rumor: [
+      '„Kiedy dorosnę, zostanę zielarką jak Marena. Albo łowczynią. Albo obiema.”',
+      '„Chłopcy z wioski mówią, że widzieli światło nad jeziorem. Ja też widziałam.”',
+      '„Mama mówi, że masz oczy ojca. Nie wiem, czy to komplement.”',
+    ],
+  },
+  pustelnik: {
+    weather: [
+      '„Las wie, jaka będzie zima. Wiewiórki już się przeniosły niżej.”',
+      '„Deszcz tu nie dociera. To nie drzewa, to coś innego.”',
+      '„Mgła w tym lesie nie jest z wody. Pamiętaj.”',
+    ],
+    news: [
+      '„Nie mam wieści. Wieści to rzecz ludzi, którzy mają coś do stracenia.”',
+      '„Słyszałem dzwon z Warowni. Dzwon, który nie bije od trzydziestu lat.”',
+      '„Marena przysłała mi miód. Dobra kobieta. Niepotrzebnie.”',
+    ],
+    rumor: [
+      '„Kaldras? Znałem go. Był uparty jak kamień i dwa razy cięższy.”',
+      '„Mgliste Wrota nie zostały zbudowane. Zostały znalezione. To różnica.”',
+      '„Twoje ostrze ma trzy części, bo ktoś je złamał z premedytacją. Ktoś, kto bał się, co zrobi jeden człowiek.”',
+    ],
+  },
+  kupiec: {
+    weather: [
+      '„Deszcz na targu to najgorszy interes. Chmury, wracajcie za góry.”',
+      '„W taki upał wino się psuje. Dlatego sprzedaję je szybciej.”',
+      '„Mgła na trakcie oznacza mniej kupujących. I więcej złodziei.”',
+    ],
+    news: [
+      '„Z Kotliny idą wieści, że droga na południe jest zamknięta. Znowu.”',
+      '„Zorzan z Wilczej Doliny sprzedaje towary, których nie powinien mieć. Ciekawe, skąd.”',
+      '„Rada kupiecka podniosła cła. Znowu. Wszyscy udają, że to nie ich wina.”',
+    ],
+    rumor: [
+      '„Kiedyś handlowałem z kimś z Mglistych Wrót. Zapłacił złotem, które było zimne jak lód.”',
+      '„Słyszałem, że w kamieniołomie znaleziono drzwi. Kamienne drzwi, które nie prowadzą do jaskini.”',
+      '„Kowalska Góra? Byłem. Wróciłem. To więcej, niż mogą powiedzieć inni.”',
+    ],
+  },
+  rybak: {
+    weather: [
+      '„Wiatr od morza. Będzie sztorm przed zmrokiem — słychać w falach.”',
+      '„Taka cisza na wodzie oznacza jedno: ryby poszły głębiej.”',
+      '„Mgła nad zatoką. Nie wypływaj dziś, nawet jeśli ci zapłacą.”',
+    ],
+    news: [
+      '„Sieci przychodzą porwane. Nie przez ryby — przez coś, co je je.”',
+      '„Widziałem światło na Samotnej Skale. Latarnia jest zgaszona od tygodni, więc nie wiem, co to było.”',
+      '„Z wraku „Zimnej Fali” wyciągnąłem skrzynię. Była pusta, ale zamknięta od środka.”',
+    ],
+    rumor: [
+      '„Morze oddaje to, co zabierze. Czasem w całości, czasem tylko kości.”',
+      '„Mój brat popłynął na północ. Mówił, że za mgłą jest drugi brzeg. Nie wrócił.”',
+      '„Kupujesz ryby, ale nie pytasz, z czego żyją. To dobrze. Nie chcesz wiedzieć.”',
+    ],
+  },
+  duch: {
+    weather: [
+      '„Zimno. Zawsze zimno. Nie pamiętam ciepła.”',
+      '„Wiatr niesie imiona. Twoje jeszcze nie.”',
+      '„Mgła rośnie. Ona też.”',
+    ],
+    news: [
+      '„Wrota były zamknięte. On je otworzył od środka. Nie wiem, dlaczego.”',
+      '„Trzydzieści lat. Liczyłem każdą zimę. Było ich więcej, niż myślisz.”',
+      '„Kaldras nie śpi. Czeka, aż ktoś zapyta go o imię.”',
+    ],
+    rumor: [
+      '„Nie jestem duchem. Jestem tym, co zostało, gdy duch odszedł.”',
+      '„Twoja matka stała tu kiedyś. Płakała. Nie zapytałem dlaczego.”',
+      '„Ostrze Świtu nie zostało złamane w bitwie. Zostało złamane, by go powstrzymać.”',
+    ],
+  },
+};
+
+const pickLine = (arr, seed) => arr[Math.abs(seed) % arr.length];
+
+/** Dokłada każdemu mieszkańcowi tematy do rozmowy (pogoda, wieści, plotki). */
+function withSmallTalk(treeFn, npcId) {
+  return (ctx) => {
+    const nodes = treeFn(ctx);
+    const start = nodes.start;
+    if (!start) return nodes;
+    const chat = CHATTER[npcId];
+    if (!chat) return nodes;
+    const seed = Math.floor((ctx.hour ?? 12) * 3 + (ctx.playerLevel ?? 1) * 7 + (ctx.night ? 5 : 0));
+
+    nodes.smalltalk = {
+      speaker: start.speaker,
+      text: '„O co chcesz zapytać?”',
+      choices: [
+        { label: '„Co mówią o pogodzie?”', next: 'chat_weather' },
+        { label: '„Jakie wieści z doliny?”', next: 'chat_news' },
+        { label: '„A co ludzie szepczą?”', next: 'chat_rumor' },
+        { label: '„Wróćmy do rzeczy.”', next: 'start' },
+      ],
+    };
+    nodes.chat_weather = {
+      speaker: start.speaker,
+      text: pickLine(chat.weather, seed),
+      choices: [
+        { label: '„Jeszcze o czymś innym.”', next: 'smalltalk' },
+        { label: '„Wróćmy do rzeczy.”', next: 'start' },
+      ],
+    };
+    nodes.chat_news = {
+      speaker: start.speaker,
+      text: pickLine(chat.news, seed + 1),
+      choices: [
+        { label: '„Jeszcze o czymś innym.”', next: 'smalltalk' },
+        { label: '„Wróćmy do rzeczy.”', next: 'start' },
+      ],
+    };
+    nodes.chat_rumor = {
+      speaker: start.speaker,
+      text: pickLine(chat.rumor, seed + 2),
+      choices: [
+        { label: '„Jeszcze o czymś innym.”', next: 'smalltalk' },
+        { label: '„Wróćmy do rzeczy.”', next: 'start' },
+      ],
+    };
+    if (!start.choices.some((c) => c.next === 'smalltalk')) {
+      start.choices.splice(Math.max(0, start.choices.length - 1), 0, {
+        label: '„Opowiedz mi, co słychać.”',
+        next: 'smalltalk',
+      });
+    }
+    return nodes;
+  };
+}
+
+/** Krótkie kwestie wypowiadane, gdy przechodzisz obok postaci. */
+export const BARKS = {
+  eryn: ['„Chłopcze, uważaj na trakcie.”', '„Wioska nie zapomni, co dla niej zrobisz.”', '„Odpocznij, póki możesz.”'],
+  borys: ['„Stal nie czeka.”', '„Jak chcesz broń, to przyjdź z materiałem.”', '„Nie stój w ogniu, chłopcze.”'],
+  marena: ['„Zioła na wyciągnięcie ręki.”', '„Uważaj na mgłę.”', '„Wróć, gdy cię zranią.”'],
+  zorzan: ['„Towar pierwsza klasa!”', '„Kupuj, póki mam.”', '„Złoto lubi się wymieniać.”'],
+  wilk: ['„Stój i mów, kim jesteś.”', '„Nocą trzymaj się blisko ognia.”', '„Warta trwa.”'],
+  iskra: ['„Cześć! Chcesz zobaczyć mój zielnik?”', '„Marena mówi, że za dużo pytam.”'],
+  pustelnik: ['„Nie zbliżaj się do drzew, które milczą.”'],
+  kupiec: ['„Targ otwarty od świtu.”', '„Ceny? Uczciwe jak zawsze.”'],
+  rybak: ['„Ryby świeże, prosto z sieci.”', '„Morze dziś spokojne. Za spokojne.”'],
+  duch: ['„Zimno…”', '„Słyszysz mnie?”'],
+};
+
 export const NPCS = {
   eryn: {
     name: 'Stary Eryn', role: 'Starosta Wilczej Doliny',
     pos: [8, 344], rot: -0.45, radius: 4.2,
     visual: { tunic: '#5c4a33', pants: '#3a3228', hair: '#b9b0a0', beard: true, skin: '#c79a71', bulk: 1.0, cloak: '#4a4034' },
-    tree: erynTree,
+    tree: withSmallTalk(erynTree, 'eryn'),
   },
   borys: {
     name: 'Borys Kowal', role: 'Kowal',
     pos: [-16, 353], rot: 1.6, radius: 4.2,
     visual: { tunic: '#4a3a2c', pants: '#33291f', hair: '#2a1d14', beard: true, skin: '#b98258', bulk: 1.16, armor: '#5b5548', scar: true },
-    tree: borysTree,
+    tree: withSmallTalk(borysTree, 'borys'),
   },
   marena: {
     name: 'Marena Zielarka', role: 'Zielarka',
     pos: [23, 340], rot: -1.1, radius: 4.2,
     visual: { tunic: '#3f5a42', pants: '#3a3b2e', hair: '#8a6b45', skin: '#d2a67d', bulk: 0.94, cloak: '#2f4a37' },
-    tree: marenaTree,
+    tree: withSmallTalk(marenaTree, 'marena'),
   },
   zorzan: {
     name: 'Kupiec Zorzan', role: 'Wędrowny kupiec',
     pos: [11, 371], rot: 1.0, radius: 4.2,
     visual: { tunic: '#5a3f52', pants: '#382e3a', hair: '#241a16', skin: '#c9976d', bulk: 1.02, cloak: '#45304a', hood: '#3a2840' },
-    tree: zorzanTree,
+    tree: withSmallTalk(zorzanTree, 'zorzan'),
   },
   wilk: {
     name: 'Strażnik Wilk', role: 'Straż wioski',
     pos: [4, 313], rot: 0.15, radius: 4.0,
     visual: { tunic: '#4c4e52', pants: '#33373b', hair: '#3a2b1f', skin: '#cba07a', bulk: 1.1, armor: '#5e6367' },
-    tree: wilkTree,
+    tree: withSmallTalk(wilkTree, 'wilk'),
   },
   iskra: {
     name: 'Iskra', role: 'Uczennica zielarki',
     pos: [27, 344], rot: 2.4, radius: 4.0,
     visual: { tunic: '#5d6a4c', pants: '#3c4032', hair: '#b8542f', skin: '#e0b48a', bulk: 0.84 },
-    tree: iskraTree,
+    tree: withSmallTalk(iskraTree, 'iskra'),
   },
   pustelnik: {
     name: 'Pustelnik Ivar', role: 'Samotnik z Ciemnego Lasu',
     pos: [-556, -196], rot: 0.9, radius: 4.4,
     visual: { tunic: '#46503c', pants: '#33372c', hair: '#c8c2b2', beard: true, skin: '#c39a76', bulk: 0.9, cloak: '#37402f', hood: '#3c4636' },
-    tree: pustelnikTree,
+    tree: withSmallTalk(pustelnikTree, 'pustelnik'),
   },
   kupiec: {
     name: 'Kupiec Bogdan', role: 'Handlarz z Kotliny',
     pos: [172, 256], rot: 2.2, radius: 4.4,
     visual: { tunic: '#5b4636', pants: '#3a3026', hair: '#2d2119', skin: '#c08a5e', bulk: 1.08, cloak: '#6a4a3a', hood: '#4a3628' },
-    tree: kupiecTree,
+    tree: withSmallTalk(kupiecTree, 'kupiec'),
   },
   rybak: {
     name: 'Rybak Tobiasz', role: 'Rybak z nadmorskich chat',
     pos: [-8, 610], rot: 2.7, radius: 4.4,
     visual: { tunic: '#4c5a5e', pants: '#333c40', hair: '#5a4a33', beard: true, skin: '#c09468', bulk: 1.05, cloak: '#3b4a4e', hood: '#33403f' },
-    tree: rybakTree,
+    tree: withSmallTalk(rybakTree, 'rybak'),
   },
   duch: {
     name: 'Cień pod Łukiem', role: 'Zjawisko',
     pos: [-148, -534], rot: 0.4, radius: 5.0, ghost: true, hidden: true,
     visual: { tunic: '#3d4a52', pants: '#2f3a40', hair: '#20282c', skin: '#8fa6ad', bulk: 1.0, cloak: '#2a3a44', eyeColor: '#8fe0ff' },
-    tree: ghostTree,
+    tree: withSmallTalk(ghostTree, 'duch'),
   },
 };
 
