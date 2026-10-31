@@ -28,22 +28,38 @@ Alternatywy: [paczka ZIP](https://github.com/Agama12345/gta/raw/arena/68dc2b6a-g
   oraz **bagno**. Granice biomów przenikają się płynnie.
 - **Skały w górach:** zbocza od 0,38 nachylenia pokrywa kamień, wyżej żwir i odsłonięte
   granie; do tego piargi, skalne żebra i głazy z mchem — teren przestał być jednolitą trawą.
+- **Rzeki, jeziora i mosty:** trzy główne rzeki z meandrami (Szeptu, Milcząca, Bagienna)
+  plus Popielna i Potok Kamienny, pięć jezior (Ciemne, Wierzbowe, Mgliste, Kamienne i Staw
+  Wierzbowy) oraz cała woda stojąca. Każda rzeka ma własne koryto wtopione w teren,
+  animowaną taflę z nurtem i pianą, trzciny i głazy na brzegach, przewalone pnie i **sześć
+  mostów** na przecięciach z drogami — po deskach naprawdę się idzie (pomost jest częścią
+  kolizji wysokości). W rzece można brodzić (nurt zwalnia), a poziom wody liczy się lokalnie,
+  więc górskie jeziora leżą wyżej niż morze. Nad wodą słychać szum nurtu i plusk fali.
 - **Ocean dokoła krainy** — linia brzegowa z plażami i klifami, fale, piana przybrzeżna,
   wyspy, mielizna do Samotnej Skały, mewy nad zatoką. Nie ma już niewidzialnej ściany na
   skraju mapy: dalej jest po prostu morze.
 - **Nowe miejsca:** Latarnia na Cyplu (obraca smuga światła nocą), wrak „Zimnej Fali”,
   Chaty Rybaków z pomostem, suszarniami i rybakiem Tobiaszem (handel + własne dialogi).
-- **Prawdziwe modele 3D (CC0, KayKit) obok proceduralnych:** 13 modeli natury
-  (drzewa iglaste i liściaste, młode drzewka, pięć rodzajów głazów, grążele i rośliny wodne)
-  rozsypywanych w tysiącach egzemplarzy przez `InstancedMesh`, 8 modeli wyposażenia
-  (beczki, skrzynie, kufry, beczułki, pochodnie, stoły, krzesła) w osadach i obozach,
-  oraz **szkielet-wojownik z 97 animacjami** (KayKit Skeletons) jako „Strażnik Kurhanu”
+- **Prawdziwe modele 3D (CC0, KayKit) obok proceduralnych — 58 plików:** 17 modeli natury
+  (drzewa iglaste i liściaste, młode drzewka, pięć rodzajów głazów, grążele, rośliny wodne,
+  martwe drzewa i jesienne sosny) rozsypywanych w tysiącach egzemplarzy przez `InstancedMesh`;
+  8 modeli wyposażenia (beczki, skrzynie, kufry, beczułki, pochodnie, stoły, krzesła) w osadach
+  i obozach; **cmentarz przy kurhanie** (nagrobki, krypta, trumny, kapliczki, latarnie, kości);
+  **meble** (łóżka, stoły, krzesła, półki, szafki, książki, dywan, lampa, obraz) w obejściach
+  chat, gospody i kuźni; ławy, latarnie uliczne i wieża wodna w osadach; oraz
+  **szkielet-wojownik z 97 animacjami** (KayKit Skeletons) jako „Strażnik Kurhanu”
   i „Zapomniany Górnik” — chodzi, biegnie, zamachuje się mieczem i pada.
   Modele proceduralne (sosny z piętrami korony, dęby z korzeniami, brzozy, mchy) zostają
   jako uzupełnienie i jako zapas, gdyby plików nie było.
   Licencje i źródła: `public/assets/models/LICENSE.txt`.
 - **Animacje ze stawami:** kolana, łokcie, kołysanie bioder, skręt tułowia, przeciwfaza
-  rąk i nóg, zamach i wyhamowanie ciosu, peleryna z segmentów.
+  rąk i nóg, zamach i wyhamowanie ciosu, peleryna z segmentów, **pochylenie ciała na zboczu,
+  przechył w zakręcie, skłon w biegu i amortyzacja kolan po lądowaniu** — bohater stoi
+  i porusza się tak, jakby naprawdę dotykał ziemi.
+- **Menu i interfejs:** ekran tytułowy z kartą wyprawy (poziom, złoto, zadania, data zapisu,
+  obracająca się wskazówka, zegar świata), menu pauzy z podsumowaniem stanu, obsługa
+  klawiatury (↑ ↓ · Enter · Esc), ustawienia z muzyką i głosami, czytelniejszy HUD
+  z plakietkami stanu (skradanie, blok, bieg, most, deszcz) i dopracowany ekwipunek.
 - **Dźwięk otoczenia w stereo:** wiatr, fale, ptaki, świerszcze, sowa, wilki w oddali,
   trzask ognia, kroki zależne od podłoża (trawa / ziemia / kamień / woda / śnieg),
   pogłos otwartej przestrzeni.
