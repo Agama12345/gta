@@ -287,6 +287,9 @@ if (argv.includes('--stats')) {
     const dd = Math.hypot(wp.x - px, wp.z - pz);
     if (dd < 30) kit.push(`${mats[0]?.name}/${o.parent?.name || o.name || '?'}@${dd.toFixed(0)}`);
   });
+  if (game.world.natureStats) {
+    console.log('roślinność wg biomu:', JSON.stringify(game.world.natureStats));
+  }
   console.log('propsy z paczek < 30 m:', [...new Set(kit)].slice(0, 12).join(', ') || 'brak');
   console.log('propsy z paczki < 12 m:', nearPlaced.map((q) => `${q.key}@${q.d.toFixed(1)}`).join(', ') || 'brak');
   const bad = Object.entries(assets?.props ?? {})
@@ -349,6 +352,276 @@ if (argv.includes('--near')) {
   near.sort((a, b) => a[1] - b[1]);
   console.log('meshy:', total, '| w promieniu 90 m:', near.length);
   for (const n of near.slice(0, 18)) console.log('   ', n.join(' | '));
+}
+
+// --- średni kolor tekstur (podgląd nie rysuje map, ale liczy ich barwę) ----
+// Bez tego modele z paczek wyglądają na biało — a chodzi o ocenę wyglądu.
+const textureColorCache = new Map();
+
+function decodePng(buffer) {
+  let pos = 8;
+  let width = 0;
+  let height = 0;
+  let colorType = 6;
+  const idat = [];
+  while (pos + 8 <= buffer.length) {
+    const len = buffer.readUInt32BE(pos);
+    const type = buffer.toString('ascii', pos + 4, pos + 8);
+    const data = buffer.subarray(pos + 8, pos + 8 + len);
+    if (type === 'IHDR') {
+      width = data.readUInt32BE(0);
+      height = data.readUInt32BE(4);
+      colorType = data[9];
+    } else if (type === 'IDAT') idat.push(data);
+    else if (type === 'IEND') break;
+    pos += 12 + len;
+  }
+  if (!width || !height || !idat.length) return null;
+  const channels = colorType === 6 ? 4 : colorType === 2 ? 3 : colorType === 0 ? 1 : 0;
+  if (!channels) return null;
+  const raw = zlib.inflateSync(Buffer.concat(idat));
+  const stride = width * channels;
+  const out = Buffer.alloc(height * stride);
+  let prev = Buffer.alloc(stride);
+  let off = 0;
+  for (let y = 0; y < height; y += 1) {
+    const filter = raw[off];
+    off += 1;
+    const line = raw.subarray(off, off + stride);
+    off += stride;
+    const cur = Buffer.from(line);
+    for (let x = 0; x < stride; x += 1) {
+      const a = x >= channels ? cur[x - channels] : 0;
+      const b = prev[x];
+      const c = x >= channels ? prev[x - channels] : 0;
+      let v = cur[x];
+      if (filter === 1) v += a;
+      else if (filter === 2) v += b;
+      else if (filter === 3) v += (a + b) >> 1;
+      else if (filter === 4) {
+        const p2 = a + b - c;
+        const pa = Math.abs(p2 - a);
+        const pb = Math.abs(p2 - b);
+        const pc = Math.abs(p2 - c);
+        v += pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+      }
+      cur[x] = v & 0xff;
+    }
+    cur.copy(out, y * stride);
+    prev = cur;
+  }
+  return { width, height, channels, data: out };
+}
+
+function decodePngAverage(buffer) {
+  let img;
+  try {
+    img = decodePng(buffer);
+  } catch {
+    return null;
+  }
+  if (!img) return null;
+  const { channels, data } = img;
+  // średnia z pominięciem prawie białych plam (tło atlasu)
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  let n = 0;
+  const step = Math.max(1, Math.floor(channels * 4));
+  for (let i = 0; i + channels <= data.length; i += step) {
+    const cr = data[i];
+    const cg = channels > 2 ? data[i + 1] : cr;
+    const cb = channels > 2 ? data[i + 2] : cr;
+    const alpha = channels === 4 ? data[i + 3] : 255;
+    if (alpha < 200) continue;
+    // atlas tekstur ma dużo pustych, białych pól — bez ich pomijania
+    // średnia barwa wychodziła prawie biała i modele traciły kolory
+    if (cr > 238 && cg > 238 && cb > 238) continue;
+    if (cr < 12 && cg < 12 && cb < 12) continue;
+    r += cr;
+    g += cg;
+    b += cb;
+    n += 1;
+  }
+  if (!n) return null;
+  return new THREE.Color(r / n / 255, g / n / 255, b / n / 255);
+}
+
+// --- barwy tekstur wprost z plików GLB ------------------------------------
+// W Node tekstury z GLB się nie dekodują (brak canvasu), więc podgląd czytał
+// tylko kolor materiału — wszystko wychodziło białe. Tutaj wyciągamy PNG
+// z chunku binarnego pliku i liczymy jego średnią barwę; dzięki temu podgląd
+// pokazuje faktyczne kolory (stal rycerza, szatę maga, piasek pustyni).
+const glbMaterialImages = new Map(); // nazwa materiału -> { bufferView data }
+let glbScanDone = false;
+
+function scanGlbTextures() {
+  if (glbScanDone) return;
+  glbScanDone = true;
+  const walk = (dir) => {
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const full = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name.endsWith('.glb')) indexGlb(full);
+    }
+  };
+  walk('public/assets/models');
+}
+
+function indexGlb(file) {
+  let buf;
+  try {
+    buf = fs.readFileSync(file);
+  } catch {
+    return;
+  }
+  if (buf.length < 20 || buf.readUInt32LE(0) !== 0x46546c67) return;
+  const jsonLen = buf.readUInt32LE(12);
+  if (jsonLen <= 0 || 20 + jsonLen > buf.length) return;
+  let json;
+  try {
+    json = JSON.parse(buf.toString('utf8', 20, 20 + jsonLen));
+  } catch {
+    return;
+  }
+  // chunk BIN zaczyna się po JSON-ie (nagłówek 8 bajtów + dane)
+  let off = 20 + jsonLen;
+  let binStart = -1;
+  while (off + 8 <= buf.length && binStart < 0) {
+    const len = buf.readUInt32LE(off);
+    const type = buf.readUInt32LE(off + 4);
+    if (type === 0x004e4942) binStart = off + 8;
+    off += 8 + len;
+  }
+  if (binStart < 0 || !json.materials || !json.images) return;
+  for (const mat of json.materials) {
+    if (glbMaterialImages.has(mat.name)) continue;
+    const texIndex = mat.pbrMetallicRoughness?.baseColorTexture?.index;
+    if (texIndex === undefined) continue;
+    const imageIndex = json.textures?.[texIndex]?.source;
+    const image = json.images?.[imageIndex];
+    if (!image || image.bufferView === undefined) continue;
+    const view = json.bufferViews?.[image.bufferView];
+    if (!view) continue;
+    glbMaterialImages.set(mat.name, buf.subarray(binStart + (view.byteOffset ?? 0), binStart + (view.byteOffset ?? 0) + view.byteLength));
+  }
+}
+
+const glbPixelCache = new Map(); // nazwa materiału -> {width,height,channels,data}
+
+function glbTexturePixels(name) {
+  if (glbPixelCache.has(name)) return glbPixelCache.get(name);
+  scanGlbTextures();
+  const png = glbMaterialImages.get(name);
+  let img = null;
+  if (png) {
+    try {
+      img = decodePng(Buffer.from(png));
+    } catch {
+      img = null;
+    }
+  }
+  glbPixelCache.set(name, img);
+  return img;
+}
+
+/**
+ * Barwa atlasu w punkcie UV. Modele KayKit mają jedną teksturę-paletę:
+ * każdy element siatki siedzi w innym polu, więc uśrednianie całego atlasu
+ * dawało bezsensowny beż. Próbkowanie w miejscu UV daje właściwy kolor.
+ */
+function glbTextureColorAt(name, u, v) {
+  const img = glbTexturePixels(name);
+  if (!img) return null;
+  const { width, height, channels, data } = img;
+  const px = Math.min(width - 1, Math.max(0, Math.floor(((u % 1) + 1) % 1 * width)));
+  const py = Math.min(height - 1, Math.max(0, Math.floor((1 - (((v % 1) + 1) % 1)) * height)));
+  const i = (py * width + px) * channels;
+  if (i + channels > data.length) return null;
+  const alpha = channels === 4 ? data[i + 3] : 255;
+  if (alpha < 24) return null;
+  return new THREE.Color(data[i] / 255, data[i + 1] / 255, data[i + 2] / 255);
+}
+
+/**
+ * Dominujący kolor siatki z atlasu-palety.
+ *
+ * KayKit ma jedną teksturę podzieloną na pola-kolory; każdy element siatki
+ * wskazuje jedno pole. Zamiast uśredniać cały atlas (beż) albo UV (trafiało
+ * w sąsiednie pole), próbkujemy kilkadziesiąt wierzchołków i bierzemy
+ * najczęstszy odcień — czyli faktyczny kolor tej części ubioru.
+ */
+const paletteVotes = new Map();
+
+function meshAtlasColor(mesh) {
+  const uv = mesh.geometry?.attributes?.uv;
+  const name = mesh.material?.name ?? '';
+  if (!uv || !name) return null;
+  const px = glbTexturePixels(name);
+  if (!px) return null;
+  const cacheKey = `${name}:${uv.uuid}:${mesh.geometry.uuid}`;
+  if (paletteVotes.has(cacheKey)) return paletteVotes.get(cacheKey);
+  const step = Math.max(1, Math.floor(uv.count / 48));
+  const votes = new Map();
+  for (let i = 0; i < uv.count; i += step) {
+    const c = glbTextureColorAt(name, uv.getX(i), uv.getY(i));
+    if (!c) continue;
+    const key = `${Math.round(c.r * 24)}:${Math.round(c.g * 24)}:${Math.round(c.b * 24)}`;
+    const vote = votes.get(key) ?? { c, n: 0 };
+    vote.n += 1;
+    votes.set(key, vote);
+  }
+  let best = null;
+  for (const vote of votes.values()) if (!best || vote.n > best.n) best = vote;
+  const result = best?.c ?? null;
+  paletteVotes.set(cacheKey, result);
+  return result;
+}
+
+function materialColor(material, meshRef = null) {
+  if (!material) return new THREE.Color(0.6, 0.6, 0.6);
+  const base = material.color ?? new THREE.Color(1, 1, 1);
+  const img = material.map?.image;
+  if (!img) {
+    const real = meshRef ? meshAtlasColor(meshRef) : null;
+    if (real) return base.clone().multiply(real);
+    const name = (material.name ?? '').toLowerCase();
+    if (name.includes('knight')) return new THREE.Color(0.55, 0.56, 0.58);
+    if (name.includes('barbar')) return new THREE.Color(0.62, 0.42, 0.3);
+    if (name.includes('mage')) return new THREE.Color(0.36, 0.33, 0.55);
+    if (name.includes('rogue')) return new THREE.Color(0.32, 0.3, 0.26);
+    if (name.includes('texture')) return new THREE.Color(0.66, 0.58, 0.46);
+    return base;
+  }
+  const key = img.uuid ?? img.src ?? 'tex';
+  if (textureColorCache.has(key)) return base.clone().multiply(textureColorCache.get(key));
+  let avg = null;
+  const src = typeof img.src === 'string' ? img.src : null;
+  if (src && src.startsWith('data:')) {
+    try {
+      avg = decodePngAverage(Buffer.from(src.split(',')[1], 'base64'));
+    } catch {
+      avg = null;
+    }
+  }
+  if (!avg) {
+    // Tekstury wgrane z pliku GLB nie dekodują się w Node — dla podglądu
+    // przybliżamy ich barwę po nazwie atlasu (gra wczytuje je normalnie).
+    const name = (material.name ?? '').toLowerCase();
+    if (name.includes('knight')) avg = new THREE.Color(0.55, 0.56, 0.58); // stal
+    else if (name.includes('barbar')) avg = new THREE.Color(0.62, 0.42, 0.3); // skóra
+    else if (name.includes('mage')) avg = new THREE.Color(0.36, 0.33, 0.55); // szata
+    else if (name.includes('rogue')) avg = new THREE.Color(0.32, 0.3, 0.26); // skóra
+    else avg = new THREE.Color(0.72, 0.66, 0.55); // drewno, płótno
+  }
+  textureColorCache.set(key, avg);
+  return base.clone().multiply(avg);
 }
 
 // --- rasteryzator ----------------------------------------------------------
@@ -466,17 +739,26 @@ function rasterize(a, b, c, color, dist, label = '?') {
   }
 }
 
+const _instColor = new THREE.Color();
+function instanceColorAt(mesh, i) {
+  const attr = mesh.instanceColor;
+  if (!attr || !attr.array || i * 3 + 2 >= attr.array.length) return null;
+  _instColor.setRGB(attr.array[i * 3], attr.array[i * 3 + 1], attr.array[i * 3 + 2]);
+  return _instColor;
+}
+
 const m4 = new THREE.Matrix4();
 const instanceMatrix = new THREE.Matrix4();
 const worldMat = new THREE.Matrix4();
 
-function drawGeometry(geometry, matrix, material, useVertexColors, count, meshRef = null) {
+function drawGeometry(geometry, matrix, material, useVertexColors, count, meshRef = null, tint = null, atlasMesh = null) {
   const skinned = !!(meshRef?.isSkinnedMesh && meshRef.applyBoneTransform);
   const pos = geometry.attributes.position;
   if (!pos) return;
   const index = geometry.index;
   const colors = useVertexColors ? geometry.attributes.color : null;
-  const baseColor = material?.color ?? new THREE.Color(0.6, 0.6, 0.6);
+  const baseColor = materialColor(material, atlasMesh).clone();
+  if (tint) baseColor.multiply(tint);
   const total = index ? index.count : pos.count;
   const step = total > 24000 ? Math.ceil(total / 24000) : 1;
   m4.copy(matrix);
@@ -548,19 +830,23 @@ game.scene.traverse((o) => {
   if (o.visible === false) return;
   if (o.isInstancedMesh) {
     const mat = o.material;
-    const useVC = !!o.geometry.attributes.color;
+    const useVC = !!(o.geometry.attributes.color && o.material?.vertexColors);
     const step = o.count > 900 ? Math.ceil(o.count / 900) : 1;
+    // kolor instancji (setColorAt) jest w grze kluczowy: trawa ma odcienie
+    // zależne od biomu — bez tego podgląd pokazywał zieleń leżącą na śniegu.
     for (let i = 0; i < o.count; i += step) {
       o.getMatrixAt(i, instanceMatrix);
       instanceMatrix.premultiply(o.matrixWorld);
-      drawGeometry(o.geometry, instanceMatrix, mat, useVC, 1);
+      const tint = o.instanceColor ? instanceColorAt(o, i) : null;
+
+      drawGeometry(o.geometry, instanceMatrix, mat, useVC, 1, null, tint, o);
     }
     return;
   }
   if (!o.isMesh) return;
   if (o.material?.transparent && (o.material.opacity ?? 1) < 0.4) return;
   if (o.name === 'sky' || o.name === 'clouds') return;
-  drawGeometry(o.geometry, o.matrixWorld, o.material, !!o.geometry.attributes.color, 1, o);
+  drawGeometry(o.geometry, o.matrixWorld, o.material, !!o.geometry.attributes.color && o.material?.vertexColors, 1, o, null, o);
 });
 
 // --- zapis PNG -------------------------------------------------------------

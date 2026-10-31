@@ -17,7 +17,7 @@ import {
   makeCactus, makeAcacia, makeDeadBush, makeIceSpire, makeSnowRock, mat,
   makeBridge,
 } from './models.js';
-import { dominantBiome } from './biomes.js';
+import { dominantBiome, biomeRegionsWorld } from './biomes.js';
 import { PropBatcher, flattenGroup } from './mergeProps.js';
 import { ModelScatter, placeProp } from '../core/assets.js';
 
@@ -1793,9 +1793,86 @@ export class World {
     }
   }
 
+  /**
+   * Gęsta roślinność charakterystyczna dla biomu.
+   *
+   * Losowanie po całym kole mapy trafiało w pustynię i sawannę tak rzadko, że
+   * oba biomy wyglądały na puste płaszczyzny (kilkaset drzew na 5 × 5 km).
+   * Tutaj losujemy WEWNĄTRZ regionu biomu i stawiamy kaktusy, palmy, akacje,
+   * suche krzaki i kamienie — każdy z własną, konkretną liczbą egzemplarzy.
+   */
+  _scatterBiomeFlora(scatter, lib, isBlocked) {
+    if (!scatter || !lib) return;
+    const rng = new RNG(90210);
+    const regions = biomeRegionsWorld();
+    // [biom, klucz modelu, waga, min. wysokość, max. wysokość, rola]
+    const PLANS = {
+      desert: [
+        { keys: ['q_palm_a', 'q_palm_b'], n: 120, h: [7, 11], tilt: 0.16 },
+        { keys: ['q_cactus_a', 'q_cactus_b', 'q_cactus_c', 'q_cactus_flower'], n: 620, h: [1.6, 4.2], tilt: 0.03 },
+        { keys: ['q_rock_a', 'q_rock_b', 'q_rock_c'], n: 260, h: [0.9, 3.4], tilt: 0.05 },
+        { keys: ['q_bush_b', 'q_grass_short'], n: 420, h: [0.5, 1.5], tilt: 0.06 },
+      ],
+      savanna: [
+        { keys: ['q_oak_a', 'q_oak_b', 'q_oak_dead'], n: 1500, h: [4.5, 8.5], tilt: 0.04 },
+        { keys: ['q_bush_a', 'q_bush_b'], n: 1500, h: [1.1, 2.4], tilt: 0.05 },
+        { keys: ['q_rock_a', 'q_rock_b'], n: 220, h: [0.8, 2.6], tilt: 0.05 },
+        { keys: ['q_grass', 'q_grass_short', 'q_flowers'], n: 2600, h: [0.5, 1.2], tilt: 0.08 },
+      ],
+      swamp: [
+        { keys: ['q_willow_a', 'q_birch_dead', 'q_oak_dead'], n: 420, h: [4.5, 8], tilt: 0.07 },
+        { keys: ['q_bush_a', 'q_bush_b'], n: 520, h: [1, 2.2], tilt: 0.06 },
+        { keys: ['q_rock_moss'], n: 140, h: [0.8, 2.2], tilt: 0.05 },
+        { keys: ['q_grass_short', 'q_grass'], n: 700, h: [0.5, 1.2], tilt: 0.1 },
+      ],
+      ice: [
+        { keys: ['q_pine_snow', 'q_pine_c'], n: 420, h: [5, 9], tilt: 0.05 },
+        { keys: ['q_bush_snow'], n: 380, h: [0.8, 1.9], tilt: 0.05 },
+        { keys: ['q_rock_snow', 'q_rock_c'], n: 220, h: [0.9, 3], tilt: 0.04 },
+        { keys: ['q_birch_dead'], n: 80, h: [3.5, 6.5], tilt: 0.08 },
+      ],
+    };
+
+    for (const region of regions) {
+      const plan = PLANS[region.id];
+      if (!plan) continue;
+      for (const part of plan) {
+        let placed = 0;
+        const maxAttempts = part.n * 14;
+        for (let attempt = 0; attempt < maxAttempts && placed < part.n; attempt++) {
+          const a = rng.float(0, Math.PI * 2);
+          // lekka przewaga środka regionu — jądro biomu jest gęstsze
+          const r = Math.sqrt(rng.next()) * region.r * 0.96;
+          const x = Math.cos(a) * r + region.x;
+          const z = Math.sin(a) * r + region.z;
+          if (dominantBiome(x, z) !== region.id) continue;
+          if (isWater(x, z) || isBlocked(x, z) || distanceToPath(x, z) < 4.5) continue;
+          if (slopeAt(x, z) > 1.5) continue;
+          const key = part.keys[(rng.next() * part.keys.length) | 0];
+          const model = lib.nature[key];
+          if (!model) continue;
+          const wantH = rng.float(part.h[0], part.h[1]);
+          const y = heightAt(x, z);
+          if (!scatter.add(key, lib, {
+            x, y, z,
+            rotY: rng.float(0, Math.PI * 2),
+            scale: wantH / (model.height || 1),
+            tilt: rng.float(-part.tilt, part.tilt),
+            color: new THREE.Color().setScalar(0.78 + rng.float(0, 0.36)),
+          })) continue;
+          if (wantH > 3.5) this.colliders.push({ x, z, r: 0.55 });
+          this.natureStats[region.id] = (this.natureStats[region.id] ?? 0) + 1;
+          placed += 1;
+        }
+      }
+    }
+  }
+
   _scatterNature() {
     const S = WORLD_SCALE;
     const rng = new RNG(424242);
+    // licznik dla diagnostyki: ile roślinności trafia w każdy biom
+    this.natureStats = { temperate: 0, desert: 0, savanna: 0, ice: 0, swamp: 0, skipped: 0 };
     // modele CC0 (jeśli są wczytane) — drzewa i skały jako instancje
     const lib = this.game.assets ?? null;
     const useModels = !!(lib && lib.ready && Object.keys(lib.nature).length);
@@ -1814,9 +1891,9 @@ export class World {
     };
     const GROUND_KEYS = {
       temperate: ['q_grass', 'q_grass_short', 'q_flowers', 'q_bush_a', 'q_bush_berries', 'q_log', 'q_stump'],
-      ice: ['q_bush_snow', 'q_rock_snow', 'q_grass_short'],
+      ice: ['q_bush_snow', 'q_bush_snow', 'q_rock_snow'],
       savanna: ['q_grass', 'q_grass', 'q_grass_short', 'q_bush_b'],
-      desert: ['q_cactus_a', 'q_rock_a', 'q_rock_b', 'q_bush_b'],
+      desert: ['q_cactus_a', 'q_cactus_b', 'q_cactus_flower', 'q_rock_a', 'q_rock_b', 'q_cactus_c'],
       swamp: ['q_bush_a', 'q_log', 'q_stump', 'q_rock_moss', 'q_grass'],
     };
     const ROCK_KEYS = {
@@ -1919,10 +1996,12 @@ export class World {
       if (isBlocked(x, z)) continue;
       if (slopeAt(x, z) > 1.6) continue;
       const h = heightAt(x, z);
-      if (h > 182) continue; // powyżej granicy lasu
+      const biome = dominantBiome(x, z);
+      // granica lasu nie dotyczy pustyni — ta leży na wysokim płaskowyżu
+      if (h > 182 && biome !== 'desert') continue;
+      if (h > 300) continue;
       const forest = forestMask(x, z);
       const nearSwamp = dist2(x, z, LOCATIONS.swamp.x, LOCATIONS.swamp.z) < 210 * S;
-      const biome = dominantBiome(x, z);
       // gęstość roślinności zależy od biomu: pustynia prawie pusta, tundra rzadka
       const density = biome === 'desert' ? 0.45 : biome === 'ice' ? 0.5 : biome === 'savanna' ? 1 : 1;
       // W biomach suchych las jest rzadki z natury — nie może być ich prawie wcale,
@@ -1968,6 +2047,7 @@ export class World {
             color: new THREE.Color().setScalar(biome === 'desert' ? 0.9 + rng.float(0, 0.25) : 0.78 + rng.float(0, 0.34)),
           })) {
             if (wantH > 4 && biome !== 'desert') this.colliders.push({ x, z, r: 0.55 });
+            this.natureStats[biome] = (this.natureStats[biome] ?? 0) + 1;
             trees += 1;
             continue;
           }
@@ -2010,6 +2090,9 @@ export class World {
         }
       }
     }
+
+    // Gęsta flora charakterystyczna dla biomu (pustynia, sawanna, tundra).
+    this._scatterBiomeFlora(scatter, lib, isBlocked);
 
     // ---- poszycie: trawa, kwiaty, krzaki, kłody (modele CC0) --------------
     // Roślinność runa daje wrażenie gęstości; na pustyni zastępują ją suche
@@ -2470,7 +2553,7 @@ export class World {
       if (distanceToPath(x, z) < 3) continue;
       const biome = dominantBiome(x, z);
       // gęstość zależna od biomu: pustynia i lód — rzadko, las i łąka — gęsto
-      const density = biome === 'desert' ? 0.22 : biome === 'ice' ? 0.4 : biome === 'savanna' ? 0.7 : 1;
+      const density = biome === 'desert' ? 0.08 : biome === 'ice' ? 0.4 : biome === 'savanna' ? 0.7 : 1;
       if (rng.next() > density) continue;
       const h = heightAt(x, z);
       if (h < WATER_LEVEL + 0.3) continue;

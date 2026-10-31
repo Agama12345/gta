@@ -21,7 +21,9 @@ export const BIOME_INFO = {
 
 // Regiony w metrach „autorskich” (mnożone przez WORLD_SCALE).
 const REGIONS = [
-  { id: 'desert', x: 470, z: -330, r: 250, inner: 90 },
+  // Pustynia leży na suchym, płaskim wschodzie (wcześniej wypadała na wysokim
+  // płaskowyżu przy samej wodzie — rosły tam tylko suche krzaki).
+  { id: 'desert', x: 180, z: -300, r: 235, inner: 85 },
   // Sawanna leży na suchym, płaskim zachodzie — poprzednie miejsce wypadało
   // pod wodą, więc biom istniał tylko na papierze (piach i morze).
   { id: 'savanna', x: -338, z: 150, r: 255, inner: 85 },
@@ -36,6 +38,15 @@ const REGIONS_WORLD = REGIONS.map((r) => ({
   r: r.r * WORLD_SCALE,
   inner: r.inner * WORLD_SCALE,
 }));
+
+/**
+ * Regiony biomów w metrach świata — potrzebne roślinności, która ma rosnąć
+ * gęsto wewnątrz danego biomu (losowanie po całej mapie trafiało tam zbyt
+ * rzadko i pustynia z sawanną wychodziły puste).
+ */
+export function biomeRegionsWorld() {
+  return REGIONS_WORLD;
+}
 
 function hash2(x, z) {
   const s = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453;
