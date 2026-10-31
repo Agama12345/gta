@@ -414,6 +414,8 @@ export class Game {
   // ------------------------------------------------------------------
   start() {
     this.running = true;
+    // zapamiętane ustawienia grafiki wchodzą od razu — jeszcze przed pierwszym kadrem
+    this.ui.applyVideoSettings?.();
     this.clock.start();
     const loop = () => {
       requestAnimationFrame(loop);

@@ -4,6 +4,7 @@ import {
   heightAt, isWater, WORLD_RADIUS, WORLD_SCALE, waterDepth, waterLevelAt, isInRiver,
   distanceToPath, slopeAt,
 } from '../world/terrain.js';
+import { applyGait, applyFootIK, phaseRate } from '../core/gait.js';
 import { makeHumanoid, makeSword, makeShield } from '../world/models.js';
 import { Inventory } from '../systems/inventory.js';
 import { Perks } from '../systems/perks.js';
@@ -716,6 +717,8 @@ export class Player {
     // lądowanie po zejściu ze zbocza: krótkie ugięcie kolan i kompresja tułowia
     if (fallSpeed > 4.5) {
       this._land = Math.max(this._land ?? 0, Math.min(1, (fallSpeed - 4.5) / 9));
+      // ciężkie lądowanie: stęknięcie zbroi i stuk butów o podłoże
+      this.game.audio?.land?.(this._surfaceUnderfoot(), Math.min(1.3, (fallSpeed - 4.5) / 6));
     }
 
     // granice obozowiska bandytów itp. — prosta kolizja z domami
@@ -730,7 +733,7 @@ export class Player {
       const contact = Math.floor(this.walkPhase / Math.PI);
       if (contact !== this.lastFootstep) {
         this.lastFootstep = contact;
-        this.game.audio?.step(this._surfaceUnderfoot());
+        this.game.audio?.step(this._surfaceUnderfoot(), { run: this.sprinting, speed: speedNow });
       }
     }
 
@@ -833,9 +836,13 @@ export class Player {
   _animate(dt, moving, speed) {
     const speedMag = Math.hypot(this.vel.x, this.vel.z);
     const norm = clamp(speedMag / Math.max(3, this.moveSpeed), 0, 2.2);
-    // kadencja kroków zależy od prędkości — wolny marsz nie „biegnie w miejscu”
-    const cadence = moving ? 3.4 + norm * 4.6 : 1.1;
-    this.walkPhase += dt * cadence * (moving ? 1 : 0.5);
+    // Kadencja wynika z POKONANEGO DYSTANSU, nie z czasu — stopy nie ślizgają
+    // się po ziemi przy zmianie prędkości (największy „tell” sztucznej animacji).
+    if (moving) {
+      this.walkPhase += dt * phaseRate(speedMag, this.sprinting || norm > 0.78);
+    } else {
+      this.walkPhase += dt * 0.6;
+    }
     this.animPhase = (this.animPhase ?? 0) + dt;
 
     const { body, arms, legs, head, cloak } = this.parts;
@@ -958,11 +965,19 @@ export class Player {
       const sinL = Math.sin(ph);
       const sinR = Math.sin(ph + Math.PI);
 
-      legs[0].rotation.x = sinL * amp;
-      legs[1].rotation.x = sinR * amp;
-      // kolano zgina się tylko wtedy, gdy noga jest z tyłu (naturalny cykl)
-      if (shins[0]) shins[0].rotation.x = -Math.max(0, -Math.sin(ph - 0.5)) * amp * 1.25 - 0.06;
-      if (shins[1]) shins[1].rotation.x = -Math.max(0, -Math.sin(ph + Math.PI - 0.5)) * amp * 1.25 - 0.06;
+      // cykl chodu: biodro, kolano i staw skokowy (pięta → płasko → palce)
+      applyGait(this.parts, ph, { amp: clamp(amp, 0.4, 1.2), run: this.sprinting || norm > 0.78 });
+
+      // stopy „czują” nierówności gruntu pod sobą
+      const groundNow = heightAt(this.pos.x, this.pos.z);
+      const lat = 0.18;
+      const lifts = [0, 1].map((i) => {
+        const sx = i === 0 ? -1 : 1;
+        const lx = Math.cos(this.yaw) * sx * lat + Math.sin(this.yaw) * 0.14;
+        const lz = -Math.sin(this.yaw) * sx * lat + Math.cos(this.yaw) * 0.14;
+        return heightAt(this.pos.x + lx, this.pos.z + lz) - groundNow;
+      });
+      applyFootIK(this.parts, lifts);
 
       // ręce w przeciwfazie do nóg, łokcie lekko zgięte
       arms[0].rotation.x = sinR * amp * 0.62;
@@ -975,8 +990,11 @@ export class Player {
       // biodra: podskok, kołysanie na boki, skręt tułowia
       bodyY = Math.abs(Math.sin(ph)) * (0.03 + norm * 0.035) - 0.015;
       bodyRoll = Math.sin(ph) * 0.035 * amp;
-      bodyYaw = -sinL * 0.09 * amp;
+      bodyYaw = -sinL * 0.11 * amp;
       bodyPitch = 0.03 + norm * 0.07;
+      // mostek i barki pracują przeciwnie do bioder
+      if (arms[0]) arms[0].rotation.y = sinL * 0.12 * amp;
+      if (arms[1]) arms[1].rotation.y = sinL * 0.12 * amp;
       head.rotation.y = sinL * 0.05;
       head.rotation.x = -0.02 - norm * 0.03;
     } else {

@@ -13,8 +13,31 @@
 > | Ława, latarnia uliczna, wieża wodna, skrzynia, krzew | **KayKit — City Builder Bits** (CC0) | 5 modeli | Wilcza Dolina i Kotlina Kupców |
 >
 > Pliki leżą w `public/assets/models/`, pełna lista źródeł i licencji: `public/assets/models/LICENSE.txt`.
+>
+> | Co | Skąd | Ile | Gdzie w grze |
+> |---|------|-----|--------------|
+> | Kroki na sześciu podłożach (trawa, ziemia, śnieg, drewno, kamień, metal), lądowania | **Oculus Audio Pack 1 / Meta Open Sound** (CC BY 4.0) | 66 plików OGG | chód, bieg i upadek bohatera oraz mieszkańców |
+> | Pętle otoczenia: las, noc, brzeg jeziora, morze, deszcz, wiatr, wodospad, ptaki | **Oculus Audio Pack 1** (CC BY 4.0) | 10 plików | miksowane wagami środowiska w `AudioSystem.update()` |
+> | Fechtunek, uderzenia, kości, monety, drzwi, zwierzęta, potwory | **Oculus Audio Pack 1** (CC BY 4.0) | 39 plików | walka, łupy, kuźnia, zagrody, jaskinie |
+> | Interfejs: kliknięcia, powiadomienia, księga, plecak | **Oculus Audio Pack 1** (CC BY 4.0) | 11 plików | menu, ekwipunek, dziennik |
+> | Stingerki: poziom, zwycięstwo, porażka, chóry nocne, kuranty | **Oculus Audio Pack 1** (CC BY 4.0) | 6 plików | awans, finał, śmierć, atmosfera |
+>
+> Dźwięki leżą w `public/assets/audio/` (mono, 32 kHz — 7,1 MB całości).
+> Wymagane uznanie autorstwa: „Sound effects from the Oculus Audio Pack, © Meta Platforms, Inc.,
+> licensed under CC BY 4.0” — pełny tekst w `public/assets/audio/LICENSE.txt`.
+> Gdy plików brakuje (albo gra działa offline), `AudioSystem` wraca do syntezy proceduralnej.
 > Jeśli plik zginie, gra automatycznie wraca do modeli proceduralnych — nic się nie wysypuje.
 
+
+## 0. Kroje pisma (wbudowane w grę)
+
+| Krój | Skąd | Licencja | Gdzie |
+|------|------|----------|-------|
+| **Cinzel** (nagłówki) i **Inter** (interfejs) | Google Fonts / SIL Open Font License 1.1 | OFL 1.1 | `src/assets/fonts/*.woff2` — podzbiory z polskimi znakami (42 kB + 124 kB) |
+
+Wcześniej style pobierały krój z `fonts.googleapis.com` przez `@import`. Bez internetu
+(wydanie `.exe`) przeglądarka czekała na to zapytanie i **menu zostawało bez wyglądu**.
+Teraz pliki są w paczce, więc menu rysuje się natychmiast i offline.
 
 Wszystko poniżej jest **darmowe i legalne do użycia w grze** (najczęściej CC0 — bez podawania autora,
 także komercyjnie). Linki prowadzą prosto do pobrania, **bez konta i bez płacenia**.

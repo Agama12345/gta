@@ -451,6 +451,22 @@ export function makeHumanoid(opts = {}) {
     head.add(beardMesh);
   }
 
+  // rysy twarzy: nos, brwi, żuchwa i uszy — sylwetka głowy przestaje być kulą
+  const skinMat = mat(skin);
+  const nose = mesh(new THREE.ConeGeometry(0.032, 0.1, 5), skinMat, 0, -0.015, 0.21);
+  nose.rotation.x = Math.PI / 2;
+  head.add(nose);
+  const brow = mesh(box(0.19, 0.026, 0.05), mat(hair), 0, 0.075, 0.185);
+  head.add(brow);
+  const jaw = mesh(new THREE.SphereGeometry(0.15, 8, 6), skinMat, 0, -0.11, 0.03);
+  jaw.scale.set(1, 0.75, 0.92);
+  head.add(jaw);
+  for (const sx of [-1, 1]) {
+    const ear = mesh(new THREE.SphereGeometry(0.045, 6, 5), skinMat, sx * 0.2, -0.01, 0.0);
+    ear.scale.set(0.5, 1, 0.7);
+    head.add(ear);
+  }
+
   const eyeMat = mat(eyeColor || '#1a1410', { emissive: eyeColor ? eyeColor : '#000000', emissiveIntensity: eyeColor ? 1.6 : 0, rough: 0.2 });
   for (const sx of [-1, 1]) {
     const eye = mesh(new THREE.SphereGeometry(0.033, 6, 5), eyeMat, sx * 0.085, 0.02, 0.19);
@@ -476,12 +492,27 @@ export function makeHumanoid(opts = {}) {
     const elbow = new THREE.Group();
     elbow.position.y = -0.36;
     pivot.add(elbow);
-    const fore = mesh(ocyl(0.065, 0.058, 0.34, 6), mat(skin), 0, -0.17, 0);
+    const fore = mesh(ocyl(0.062, 0.05, 0.34, 7), mat(skin), 0, -0.17, 0);
     elbow.add(fore);
-    const hand = mesh(new THREE.SphereGeometry(0.075, 6, 5), mat(skin), 0, -0.36, 0);
-    elbow.add(hand);
+    // dłoń: nadgarstek, grzbiet, palce i kciuk — zamiast samej kuli
+    const wrist = mesh(new THREE.CylinderGeometry(0.046, 0.042, 0.06, 6), mat(skin), 0, -0.345, 0);
+    elbow.add(wrist);
+    const palm = mesh(box(0.075, 0.1, 0.045), mat(skin), 0, -0.41, 0.006);
+    elbow.add(palm);
+    const fingers = mesh(box(0.07, 0.075, 0.036), mat(skin), 0, -0.487, 0.012);
+    fingers.rotation.x = -0.12;
+    elbow.add(fingers);
+    const thumb = mesh(box(0.028, 0.055, 0.03), mat(skin), -0.042 * sx, -0.415, 0.03);
+    thumb.rotation.z = 0.5 * sx;
+    elbow.add(thumb);
+
+    // bark (naramiennik) — ramię nie wychodzi „z niczego”
+    const shoulder = mesh(new THREE.SphereGeometry(0.088, 7, 6), mat(tunic), 0, 0.01, 0);
+    shoulder.scale.set(1, 0.95, 1);
+    pivot.add(shoulder);
+
     const anchor = new THREE.Group();
-    anchor.position.set(0, -0.36, 0);
+    anchor.position.set(0, -0.44, 0.01);
     elbow.add(anchor);
 
     body.add(pivot);
@@ -493,23 +524,35 @@ export function makeHumanoid(opts = {}) {
   // nogi — biodro → kolano → stopa
   const legs = [];
   const shins = [];
+  const ankles = [];
   for (const sx of [-1, 1]) {
     const pivot = new THREE.Group();
     pivot.position.set(sx * 0.17, 0.78, 0);
-    const thigh = mesh(ocyl(0.1, 0.09, 0.42, 6), mat(pants), 0, -0.21, 0);
+    const thigh = mesh(ocyl(0.105, 0.088, 0.44, 7), mat(pants), 0, -0.22, 0);
     pivot.add(thigh);
 
     const knee = new THREE.Group();
-    knee.position.y = -0.42;
+    knee.position.y = -0.44;
     pivot.add(knee);
-    const shin = mesh(ocyl(0.088, 0.075, 0.34, 6), mat(pants), 0, -0.17, 0);
+    const shin = mesh(ocyl(0.085, 0.068, 0.34, 7), mat(pants), 0, -0.17, 0);
     knee.add(shin);
-    const foot = mesh(box(0.17, 0.1, 0.28), mat(boots), 0, -0.36, 0.05);
-    knee.add(foot);
+
+    // staw skokowy: pięta, podeszwa i palce — stopa przetacza się, zamiast
+    // być przybitą do goleni (to najbardziej „sztuczny” detal w starych grach)
+    const ankle = new THREE.Group();
+    ankle.position.set(0, -0.34, 0);
+    knee.add(ankle);
+    const heel = mesh(box(0.17, 0.1, 0.17), mat(boots), 0, -0.05, 0.0);
+    ankle.add(heel);
+    const sole = mesh(box(0.175, 0.045, 0.3), mat(boots), 0, -0.095, 0.1);
+    ankle.add(sole);
+    const toe = mesh(box(0.15, 0.075, 0.13), mat(boots), 0, -0.06, 0.23);
+    ankle.add(toe);
 
     body.add(pivot);
     legs.push(pivot);
     shins.push(knee);
+    ankles.push(ankle);
   }
 
   let cloakMesh = null;
@@ -534,7 +577,7 @@ export function makeHumanoid(opts = {}) {
   }
 
   group.userData.height = 1.85 * Math.min(1.15, bulk);
-  return { group, parts: { body, head, arms, legs, forearms, hands, shins, torso, cloak: cloakMesh } };
+  return { group, parts: { body, head, arms, legs, forearms, hands, shins, ankles, torso, cloak: cloakMesh } };
 }
 
 export function makeSword({ blade = '#cdd6dd', guard = '#b08a3e', grip = '#3a2a1c', glow = null } = {}) {

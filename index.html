@@ -22,6 +22,31 @@
         </div>
       </div>
     </div>
+    <noscript>
+      <div style="position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:#08090d;color:#e9e2d4;font:15px/1.8 system-ui;text-align:center;padding:24px">
+        <div>
+          <h1 style="color:#e2b878;font-size:22px">Runy Przeznaczenia</h1>
+          <p>Gra potrzebuje włączonego JavaScriptu.</p>
+        </div>
+      </div>
+    </noscript>
+    <script>
+      // Awaryjny komunikat, gdyby główny skrypt nie wystartował w ogóle
+      // (np. zablokowany plik JS albo gra otwarta z pliku bez serwera).
+      setTimeout(function () {
+        var box = document.getElementById('loading');
+        if (!box || box.dataset.done === '1' || window.__game) return;
+        box.innerHTML =
+          '<div class="loading-inner">' +
+          '<div class="loading-sigil" style="color:#c1443a">⚠</div>' +
+          '<h1>Gra nie wystartowała</h1>' +
+          '<p class="loading-sub">Silnik gry nie został wczytany.</p>' +
+          '<p style="color:#8a8478;font-size:12px;line-height:1.8">' +
+          'Jeśli otworzyłeś plik index.html bezpośrednio z dysku, uruchom grę przez ' +
+          '<b>RunyPrzeznaczenia.exe</b> albo polecenie <code>npm run preview</code>.' +
+          '</p><button onclick="location.reload()">Spróbuj ponownie</button></div>';
+      }, 15000);
+    </script>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

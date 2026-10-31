@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { dampAngle, dist2, TAU } from '../core/utils.js';
-import { heightAt, LOCATIONS } from '../world/terrain.js';
+import { heightAt, LOCATIONS, distanceToPath } from '../world/terrain.js';
 import { makeHumanoid } from '../world/models.js';
+import { applyGait, applyFootIK, phaseRate, applyTorsoCounter } from '../core/gait.js';
 
 export class NPC {
   constructor(game, id, def) {
@@ -93,9 +94,22 @@ export class NPC {
         this.pos.z += (dz / dist) * step;
         this.pos.y = heightAt(this.pos.x, this.pos.z);
         this.yaw = dampAngle(this.yaw, Math.atan2(dx, dz), 6, dt);
-        this.walkPhase += dt * 6.5;
-      } else {
-        this.walkPhase = dampAngle(this.walkPhase, 0, 4, dt);
+        // faza z dystansu — krok odpowiada temu, jak szybko postać naprawdę idzie
+        this.walkPhase += dt * phaseRate(this.speed, false);
+
+        // własne kroki mieszkańca — świat brzmi żywo, a nie tylko pod nogami gracza
+        const contact = Math.floor(this.walkPhase / Math.PI);
+        if (contact !== this._lastStep) {
+          this._lastStep = contact;
+          const audio = this.game.audio;
+          if (audio?.step) {
+            const surface = this._surface();
+            audio.step(surface, {
+              pan: audio._panFor?.(this.pos.x, this.pos.z) ?? 0,
+              gain: Math.max(0.12, audio.gainFor?.(this.pos.x, this.pos.z) ?? 1),
+            });
+          }
+        }
       }
       this.model.position.copy(this.pos);
     }
@@ -128,15 +142,28 @@ export class NPC {
     // krok, gdy postać idzie na nocleg lub wraca do pracy
     const legs = this.parts.legs ?? [];
     const shins = this.parts.shins ?? [];
+    const forearms = this.parts.forearms ?? [];
     if (legs.length >= 2) {
       if (this.moving) {
-        const sw = Math.sin(this.walkPhase) * 0.55;
-        legs[0].rotation.x = sw;
-        legs[1].rotation.x = -sw;
-        if (shins[0]) shins[0].rotation.x = -Math.max(0, -Math.sin(this.walkPhase - 0.5)) * 0.7;
-        if (shins[1]) shins[1].rotation.x = -Math.max(0, -Math.sin(this.walkPhase + Math.PI - 0.5)) * 0.7;
-        arms[0].rotation.x = -sw * 0.6;
-        arms[1].rotation.x = sw * 0.6;
+        // ten sam silnik chodu co u bohatera — pełny cykl stopy, nie tylko sinusoida
+        applyGait(this.parts, this.walkPhase, { amp: 0.8 });
+        const groundNow = heightAt(this.pos.x, this.pos.z);
+        const lat = 0.18;
+        const lifts = [0, 1].map((i) => {
+          const sx = i === 0 ? -1 : 1;
+          const lx = Math.cos(this.yaw) * sx * lat + Math.sin(this.yaw) * 0.12;
+          const lz = -Math.sin(this.yaw) * sx * lat + Math.cos(this.yaw) * 0.12;
+          return heightAt(this.pos.x + lx, this.pos.z + lz) - groundNow;
+        });
+        applyFootIK(this.parts, lifts);
+        applyTorsoCounter(this.parts, this.walkPhase, 0.8);
+
+        const swing = Math.sin(this.walkPhase) * 0.42;
+        arms[0].rotation.x = -swing;
+        arms[1].rotation.x = swing;
+        if (forearms[0]) forearms[0].rotation.x = -0.28 - Math.max(0, swing) * 0.5;
+        if (forearms[1]) forearms[1].rotation.x = -0.28 - Math.max(0, -swing) * 0.5;
+        head.rotation.z = 0;
       } else {
         legs[0].rotation.x = dampAngle(legs[0].rotation.x, 0, 6, dt);
         legs[1].rotation.x = dampAngle(legs[1].rotation.x, 0, 6, dt);
@@ -144,6 +171,14 @@ export class NPC {
         if (shins[1]) shins[1].rotation.x = dampAngle(shins[1].rotation.x, -0.02, 6, dt);
       }
     }
+  }
+
+  /** Podłoże pod stopami mieszkańca — do barwy kroków. */
+  _surface() {
+    const { x, z } = this.pos;
+    if (distanceToPath(x, z) < 4) return 'dirt';
+    if (heightAt(x, z) > 200) return 'snow';
+    return 'grass';
   }
 
   get interactPos() {

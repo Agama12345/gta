@@ -1,4 +1,22 @@
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Inter:wght@300;400;500;600&display=swap');
+/* Kroje pisma wbudowane w grę — żadnych zapytań do internetu.
+   Wcześniejszy @import z fonts.googleapis.com blokował cały arkusz stylów,
+   gdy gra działała bez sieci (wydanie .exe) — menu zostawało bez wyglądu. */
+@font-face {
+  font-family: 'Cinzel';
+  src: url('../assets/fonts/cinzel.woff2') format('woff2-variations'),
+       url('../assets/fonts/cinzel.woff2') format('woff2');
+  font-weight: 500 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Inter';
+  src: url('../assets/fonts/inter.woff2') format('woff2-variations'),
+       url('../assets/fonts/inter.woff2') format('woff2');
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
 
 :root {
   --ink: #0a0b0e;
@@ -525,9 +543,11 @@ button.primary:hover { color: #fff; }
 }
 .menu-screen.hidden { display: none; }
 /* --- nowe menu: dwie kolumny (hero + karta wyprawy) ---------------------- */
+/* Bez backdrop-filter: na starszych kartach (i w niektórych kompilacjach
+   Electrona) rozmycie nad canvasem potrafi wyrenderować czarny ekran menu. */
 .menu-screen {
   overflow: hidden;
-  backdrop-filter: blur(3px);
+  background-color: rgba(6, 8, 11, 0.9);
 }
 .menu-screen::before {
   content: '';
@@ -606,6 +626,31 @@ button.primary:hover { color: #fff; }
   color: rgba(233, 226, 212, 0.35);
 }
 .menu-hint b { color: rgba(226, 184, 120, 0.72); font-weight: 500; }
+.menu-buttons button {
+  position: relative;
+  text-align: left;
+  letter-spacing: 0.06em;
+  transition: transform 0.16s ease, border-color 0.18s, background 0.18s, color 0.18s, padding-left 0.18s;
+}
+.menu-buttons button:hover:not(:disabled),
+.menu-buttons button:focus-visible:not(:disabled) {
+  transform: translateX(4px);
+  padding-left: 22px;
+}
+.menu-buttons button.primary::before {
+  content: '';
+  position: absolute;
+  left: 8px; top: 50%;
+  width: 5px; height: 5px;
+  margin-top: -2.5px;
+  transform: rotate(45deg);
+  background: var(--gold);
+  box-shadow: 0 0 8px rgba(226, 184, 120, 0.9);
+  opacity: 0;
+  transition: opacity 0.18s;
+}
+.menu-buttons button.primary:hover::before,
+.menu-buttons button.primary:focus::before { opacity: 1; }
 .menu-buttons button:focus-visible,
 .menu-buttons button:focus {
   outline: 2px solid rgba(226, 184, 120, 0.55);

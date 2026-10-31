@@ -479,7 +479,7 @@ export class UI {
           <div class="card-body" id="title-foot"></div>
           <div class="card-tip" id="title-tip"></div>
           <div class="card-foot">
-            <span>wersja 1.2</span>
+            <span>wersja 1.3</span>
             <span id="menu-clock">—</span>
           </div>
         </aside>
@@ -725,10 +725,59 @@ export class UI {
     return true;
   }
 
+  /** Ustawienia grafiki (zapamiętywane w przeglądarce). */
+  videoSettings() {
+    const def = { quality: 100, shadows: true, view: 100, fov: 62 };
+    try {
+      const raw = localStorage.getItem('runy-video');
+      if (raw) return { ...def, ...JSON.parse(raw) };
+    } catch (err) {
+      /* brak dostępu do localStorage — zostają wartości domyślne */
+    }
+    return def;
+  }
+
+  setVideoSetting(key, value) {
+    const cfg = { ...this.videoSettings(), [key]: value };
+    try {
+      localStorage.setItem('runy-video', JSON.stringify(cfg));
+    } catch (err) {
+      /* tryb prywatny — ustawienie działa do końca sesji */
+    }
+    this.applyVideoSettings(cfg);
+  }
+
+  /** Nakłada ustawienia grafiki na renderer, kamerę i mgłę. */
+  applyVideoSettings(cfg = this.videoSettings()) {
+    const g = this.game;
+    const r = g.renderer;
+    if (r) {
+      try {
+        r.setPixelRatio?.(Math.max(0.6, Math.min(2, cfg.quality / 100)));
+        r.setSize?.(window.innerWidth, window.innerHeight);
+        if (r.shadowMap) r.shadowMap.enabled = !!cfg.shadows;
+      } catch (err) {
+        console.warn('Nie udało się zmienić jakości grafiki', err);
+      }
+    }
+    if (g.sun) g.sun.castShadow = !!cfg.shadows;
+    if (g.camera) {
+      g.camera.fov = cfg.fov;
+      g.camera.updateProjectionMatrix?.();
+    }
+    if (g.scene?.fog) {
+      const scale = cfg.view / 100;
+      g.scene.fog.near = 90 * scale;
+      g.scene.fog.far = 1150 * scale;
+    }
+    return cfg;
+  }
+
   /** Panel ustawień — głośność, głosy, jakość obrazu. */
   showSettings() {
     const audio = this.game.audio;
     const voice = this.game.voice;
+    const video = this.videoSettings();
     const vol = Math.round((audio?.master?.gain?.value ?? 0.55) * 100);
     const body = `
       <div class="settings">
@@ -757,8 +806,26 @@ export class UI {
         <div class="setting-row">
           <div><b>Ostrość obrazu</b><div class="sub">Niższa wartość = płynniej na słabszym komputerze</div></div>
           <div class="setting-ctrl">
-            <input type="range" id="set-quality" min="75" max="200" step="25" value="${Math.round((this.game.renderer?.getPixelRatio?.() ?? 1) * 100)}" />
-            <span id="set-quality-val">${Math.round((this.game.renderer?.getPixelRatio?.() ?? 1) * 100)}%</span>
+            <input type="range" id="set-quality" min="60" max="200" step="10" value="${video.quality}" />
+            <span id="set-quality-val">${video.quality}%</span>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div><b>Cienie</b><div class="sub">Wyłącz, jeśli obraz klatkuje albo migocze</div></div>
+          <div class="setting-ctrl"><button id="set-shadows">${video.shadows ? 'Włączone' : 'Wyłączone'}</button></div>
+        </div>
+        <div class="setting-row">
+          <div><b>Zasięg widzenia</b><div class="sub">Mgła i odległość rysowania krajobrazu</div></div>
+          <div class="setting-ctrl">
+            <input type="range" id="set-view" min="60" max="140" step="10" value="${video.view}" />
+            <span id="set-view-val">${video.view}%</span>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div><b>Pole widzenia</b><div class="sub">Szersze = więcej świata, ale mocniejsze zniekształcenia</div></div>
+          <div class="setting-ctrl">
+            <input type="range" id="set-fov" min="55" max="80" step="1" value="${video.fov}" />
+            <span id="set-fov-val">${video.fov}°</span>
           </div>
         </div>
         <div class="setting-row">
@@ -795,8 +862,22 @@ export class UI {
     panel.querySelector('#set-quality')?.addEventListener('input', (e) => {
       const v = Number(e.target.value);
       panel.querySelector('#set-quality-val').textContent = `${v}%`;
-      this.game.renderer?.setPixelRatio?.(v / 100);
-      this.game.renderer?.setSize?.(window.innerWidth, window.innerHeight);
+      this.setVideoSetting('quality', v);
+    });
+    panel.querySelector('#set-shadows')?.addEventListener('click', (e) => {
+      const on = !this.videoSettings().shadows;
+      e.target.textContent = on ? 'Włączone' : 'Wyłączone';
+      this.setVideoSetting('shadows', on);
+    });
+    panel.querySelector('#set-view')?.addEventListener('input', (e) => {
+      const v = Number(e.target.value);
+      panel.querySelector('#set-view-val').textContent = `${v}%`;
+      this.setVideoSetting('view', v);
+    });
+    panel.querySelector('#set-fov')?.addEventListener('input', (e) => {
+      const v = Number(e.target.value);
+      panel.querySelector('#set-fov-val').textContent = `${v}°`;
+      this.setVideoSetting('fov', v);
     });
     panel.querySelector('#set-keys')?.addEventListener('click', () => this.showControls());
   }
@@ -1597,11 +1678,20 @@ export class UI {
           <div class="stat-row"><span class="k">Rozwój</span><span class="v">poziomy, atrybuty, ekwipunek</span></div>
           <div class="stat-row"><span class="k">Fabuła</span><span class="v">5 zadań, dialogi, wybory</span></div>
           <div class="stat-row"><span class="k">Rzemiosło</span><span class="v">kuźnia, mikstury, legendarna klinga</span></div>
+          <div class="stat-row"><span class="k">Dźwięk</span><span class="v">nagrane kroki, pętle lasu, fechtunek, głosy</span></div>
         </div>
         <div class="card"><h4>Podpowiedź</h4>
           <p class="panel-note">Zacznij od rozmowy ze Starym Eryn przy ognisku w Wilczej Dolinie.
           Nocą w kurhanie pojawia się coś, czego nie ma w dzień. A prawdziwa kuźnia leży na Kowalskiej Górze.</p>
         </div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <h4>Autorzy i licencje</h4>
+        <div class="stat-row"><span class="k">Kod i świat</span><span class="v">własny — Three.js + proceduralny teren</span></div>
+        <div class="stat-row"><span class="k">Modele 3D</span><span class="v">KayKit (CC0) — drzewa, ruiny, sprzęty, szkielety</span></div>
+        <div class="stat-row"><span class="k">Dźwięk</span><span class="v">Oculus Audio Pack, © Meta, CC BY 4.0</span></div>
+        <div class="stat-row"><span class="k">Pismo</span><span class="v">Cinzel i Inter — SIL OFL 1.1</span></div>
+        <div class="stat-row"><span class="k">Wersja</span><span class="v">1.3 · pełna lista źródeł w ASSETS.md</span></div>
       </div>`;
     this.infoPanel.classList.remove('hidden');
     this.infoPanel.classList.add('show');

@@ -19,7 +19,7 @@ Alternatywy: [paczka ZIP](https://github.com/Agama12345/gta/raw/arena/68dc2b6a-g
 (rozpakuj → `Uruchom-gre.cmd`) albo launcher **Arcane Spire**
 ([`ArcaneSpire.exe`](https://github.com/Agama12345/gta/releases/download/launcher-latest/ArcaneSpire.exe)).
 
-## Co jest w świecie (wersja 1.4)
+## Co jest w świecie (wersja 1.3)
 
 - **Mapa 5 × 5 km (25 km², ~5× więcej terenu niż wcześniej)** — góry, przełęcze, lasy,
   bagno, jezioro i wybrzeże. Wszystkie odległości w grze są liczone w metrach.
@@ -52,17 +52,34 @@ Alternatywy: [paczka ZIP](https://github.com/Agama12345/gta/raw/arena/68dc2b6a-g
   Modele proceduralne (sosny z piętrami korony, dęby z korzeniami, brzozy, mchy) zostają
   jako uzupełnienie i jako zapas, gdyby plików nie było.
   Licencje i źródła: `public/assets/models/LICENSE.txt`.
-- **Animacje ze stawami:** kolana, łokcie, kołysanie bioder, skręt tułowia, przeciwfaza
-  rąk i nóg, zamach i wyhamowanie ciosu, peleryna z segmentów, **pochylenie ciała na zboczu,
-  przechył w zakręcie, skłon w biegu i amortyzacja kolan po lądowaniu** — bohater stoi
-  i porusza się tak, jakby naprawdę dotykał ziemi.
+- **Animacje ze stawami:** kolana, łokcie, **staw skokowy z piętą i palcami**, kołysanie
+  bioder, skręt tułowia, przeciwfaza rąk i nóg, zamach i wyhamowanie ciosu, peleryna
+  z segmentów, **pochylenie ciała na zboczu, przechył w zakręcie, skłon w biegu
+  i amortyzacja kolan po lądowaniu**.
+- **Chód liczony z dystansu, nie z czasu** (`src/core/gait.js`): kadencja wynika z tego,
+  ile metrów naprawdę pokonujesz, więc stopy **nie ślizgają się** po ziemi przy zmianie
+  prędkości. Staw skokowy pracuje jak u człowieka (pięta → płasko → odbicie palcami),
+  a **każda stopa dopasowuje się do nierówności terenu** (lekkie IK) — dotyczy to również
+  mieszkańców, którzy mają własne kroki słyszalne w panoramie dźwięku.
+- **Realistyczniejsza sylwetka:** dłonie z nadgarstkiem, palcami i kciukiem, barki,
+  nos, brwi, żuchwa i uszy — zamiast samych kul i walców.
 - **Menu i interfejs:** ekran tytułowy z kartą wyprawy (poziom, złoto, zadania, data zapisu,
   obracająca się wskazówka, zegar świata), menu pauzy z podsumowaniem stanu, obsługa
-  klawiatury (↑ ↓ · Enter · Esc), ustawienia z muzyką i głosami, czytelniejszy HUD
-  z plakietkami stanu (skradanie, blok, bieg, most, deszcz) i dopracowany ekwipunek.
-- **Dźwięk otoczenia w stereo:** wiatr, fale, ptaki, świerszcze, sowa, wilki w oddali,
-  trzask ognia, kroki zależne od podłoża (trawa / ziemia / kamień / woda / śnieg),
-  pogłos otwartej przestrzeni.
+  klawiatury (↑ ↓ · Enter · Esc), czytelniejszy HUD z plakietkami stanu (skradanie, blok,
+  bieg, most, deszcz) i dopracowany ekwipunek.
+- **Menu działa offline i na słabszym sprzęcie:** kroje pisma (Cinzel, Inter) są w paczce
+  zamiast pobierane z Google Fonts (stary `@import` potrafił zablokować cały arkusz stylów
+  bez internetu — menu zostawało bez wyglądu), zniknęło rozmycie `backdrop-filter` nad
+  canvasem, a ustawienia mają **cienie, zasięg widzenia, pole widzenia i ostrość obrazu**.
+  Start pilnuje watchdog: zamiast wiecznego „Rozpalanie pochodni…” pojawia się konkretny
+  komunikat z przyciskiem „Spróbuj ponownie”. Cały przepływ menu pokrywa `tests/menu.mjs`.
+- **Nagrany dźwięk (130 plików, 7,1 MB) + synteza w zapasie:** kroki na sześciu
+  podłożach (trawa, ziemia, śnieg, drewno, kamień, metal) w wersji chód/bieg, lądowania,
+  świst i zgrzyt ostrza, uderzenia, monety, drzwi, zwierzęta, potwory, kliknięcia
+  interfejsu i **orkiestrowe stingerki** (awans, zwycięstwo, porażka).
+  Tło: miksowane pętle **lasu, nocy, brzegu jeziora, morza, deszczu, wiatru i wodospadu**.
+  Źródło: Oculus Audio Pack (Meta, CC BY 4.0) — szczegóły w `public/assets/audio/LICENSE.txt`;
+  gdy plików brakuje, wszystko wraca do syntezy proceduralnej.
 - **Postacie mówią na głos** — dialogi czytane syntezą mowy systemu, każda postać ma
   własną barwę (wysokość i tempo). Klawisz **V** włącza/wyłącza głosy.
 - **Pogoda:** słońce, zachmurzenie, deszcz, burza i mgła zmieniają się same; deszcz
