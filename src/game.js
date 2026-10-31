@@ -80,6 +80,19 @@ export class Game {
     } catch (err) {
       /* brak dostępu do informacji o GPU — zostają ustawienia gracza */
     }
+
+    // Sieć bezpieczeństwa: gdyby sterownik odrzucił wstrzyknięty shader gruntu
+    // (splat tekstur), wracamy do prostego materiału z kolorem wierzchołków,
+    // zamiast pokazywać czarną mapę.
+    this.renderer.debug.onShaderError = (gl, program, vs, fs) => {
+      try {
+        console.error('Shader nie skompilował się — wyłączam splat gruntu');
+        this.world?.terrain?.disableGroundSplat?.();
+      } catch (err) {
+        /* nic więcej nie zrobimy */
+      }
+      void program; void vs; void fs; void gl;
+    };
   }
 
   _initScene() {

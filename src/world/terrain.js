@@ -1148,6 +1148,19 @@ export class TerrainManager {
     }
   }
 
+  /**
+   * Awaryjne wyłączenie teksturowanego gruntu (np. gdy sterownik nie przyjmie
+   * shadera): zostaje kolor z wierzchołków, mapa dalej jest grywalna.
+   */
+  disableGroundSplat() {
+    const mat = this.material;
+    if (!mat || mat.userData.splatDisabled) return;
+    mat.userData.splatDisabled = true;
+    mat.onBeforeCompile = () => {};
+    mat.customProgramCacheKey = () => 'ground-plain';
+    mat.needsUpdate = true;
+  }
+
   lodForDistance(d) {
     // Bliski plan: 3,9 m między wierzchołkami — bez tego zbocza i skarpy
     // wyglądają jak wielkie płaskie trójkąty, zwłaszcza z teksturami.
