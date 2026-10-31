@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { farLod, midLod } from './decimate.js';
 
@@ -462,8 +464,12 @@ export async function loadAssets(onProgress) {
     }).catch((err) => { lib.failed.push(`nature/${key}: ${err?.message ?? err}`); }).finally(tick));
   }
 
-  for (const [key, url] of Object.entries(PROP_MODELS)) {
-    jobs.push(loadOne(loader, url).then((gltf) => {
+  // Własne modele (np. z Creazilli) wystarczy wrzucić do
+  // `public/assets/models/props/` i dopisać jedną linijkę do `manifest.json` —
+  // kod gry nie wymaga wtedy żadnej zmiany. Obsługujemy .glb/.gltf, .obj i .stl.
+  const extraProps = await readPropsManifest();
+  for (const [key, url] of Object.entries({ ...PROP_MODELS, ...extraProps })) {
+    jobs.push(loadProp(url).then((gltf) => {
       const scene = gltf.scene;
       const info = measure(scene);
       lib.props[key] = { scene, height: info.height, width: info.width };
@@ -489,6 +495,58 @@ export async function loadAssets(onProgress) {
   await Promise.all(jobs);
   if (lib.failed.length) console.warn('Nie wszystkie modele się wczytały:', lib.failed);
   return lib;
+}
+
+
+/**
+ * Manifest własnych propsów: `public/assets/models/props/manifest.json`
+ * w formacie `{ "klucz": "plik.obj", ... }`. Wczytujemy go, jeśli istnieje —
+ * brak pliku to nie błąd (gra używa wtedy tylko paczek CC0).
+ */
+async function readPropsManifest() {
+  try {
+    const res = await fetch(`${BASE}props/manifest.json`, { cache: 'no-cache' });
+    if (!res.ok) return {};
+    const data = await res.json();
+    const out = {};
+    for (const [key, file] of Object.entries(data)) {
+      if (key.startsWith('_')) continue; // komentarze w manifeście
+      if (typeof file === 'string' && file) out[key] = `props/${file}`;
+    }
+    return out;
+  } catch (err) {
+    return {};
+  }
+}
+
+/**
+ * Wczytuje prop w formacie, jaki ma plik: GLB/GLTF, OBJ albo STL.
+ * Creazilla udostępnia właśnie .obj i .stl obok .glb, więc obsługujemy
+ * wszystkie trzy, żeby wrzucenie pliku wystarczyło.
+ * @returns {Promise<{scene: THREE.Object3D}>}
+ */
+async function loadProp(url) {
+  const full = BASE + url;
+  const lower = url.toLowerCase();
+  if (lower.endsWith('.obj')) {
+    const obj = await new OBJLoader().loadAsync(full);
+    obj.traverse((o) => {
+      if (!o.isMesh) return;
+      // OBJ prawie nigdy nie ma tekstur — dajemy materiał z kolorem z pliku MTL
+      o.material ??= new THREE.MeshStandardMaterial({ color: 0x8a8272, roughness: 0.85 });
+      if (o.material.map === undefined) o.material.roughness ??= 0.85;
+    });
+    return { scene: obj };
+  }
+  if (lower.endsWith('.stl')) {
+    const geo = await new STLLoader().loadAsync(full);
+    geo.computeVertexNormals();
+    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x9a9080, roughness: 0.9 }));
+    const group = new THREE.Group();
+    group.add(mesh);
+    return { scene: group };
+  }
+  return new GLTFLoader().loadAsync(full);
 }
 
 /**

@@ -1,0 +1,4 @@
+{
+  "_komentarz": "Własne modele: dopisz tutaj \"klucz\": \"plik.obj\" (albo .glb / .stl), a gra wczyta go jako prop. Klucz jest potem używany w kodzie (np. 'mine_sword') albo w poleceniu placeProp.",
+  "_przyklad": "anvil: 'kowadlo.glb', gallows: 'szubienica.obj'"
+}
