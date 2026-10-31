@@ -194,26 +194,43 @@ export class ModelScatter {
     return true;
   }
 
-  finalize(lib) {
+  /**
+   * Tworzy InstancedMesh z podziałem na kafle świata (domyślnie 1 km). Dzięki
+   * temu silnik odrzuca całe kafle poza kamerą — kilka tysięcy drzew nie musi
+   * być rysowane, gdy patrzysz w drugą stronę.
+   */
+  finalize(lib, cellSize = 1000) {
     let meshes = 0;
+    const white = new THREE.Color(0xffffff);
     for (const [key, list] of this.buckets) {
       const model = lib.nature[key];
       if (!model || !list.length) continue;
-      for (const part of model.parts) {
-        const mesh = new THREE.InstancedMesh(part.geometry, part.material, list.length);
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        mesh.name = `inst-${key}`;
-        const hasColor = list.some((e) => e.color);
-        for (let i = 0; i < list.length; i++) {
-          mesh.setMatrixAt(i, list[i].matrix);
-          if (hasColor) mesh.setColorAt(i, list[i].color ?? new THREE.Color(0xffffff));
+      const cells = new Map();
+      for (const entry of list) {
+        const cx = Math.floor(entry.matrix.elements[12] / cellSize);
+        const cz = Math.floor(entry.matrix.elements[14] / cellSize);
+        const id = `${cx}:${cz}`;
+        if (!cells.has(id)) cells.set(id, []);
+        cells.get(id).push(entry);
+      }
+      for (const [cellId, entries] of cells) {
+        const anyColor = entries.some((e) => e.color);
+        for (const part of model.parts) {
+          const mesh = new THREE.InstancedMesh(part.geometry, part.material, entries.length);
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          mesh.name = `inst-${key}-${cellId}`;
+          for (let i = 0; i < entries.length; i++) {
+            mesh.setMatrixAt(i, entries[i].matrix);
+            if (anyColor) mesh.setColorAt(i, entries[i].color ?? white);
+          }
+          mesh.instanceMatrix.needsUpdate = true;
+          if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+          mesh.computeBoundingSphere();
+          mesh.frustumCulled = true;
+          this.group.add(mesh);
+          meshes += 1;
         }
-        mesh.instanceMatrix.needsUpdate = true;
-        if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-        mesh.computeBoundingSphere?.();
-        this.group.add(mesh);
-        meshes += 1;
       }
     }
     this.buckets.clear();
