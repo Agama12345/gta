@@ -33,7 +33,7 @@ Alternatywy: [paczka ZIP](https://github.com/Agama12345/gta/raw/arena/68dc2b6a-g
   skraju mapy: dalej jest po prostu morze.
 - **Nowe miejsca:** Latarnia na Cyplu (obraca smuga światła nocą), wrak „Zimnej Fali”,
   Chaty Rybaków z pomostem, suszarniami i rybakiem Tobiaszem (handel + własne dialogi).
-- **Prawdziwe modele 3D (CC0, KayKit) obok proceduralnych:** 12 modeli natury
+- **Prawdziwe modele 3D (CC0, KayKit) obok proceduralnych:** 13 modeli natury
   (drzewa iglaste i liściaste, młode drzewka, pięć rodzajów głazów, grążele i rośliny wodne)
   rozsypywanych w tysiącach egzemplarzy przez `InstancedMesh`, 8 modeli wyposażenia
   (beczki, skrzynie, kufry, beczułki, pochodnie, stoły, krzesła) w osadach i obozach,
