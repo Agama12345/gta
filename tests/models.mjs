@@ -111,7 +111,11 @@ for (const list of [NATURE_MODELS, PROP_MODELS, CHAR_MODELS]) {
 
 const lib = await loadAssets();
 const totalModels = Object.keys(NATURE_MODELS).length + Object.keys(PROP_MODELS).length + Object.keys(CHAR_MODELS).length;
-check('wszystkie modele wczytane', lib.loaded === totalModels && lib.failed.length === 0, JSON.stringify(lib.failed));
+check('wszystkie modele wczytane', lib.loaded >= totalModels && lib.failed.length === 0, JSON.stringify(lib.failed));
+check('biblioteka animacji postaci wczytana', (lib.animLibrary?.clips?.length ?? 0) >= 25, String(lib.animLibrary?.clips?.length));
+check('bohater ma model z zewnątrz', !!lib.custom?.hero?.file, lib.custom?.hero?.file ?? 'brak');
+check('mieszkańcy mają modele z zewnątrz', Object.keys(lib.custom?.npcs ?? {}).length >= 10, String(Object.keys(lib.custom?.npcs ?? {}).length));
+check('modele postaci nie zgłosiły błędów', !lib.failed.some((f) => f.startsWith('chars/')), lib.failed.filter((f) => f.startsWith('chars/')).join(','));
 check('katalog ma co najmniej 55 modeli', totalModels >= 55, `(${totalModels})`);
 check('drzewa jesienne i martwe wczytane', !!lib.nature.tree_dead_large && !!lib.nature.pine_autumn_large);
 check('cmentarz i kapliczki wczytane', !!lib.props.grave_a && !!lib.props.crypt && !!lib.props.shrine_candles);

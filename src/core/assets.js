@@ -134,8 +134,9 @@ class AssetLibrary {
     this.nature = {};
     this.props = {};
     this.chars = {};
-    // modele postaci dostarczone przez człowieka (opcjonalne, patrz chars/README.md)
+    // modele postaci (Quaternius, CC0) + biblioteka animacji — patrz chars/README.md
     this.custom = { hero: null, npcs: {} };
+    this.animLibrary = null;
     this.failed = [];
     this.loaded = 0;
   }
@@ -177,6 +178,17 @@ export async function loadCustomCharacters(loader, lib, base = BASE) {
   }
   if (!manifest) return;
 
+  // biblioteka animacji (jeden plik dla wszystkich postaci)
+  if (manifest.library) {
+    try {
+      const gltf = await loader.loadAsync(`${base}chars/${manifest.library}`);
+      lib.animLibrary = { scene: gltf.scene, clips: gltf.animations ?? [] };
+      lib.loaded += 1;
+    } catch (err) {
+      lib.failed.push(`chars/biblioteka animacji: ${err?.message ?? err}`);
+    }
+  }
+
   const jobs = [];
   if (manifest.hero) jobs.push(['hero', manifest.hero]);
   for (const [id, file] of Object.entries(manifest.npcs ?? {})) jobs.push([`npc:${id}`, file]);
@@ -203,6 +215,7 @@ export async function loadCustomCharacters(loader, lib, base = BASE) {
         animations,
         height: measure(gltf.scene).height,
         file,
+        library: lib.animLibrary,
       };
       if (key === 'hero') lib.custom.hero = entry;
       else lib.custom.npcs[key.slice(4)] = entry;

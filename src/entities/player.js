@@ -106,7 +106,12 @@ export class Player {
     const custom = this.game.assets?.custom?.hero;
     if (custom) {
       try {
-        this.rig = new CharacterRig(custom, { targetHeight: 1.82, name: 'bohater' });
+        this.rig = new CharacterRig(custom, {
+          targetHeight: 1.82,
+          name: 'bohater',
+          library: custom.library,
+          tint: { skin: '#dcb08a' },
+        });
         this.model = this.rig.group;
         this.parts = null;
         this._buildRigWeapons();
@@ -166,26 +171,24 @@ export class Player {
   _buildRigWeapons() {
     const sword = makeSword({ blade: '#d9e2e8', guard: '#b08a3e', grip: '#3a2a1c' });
     sword.scale.setScalar(0.9);
+    sword.position.set(0, 0.02, 0.02);
+    sword.rotation.set(-0.55, 0, 0.1);
     this.weaponMesh = sword;
 
     const shield = makeShield('#5d5341');
     shield.scale.setScalar(0.86);
+    shield.position.set(0, 0.04, 0.02);
+    shield.rotation.set(0, Math.PI / 2, 0);
 
     const right = this.rig && this.rig.attach(sword, 'rightHand');
-    if (right) {
-      sword.position.set(0, 0.02, 0.02);
-      sword.rotation.set(-0.55, 0, 0.1);
-    } else {
+    if (!right) {
       // brak kości dłoni — miecz wędruje na plecy, żeby nie wisiał w powietrzu
       sword.position.set(0.16, 1.32, -0.16);
       sword.rotation.set(0.5, 0, -1.15);
       this.group.add(sword);
     }
     const left = this.rig && this.rig.attach(shield, 'leftHand');
-    if (left) {
-      shield.position.set(0, 0.04, 0.02);
-      shield.rotation.set(0, Math.PI / 2, 0);
-    } else if (!right) {
+    if (!left && !right) {
       shield.position.set(-0.2, 1.2, -0.18);
       shield.rotation.set(0, Math.PI / 2, 0.2);
       this.group.add(shield);
@@ -902,10 +905,7 @@ export class Player {
         dead: this.hp <= 0,
         talking: false,
       });
-      const rate = state === 'walk'
-        ? clamp(speedMag / 1.7, 0.55, 1.7)
-        : state === 'run' ? clamp(speedMag / 5.2, 0.7, 1.5) : 1;
-      this.rig.play(state, { rate });
+      this.rig.play(state, { speed: state === 'walk' || state === 'run' ? speedMag : null });
       this.rig.update(dt);
       if (this.shadowBlob) {
         const ground = heightAt(this.pos.x, this.pos.z);

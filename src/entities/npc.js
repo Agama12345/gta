@@ -24,6 +24,10 @@ export class NPC {
     // wieczorem każdy wraca w stronę domostw (kilka metrów w głąb osady)
     this.nightPos = this._makeNightSpot(def, this.basePos);
     this.moving = false;
+    // praca przy warsztacie: kowal uderza młotem, zielarka sięga po zioła
+    this.workAnim = def.workAnim ?? (id === 'borys' ? 'attack' : id === 'marena' ? 'use' : id === 'rybak' ? 'cast' : null);
+    this._workTimer = 6 + Math.random() * 10;
+    this._working = 0;
 
     // Model mieszkańca z zewnątrz (jeśli człowiek taki dostarczył)
     const customModel = game.assets?.custom?.npcs?.[id];
@@ -32,6 +36,8 @@ export class NPC {
         this.rig = new CharacterRig(customModel, {
           targetHeight: def.visual?.bulk ? 1.85 * Math.min(1.15, def.visual.bulk) : 1.78,
           name: def.name,
+          library: customModel.library,
+          tint: def.visual,
         });
         this.model = this.rig.group;
         this.parts = null;
@@ -141,8 +147,25 @@ export class NPC {
     this.phase += dt;
 
     if (this.rig) {
-      this.rig.play(animStateFor({ moving: this.moving, run: false, talking: false }), {
-        rate: this.moving ? 1 : 1,
+      const talking = this.game.dialogue?.npcId === this.id;
+      // trwająca „czynność” (uderzenie młotem, sięgnięcie po zioła) ma pierwszeństwo
+      if (this._working > 0) {
+        this._working -= dt;
+        this.rig.update(dt);
+        if (this._working <= 0) this.rig.play('idle', { fade: 0.3 });
+        return;
+      }
+      this._workTimer -= dt;
+      if (!this.moving && !talking && this.workAnim && this._workTimer <= 0 && this.rig.has(this.workAnim)) {
+        this._workTimer = 9 + Math.random() * 12;
+        this._working = (this.rig.clips[this.workAnim]?.duration ?? 1.2) * 0.92;
+        this.rig.play(this.workAnim, { fade: 0.18, reset: true });
+        this.rig.update(dt);
+        return;
+      }
+      this.rig.play(animStateFor({ moving: this.moving, run: false, talking: !!talking }), {
+        speed: this.moving ? this.speed : null,
+        fade: talking ? 0.35 : 0.22,
       });
       this.rig.update(dt);
       return;

@@ -88,12 +88,26 @@ Alternatywy: [paczka ZIP](https://github.com/Agama12345/gta/raw/arena/68dc2b6a-g
 - **Grunt z mikrorzeźbą:** teren ma teraz mapę detalu 512 px z wielkoskalowymi łatami
   (kafel przestaje się „powtarzać”) oraz **bump mapę** z kamykami i garby — ziemia
   pod stopami ma fakturę, nie tylko kolor.
-- **Modele postaci od Ciebie — wtykane bez kodu:** wystarczy wrzucić `.glb` do
-  `public/assets/models/chars/` i dopisać wpis w `models.json`. Gra dopasuje skalę,
-  znajdzie kości dłoni (miecz i tarcza same się przypną), rozpozna klipy po nazwach
-  (`Idle`, `Walk`, `Run`, `Attack`, `Death`… także `Armature|Idle_01` i Mixamo),
-  a przy braku pliku wróci do sylwetek proceduralnych. Instrukcja:
-  `public/assets/models/chars/README.md`, walidacja: `node tests/character.mjs`.
+- **Bohater i mieszkańcy to prawdziwe modele 3D:** 9 postaci z paczek Quaternius
+  (CC0) — bohater w zielonej kurtce z plecakiem, starosta w dostojnym płaszczu,
+  kowal w skórzanym fartuchu, zielarka, kupcy, rybak, uczennica i zjawa. Każda ma
+  własne kolory ubrań, włosów i skóry (z definicji postaci), a miecz i tarcza
+  bohatera siedzą w kościach dłoni.
+- **Jedna biblioteka ruchu dla wszystkich:** 31 klipów *Universal Animation
+  Library* (CC0) jest przeliczanych na szkielet każdej postaci w locie
+  (`src/entities/clipRetarget.js`) — dopasowanie po rolach kości (biodra,
+  kręgosłup, ręce, nogi), przenoszenie kierunków kości w świecie, ruch bioder
+  i tempo chodu dobrane do prędkości. Dzięki temu chód, bieg, cios mieczem, unik,
+  siad, rozmowa i pływanie wyglądają naturalnie, a nie „na sztywno”.
+- **Życie w tle:** kowal uderza młotem przy warsztacie, zielarka sięga po zioła,
+  rybak zarzuca wędkę, mieszkańcy odwracają się do gracza i rozmawiają, gdy
+  klikniesz „Porozmawiaj”.
+- **Podmiana na własne modele:** wrzucasz `.glb` do `public/assets/models/chars/`
+  i dopisujesz wpis w `models.json`. Gra dopasuje skalę, znajdzie kości dłoni,
+  rozpozna klipy po nazwach (także `Armature|Idle_01` i Mixamo), naprawi uszkodzone
+  wagi skórowania, a przy braku pliku wróci do sylwetek proceduralnych.
+  Instrukcja: `public/assets/models/chars/README.md`,
+  walidacja: `node tests/characters3d.mjs`.
 - **Nagrany dźwięk (130 plików, 7,1 MB) + synteza w zapasie:** kroki na sześciu
   podłożach (trawa, ziemia, śnieg, drewno, kamień, metal) w wersji chód/bieg, lądowania,
   świst i zgrzyt ostrza, uderzenia, monety, drzwi, zwierzęta, potwory, kliknięcia

@@ -101,3 +101,25 @@ proceduralnych — nic się nie wysypuje.
    Repo:   https://github.com/KayKit-Game-Assets/KayKit-City-Builder-Bits-1.0
 
    bench, streetlight, watertower, box_A, bush
+
+--------------------------------------------------------------------------
+8. CHARS/ — BOHATER I MIESZKAŃCY (Quaternius)
+   Paczki: Ultimate Modular Men / Ultimate Modular Women
+   Autor:  Quaternius
+   Strona: https://quaternius.com/packs/ultimatemodularmen.html
+           https://quaternius.com/packs/ultimatemodularwomen.html
+   Licencja: CC0 1.0 (public domain)
+   Pliki:  postac_bohater.glb, postac_starosta.glb, postac_kowal.glb,
+           postac_zielarka.glb, postac_kupiec.glb, postac_uczennica.glb,
+           postac_pustelnik.glb, postac_rybak.glb, postac_duch.glb
+
+9. CHARS/ANIMACJE/UAL.GLB — BIBLIOTEKA ANIMACJI (Quaternius)
+   Paczka: Universal Animation Library (wersja standard)
+   Autor:  Quaternius
+   Strona: https://quaternius.com/packs/universalanimationlibrary.html
+   Licencja: CC0 1.0 (public domain)
+   Uwaga: plik przycięty do 31 klipów używanych przez grę (bez siatki manekina).
+
+   Animacje są przeliczane na szkielet każdej postaci w locie
+   (src/entities/clipRetarget.js) — bohater i mieszkańcy mogą więc mieć własne
+   modele o dowolnym nazewnictwie kości.

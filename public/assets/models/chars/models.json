@@ -1,0 +1,16 @@
+{
+  "library": "animacje/ual.glb",
+  "hero": "postac_bohater.glb",
+  "npcs": {
+    "eryn": "postac_starosta.glb",
+    "borys": "postac_kowal.glb",
+    "marena": "postac_zielarka.glb",
+    "zorzan": "postac_kupiec.glb",
+    "wilk": "postac_bohater.glb",
+    "iskra": "postac_uczennica.glb",
+    "pustelnik": "postac_pustelnik.glb",
+    "kupiec": "postac_rybak.glb",
+    "rybak": "postac_rybak.glb",
+    "duch": "postac_duch.glb"
+  }
+}
