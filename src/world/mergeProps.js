@@ -164,6 +164,23 @@ export class PropBatcher {
  *
  * @returns {{before:number, after:number, merged:number}}
  */
+// Rodzina materiałów: wszystko, co różni się TYLKO kolorem, da się scalić —
+// kolor trafia do wierzchołków. Dzięki temu setki propsów z własnym materiałem
+// (każdy `new MeshStandardMaterial`) lądują w kilku siatkach zamiast setek.
+function materialFamily(mat) {
+  return [
+    mat.type,
+    mat.map?.uuid ?? '-',
+    mat.emissive ? mat.emissive.getHexString() : '-',
+    mat.emissiveIntensity ?? 0,
+    mat.side,
+    mat.flatShading ? 1 : 0,
+    mat.alphaTest ?? 0,
+    Math.round((mat.roughness ?? 0.8) * 5) / 5,
+    Math.round((mat.metalness ?? 0) * 5) / 5,
+  ].join('|');
+}
+
 export function mergeStaticGroups(root, { protect = [], skipName = /chunk|water|sea|foam|river|lake|gull|firefl|trawa|inst-|ciek/ } = {}) {
   const protectedNodes = new Set();
   for (const p of protect) p?.traverse?.((o) => protectedNodes.add(o));
@@ -182,7 +199,6 @@ export function mergeStaticGroups(root, { protect = [], skipName = /chunk|water|
 
   const buckets = new Map();
   let before = 0;
-  const candidates = [];
   root.traverse((o) => {
     if (!o.isMesh || o.isInstancedMesh || o.isSkinnedMesh) return;
     if (o.visible === false) return;
@@ -192,41 +208,86 @@ export function mergeStaticGroups(root, { protect = [], skipName = /chunk|water|
     const geo = o.geometry;
     if (!geo?.attributes?.position || geo.morphAttributes && Object.keys(geo.morphAttributes).length) return;
     if (isProtected(o)) return;
-    const attrs = Object.keys(geo.attributes).sort().join(',');
-    const key = `${mat.uuid}|${attrs}`;
+    const key = materialFamily(mat);
     let bucket = buckets.get(key);
     if (!bucket) {
-      bucket = { material: mat, geometries: [], nodes: [] };
+      bucket = { material: mat, geometries: [], nodes: [], castShadow: false, receiveShadow: false };
       buckets.set(key, bucket);
     }
-    const copy = geo.clone();
-    const m = new THREE.Matrix4().multiplyMatrices(toLocal, o.matrixWorld);
-    copy.applyMatrix4(m);
+    const copy = geo.index ? geo.toNonIndexed() : geo.clone();
+    for (const name of Object.keys(copy.attributes)) {
+      if (!['position', 'normal', 'uv'].includes(name)) copy.deleteAttribute(name);
+    }
+    if (!copy.attributes.normal) copy.computeVertexNormals();
+    if (!copy.attributes.uv) {
+      copy.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(copy.attributes.position.count * 2), 2));
+    }
+    // kolor materiału → kolor wierzchołka (z zachowaniem istniejących kolorów)
+    const n = copy.attributes.position.count;
+    const src = copy.attributes.color ?? geo.attributes.color;
+    const cols = new Float32Array(n * 3);
+    const mr = mat.color?.r ?? 1;
+    const mg = mat.color?.g ?? 1;
+    const mb = mat.color?.b ?? 1;
+    for (let i = 0; i < n; i++) {
+      cols[i * 3] = mr * (src ? src.getX(i) : 1);
+      cols[i * 3 + 1] = mg * (src ? src.getY(i) : 1);
+      cols[i * 3 + 2] = mb * (src ? src.getZ(i) : 1);
+    }
+    copy.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+    copy.applyMatrix4(new THREE.Matrix4().multiplyMatrices(toLocal, o.matrixWorld));
     bucket.geometries.push(copy);
     bucket.nodes.push(o);
-    candidates.push(o);
+    bucket.castShadow ||= o.castShadow;
+    bucket.receiveShadow ||= o.receiveShadow;
   });
 
+  const mergedMaterials = new Map();
   let merged = 0;
   let removed = 0;
-  for (const bucket of buckets.values()) {
+  for (const [key, bucket] of buckets) {
     if (bucket.nodes.length < 2) {
       for (const g of bucket.geometries) g.dispose();
       continue;
     }
-    // różne siatki mogą mieć różne zestawy atrybutów tylko wewnątrz tego samego
-    // klucza, więc merge jest bezpieczny
     const geo = mergeGeometries(bucket.geometries, false);
     for (const g of bucket.geometries) g.dispose();
     if (!geo) continue;
-    const mesh = new THREE.Mesh(geo, bucket.material);
-    mesh.castShadow = bucket.nodes.some((n) => n.castShadow);
-    mesh.receiveShadow = bucket.nodes.some((n) => n.receiveShadow);
+    let material = mergedMaterials.get(key);
+    if (!material) {
+      const src = bucket.material;
+      const Cls = src.type === 'MeshBasicMaterial' ? THREE.MeshBasicMaterial
+        : src.type === 'MeshLambertMaterial' ? THREE.MeshLambertMaterial
+          : src.type === 'MeshPhongMaterial' ? THREE.MeshPhongMaterial
+            : THREE.MeshStandardMaterial;
+      const params = {
+        vertexColors: true,
+        map: src.map ?? null,
+        side: src.side,
+        // kolor jest w wierzchołkach — baza musi być biała, inaczej przygasza obraz
+        color: 0xffffff,
+      };
+      if (src.flatShading !== undefined) params.flatShading = src.flatShading;
+      if (src.emissive) {
+        params.emissive = src.emissive.clone();
+        params.emissiveIntensity = src.emissiveIntensity ?? 1;
+      }
+      material = new Cls(params);
+      if (material.roughness !== undefined) {
+        material.roughness = src.roughness ?? 0.85;
+        material.metalness = src.metalness ?? 0;
+      }
+      material.name = `scalone-${src.name || src.type}`;
+      mergedMaterials.set(key, material);
+    }
+    const mesh = new THREE.Mesh(geo, material);
+    mesh.castShadow = bucket.castShadow;
+    mesh.receiveShadow = bucket.receiveShadow;
     mesh.matrixAutoUpdate = false;
-    mesh.name = `scalone-${bucket.material.name || 'mat'}-${merged}`;
+    mesh.name = `scalone-${merged}`;
     geo.computeBoundingSphere();
     root.add(mesh);
-    for (const n of bucket.nodes) n.parent?.remove(n);
+    for (const nnode of bucket.nodes) nnode.parent?.remove(nnode);
     removed += bucket.nodes.length;
     merged += 1;
   }

@@ -95,6 +95,14 @@ export class World {
       this.mergeStats = mergeStaticGroups(this.group, { protect: protectedRoots });
     }
 
+    // Obiekty interaktywne (złoża, skrzynie, ogniska) muszą zostać osobne —
+    // gra włącza i wyłącza je pojedynczo. Ale każde z nich to nadal osiem
+    // osobnych bryłek, więc scalamy je wewnątrz własnej grupy: 1383 siatki
+    // schodzą do ~170, a przełączanie widoczności dalej działa.
+    for (const node of this.interactables) {
+      if (node.mesh) mergeStaticGroups(node.mesh);
+    }
+
     // Światła punktowe (ogniska, pochodnie, kapliczki) liczą się w shaderze
     // tylko gdy są włączone — dlatego trzymamy je na liście i wygaszamy
     // te, które są daleko od gracza. Bez tego kilkadziesiąt latarni

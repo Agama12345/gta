@@ -100,16 +100,6 @@ export class BeastRig {
     this.source = cloneSkinned(entry.scene);
     this.states = states;
 
-    // normalizacja wzrostu — modele zwierząt są w różnych skalach
-    const box = new THREE.Box3().setFromObject(this.source);
-    const size = new THREE.Vector3();
-    box.getSize(size);
-    const h = Math.max(0.001, size.y);
-    const k = targetHeight / h;
-    this.source.scale.multiplyScalar(k);
-    // po przeskalowaniu stawiamy model na ziemi (środek bryły → 0)
-    this.source.position.y = -box.min.y * k;
-
     this.source.traverse((o) => {
       if (o.isMesh) {
         o.castShadow = true;
@@ -118,10 +108,21 @@ export class BeastRig {
       }
     });
 
-    // Bestie z paczek CC0 mają po kilkadziesiąt osobnych brył (łapy, uszy,
-    // ogon...). Sklejamy je w jedną siatkę — jedno wywołanie rysowania zamiast
-    // czterdziestu kilku na każde zwierzę.
+    // Bestie z paczek CC0 mają po kilka osobnych brył (łapy, uszy, ogon...).
+    // Sklejamy je w jedną siatkę, zanim cokolwiek przeskalujemy — po scaleniu
+    // skala węzłów bywa już inna niż w oryginale.
     this.mergeStats = mergeSkinnedParts(this.source);
+
+    // normalizacja wzrostu — modele zwierząt są w różnych skalach (część w cm)
+    this.source.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(this.source);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    const h = Math.max(0.001, size.y);
+    const k = targetHeight / h;
+    this.source.scale.multiplyScalar(k);
+    // po przeskalowaniu stawiamy model na ziemi (środek bryły → 0)
+    this.source.position.y = -box.min.y * k;
 
     this.group = new THREE.Group();
     this.group.add(this.source);

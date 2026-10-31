@@ -25,8 +25,10 @@ window.innerWidth = 1280;
 window.innerHeight = 720;
 Object.defineProperty(window, 'innerWidth', { value: 1280, configurable: true });
 Object.defineProperty(window, 'innerHeight', { value: 720, configurable: true });
-global.requestAnimationFrame = (cb) => setTimeout(() => cb(Date.now()), 16);
+// bez prawdziwej pętli rAF — klatki liczymy sami, inaczej test trwa godzinami
 const noop = () => {};
+global.requestAnimationFrame = () => 0;
+global.cancelAnimationFrame = noop;
 const ctxStub = () => new Proxy({
   createImageData: (w, h) => ({ data: new Uint8ClampedArray(w * h * 4), width: w, height: h }),
   getImageData: (x, y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4), width: w, height: h }),
@@ -36,8 +38,21 @@ const ctxStub = () => new Proxy({
 }, { get: (t, k) => (k in t ? t[k] : noop), set: (t, k, v) => ((t[k] = v), true) });
 dom.window.HTMLCanvasElement.prototype.getContext = () => ctxStub();
 
+const { serveAssets } = await import('./lib/asset-server.mjs');
+await serveAssets(dom);
 const THREE = await import('three');
 const { Game } = await import('../src/game.js');
+const { loadAssets } = await import('../src/core/assets.js');
+
+// modele CC0 wczytujemy jak w grze (main.js robi to przed `new Game`)
+let assets = null;
+const t0 = Date.now();
+try {
+  assets = await loadAssets();
+} catch (err) {
+  errors0.push(`modele: ${err.message}`);
+}
+const assetMs = Date.now() - t0;
 
 // atrapa renderera: liczymy, ile razy zamalowano scenę i ile siatek widzi
 const stats = { frames: 0, objects: 0, pixelRatio: 1 };
@@ -64,7 +79,8 @@ const renderer = {
 
 const canvas = document.getElementById('scene');
 const errors = [];
-const game = new Game(canvas, { renderer });
+const errors0 = [];
+const game = new Game(canvas, { renderer, assets });
 try {
   game.ui.applyVideoSettings = () => {}; // bez panelu opcji
   game.start();
@@ -72,6 +88,7 @@ try {
   errors.push(`start: ${err.message}`);
 }
 
+console.log(`modele: ${assets?.loaded ?? 0} wczytane, ${assets?.failed?.length ?? 0} nieudanych, ${(assetMs / 1000).toFixed(1)} s`);
 const N = Number(process.argv[2] ?? 180);
 for (let i = 0; i < N; i++) {
   try {
@@ -91,8 +108,12 @@ console.log(`poziom jakości: ${game.qualityTier ?? '-'} (${game.qualityName ?? 
 console.log(`gracz: model=${player?.rig ? 'GLB' : 'proceduralny'}, siatek=${(() => { let n = 0; player?.group?.traverse((o) => { if (o.isMesh) n += 1; }); return n; })()}`);
 console.log(`scalanie statyki: ${JSON.stringify(world?.mergeStats ?? {})}`);
 console.log(`mieszkańcy: ${game.npcs?.length ?? 0}, wrogowie: ${game.enemies?.list?.length ?? 0}`);
+errors.push(...errors0);
 if (errors.length) {
   console.error('BŁĘDY:\n' + errors.join('\n'));
   process.exit(1);
+  
+  
 }
 console.log('Gra wystartowała i przeszła symulację bez błędów.');
+process.exit(0);
