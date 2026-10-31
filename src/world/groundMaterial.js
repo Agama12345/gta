@@ -9,7 +9,7 @@
 // przychodzą z atrybutu wierzchołkowego `aGround` (te pola są rozległe).
 // ---------------------------------------------------------------------------
 import * as THREE from 'three';
-import { buildGroundLayers, layerToRGBA, layerToHeightRGBA, layerStats, GROUND_TINTS } from './groundTextures.js';
+import { buildGroundLayers, layerToRGBA, layerStats, GROUND_TINTS } from './groundTextures.js';
 
 let cachedLayers = null;
 let cachedTextures = null;
@@ -40,8 +40,8 @@ export function createGroundTextures(size = 512) {
       const layer = cachedLayers[key];
       stats[key] = layerStats(layer, size);
       out[key] = {
+        // kolor w RGB, wysokość w alfie — jedno próbkowanie zamiast dwóch
         map: toTexture(layerToRGBA(layer, size, GROUND_TINTS[key]), size),
-        height: toTexture(layerToHeightRGBA(layer, size), size),
         meanLum: stats[key].lum,
         meanH: stats[key].hgt,
       };
@@ -52,7 +52,7 @@ export function createGroundTextures(size = 512) {
     // tylko strukturę (bez „przyciemniania” całej mapy).
     const meanLum = (out.grass.meanLum + out.dirt.meanLum + out.rock.meanLum + out.sand.meanLum) / 4;
     out.detailGain = 1 / Math.max(0.2, meanLum);
-    out.macroMean = new THREE.Vector2(out.rock.meanH, out.sand.meanH);
+    out.macroMean = out.rock.meanH;
     cachedTextures = out;
     return out;
   } catch (err) {
@@ -83,16 +83,12 @@ export function FRAG_DECL(pathCount) {
 #define GRD_PATHS ${pathCount}
 uniform vec4 uPaths[GRD_PATHS];
 uniform sampler2D uGrassMap;
-uniform sampler2D uGrassH;
 uniform sampler2D uDirtMap;
-uniform sampler2D uDirtH;
 uniform sampler2D uRockMap;
-uniform sampler2D uRockH;
 uniform sampler2D uSandMap;
-uniform sampler2D uSandH;
 uniform vec2 uPathEdge;
 uniform float uDetailGain;
-uniform vec2 uMacroMean;
+uniform float uMacroMean;
 uniform float uBumpScale;
 varying vec4 vGrdW;
 varying vec3 vGrdPos;
@@ -123,43 +119,41 @@ export const FRAG_BODY = `
   float grdUp = clamp(grdNW.y, 0.0, 1.0);
   float grdRockW = 1.0 - smoothstep(0.55, 0.88, grdUp);
 
-  // krawędź drogi rozmyta szumem, żeby nie była linijką
-  float grdEdgeNoise = (texture2D(uDirtH, vGrdPos.xz * 0.031).r - 0.5) * 3.4;
-  float grdRoad = 1.0 - smoothstep(uPathEdge.x, uPathEdge.y, grdBestD + grdEdgeNoise);
-
-  float grdGrassW = max(vGrdW.x, 0.0) * (1.0 - grdRoad) * (1.0 - grdRockW);
-  float grdSandW = max(vGrdW.y, 0.0) * (1.0 - grdRockW * 0.85) * (1.0 - grdRoad);
-  float grdSnowW = max(vGrdW.z, 0.0) * (1.0 - grdRockW * 0.9) * (1.0 - grdRoad);
-  float grdMudW = max(vGrdW.w, 0.0) * (1.0 - grdRockW * 0.5) * (1.0 - grdRoad);
-  float grdDirtW = max(grdMudW, grdRoad);
-  float grdTotal = grdGrassW + grdSandW + grdSnowW + grdDirtW + grdRockW + 1e-4;
-
   vec2 guv = vGrdPos.xz * 0.16;
   vec2 duv = vGrdPos.xz * 0.11;
   vec2 ruv = vGrdPos.xz * 0.075;
   vec2 suv = vGrdPos.xz * 0.24;
   vec2 tuv = vec2(grdLat, grdAlon) * 0.34;
 
-  vec3 tGrass = mix(texture2D(uGrassMap, guv).rgb,
-                    texture2D(uGrassMap, guv * 2.71 + vec2(0.31, 0.67)).rgb, 0.35);
-  vec3 tDirt = mix(texture2D(uDirtMap, duv).rgb, texture2D(uDirtMap, tuv).rgb,
-                   clamp(grdRoad, 0.0, 1.0) * 0.9);
-  vec3 tRock = texture2D(uRockMap, ruv).rgb;
-  vec3 tSand = texture2D(uSandMap, suv).rgb;
+  vec4 tG = texture2D(uGrassMap, guv);
+  vec4 tD = texture2D(uDirtMap, duv);
+  vec4 tR = texture2D(uRockMap, ruv);
+  vec4 tS = texture2D(uSandMap, suv);
 
-  vec3 grdCol = (tGrass * grdGrassW + tDirt * grdDirtW + tRock * grdRockW
-               + tSand * (grdSandW + grdSnowW)) / grdTotal;
+  // krawędź drogi rozmyta szumem (alfa = wysokość) i koleiny wzdłuż traktu
+  float grdEdgeNoise = (texture2D(uDirtMap, vGrdPos.xz * 0.031).a - 0.5) * 3.4;
+  float grdRoad = 1.0 - smoothstep(uPathEdge.x, uPathEdge.y, grdBestD + grdEdgeNoise);
+  if (grdRoad > 0.02) {
+    vec4 tT = texture2D(uDirtMap, tuv);
+    float k = clamp(grdRoad, 0.0, 1.0) * 0.9;
+    tD = vec4(mix(tD.rgb, tT.rgb, k), mix(tD.a, tT.a, k));
+  }
+
+  float grdGrassW = max(vGrdW.x, 0.0) * (1.0 - grdRoad) * (1.0 - grdRockW);
+  float grdSandW = max(vGrdW.y, 0.0) * (1.0 - grdRockW * 0.85) * (1.0 - grdRoad);
+  float grdSnowW = max(vGrdW.z, 0.0) * (1.0 - grdRockW * 0.9) * (1.0 - grdRoad);
+  float grdDirtW = max(max(vGrdW.w, 0.0) * (1.0 - grdRockW * 0.5), grdRoad);
+  float grdTotal = grdGrassW + grdSandW + grdSnowW + grdDirtW + grdRockW + 1e-4;
+
+  vec3 grdCol = (tG.rgb * grdGrassW + tD.rgb * grdDirtW + tR.rgb * grdRockW
+               + tS.rgb * (grdSandW + grdSnowW)) / grdTotal;
+  float grdH = (tG.a * grdGrassW + tD.a * grdDirtW + tR.a * grdRockW
+              + tS.a * (grdSandW + grdSnowW)) / grdTotal;
+
   // wielkoskalowa wariacja: rozbija powtarzalność kafla na dużych łąkach
-  float grdMacro = texture2D(uRockH, vGrdPos.xz * 0.0075).r;
-  float grdMacro2 = texture2D(uSandH, vGrdPos.xz * 0.0021).r;
-  float grdVar = 1.0 + (grdMacro - uMacroMean.x) * 0.55 + (grdMacro2 - uMacroMean.y) * 0.45;
+  float grdMacro = texture2D(uRockMap, vGrdPos.xz * 0.0075).a;
+  float grdVar = 1.0 + (grdMacro - uMacroMean) * 0.7;
   diffuseColor.rgb *= clamp(grdCol * uDetailGain, 0.55, 1.6) * grdVar;
-
-  // wysokość podłoża do bumpa (mieszana tak samo jak kolor)
-  float grdH = (texture2D(uGrassH, guv).r * grdGrassW
-              + texture2D(uDirtH, duv).r * grdDirtW
-              + texture2D(uRockH, ruv).r * grdRockW
-              + texture2D(uSandH, suv).r * (grdSandW + grdSnowW)) / grdTotal;
 `;
 
 export const FRAG_NORMAL = `
@@ -194,10 +188,10 @@ export function injectFragmentShader(src, pathCount) {
  */
 export function createGroundMaterial({ paths = [], edge = [2.4, 7.0] } = {}) {
   const tex = createGroundTextures();
-  const material = new THREE.MeshStandardMaterial({
+  // Lambert zamiast PBR: teren pokrywa większość ekranu, a pełne modelowanie
+  // PBR (roughness/metalness/IBL) nic tu nie wnosi poza kosztem piksela.
+  const material = new THREE.MeshLambertMaterial({
     vertexColors: true,
-    roughness: 0.96,
-    metalness: 0.0,
     dithering: true,
   });
   if (!tex) return material;
@@ -208,13 +202,9 @@ export function createGroundMaterial({ paths = [], edge = [2.4, 7.0] } = {}) {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uPaths = { value: pathVectors };
     shader.uniforms.uGrassMap = { value: tex.grass.map };
-    shader.uniforms.uGrassH = { value: tex.grass.height };
     shader.uniforms.uDirtMap = { value: tex.dirt.map };
-    shader.uniforms.uDirtH = { value: tex.dirt.height };
     shader.uniforms.uRockMap = { value: tex.rock.map };
-    shader.uniforms.uRockH = { value: tex.rock.height };
     shader.uniforms.uSandMap = { value: tex.sand.map };
-    shader.uniforms.uSandH = { value: tex.sand.height };
     shader.uniforms.uPathEdge = { value: new THREE.Vector2(edge[0], edge[1]) };
     shader.uniforms.uDetailGain = { value: tex.detailGain };
     shader.uniforms.uMacroMean = { value: tex.macroMean };

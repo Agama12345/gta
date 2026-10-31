@@ -142,6 +142,12 @@ function clamp01(v) {
   return v < 0 ? 0 : v > 1 ? 1 : v;
 }
 
+/** Gładkie przejście 0→1 (odpowiednik GLSL-owego smoothstep). */
+function smoothstep(a, b, x) {
+  const t = clamp01((x - a) / (b - a || 1e-6));
+  return t * t * (3 - 2 * t);
+}
+
 // ---------------------------------------------------------------------------
 // TRAWA — gęste, ostre źdźbła, kępy i wyschnięte łaty.
 // ---------------------------------------------------------------------------
@@ -213,6 +219,7 @@ function buildGrass(size, seed) {
 // ---------------------------------------------------------------------------
 // GRUNT / DROGA — ubita ziemia, grudki, kamyki, spękania, koleiny.
 // ---------------------------------------------------------------------------
+
 function buildDirt(size, seed) {
   const rng = makeRng(seed);
   const n = size * size;
@@ -223,56 +230,73 @@ function buildDirt(size, seed) {
     for (let x = 0; x < size; x++) {
       const u = x / size;
       const v = y / size;
-      const base = pfbm(u, v, 6, 4, 23);
-      const clods = pfbm(u, v, 18, 3, 47);
-      const grain = pfbm(u, v, 60, 2, 77);
+      const base = pfbm(u, v, 8, 4, 23);
+      const clods = pfbm(u, v, 22, 3, 47);
+      // Ostre ziarno. Bez niego ubita ziemia to rozmazana plama — a właśnie
+      // ziarno (piasek, pył, okruchy) sprzedaje skalę bliskiego planu.
+      const g1 = hash2i(x, y, 977);
+      const g2 = hash2i(x + 17, y + 91, 331);
+      const grain = g1 * 0.65 + g2 * 0.35;
       const idx = y * size + x;
-      lum[idx] = clamp01(0.40 + base * 0.24 + clods * 0.2 + (grain - 0.5) * 0.24);
-      hgt[idx] = clamp01(0.28 + base * 0.28 + clods * 0.2 + (grain - 0.5) * 0.3);
+      const mids = pfbm(u, v, 3, 3, 613);
+      lum[idx] = clamp01(0.42 + base * 0.18 + (clods - 0.5) * 0.24 + (mids - 0.5) * 0.16 + (grain - 0.5) * 0.18);
+      hgt[idx] = clamp01(0.30 + base * 0.22 + (clods - 0.5) * 0.32 + (grain - 0.5) * 0.26);
     }
   }
 
-  // koleiny — dwie ciemniejsze smugi biegnące wzdłuż osi Y kafla
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const u = x / size;
-      const wobble = (pfbm(0, y / size, 3, 2, 41) - 0.5) * 0.05;
-      const d1 = Math.abs(u - (0.32 + wobble));
-      const d2 = Math.abs(u - (0.68 + wobble));
-      const rut = Math.exp(-(d1 * d1) / 0.0009) + Math.exp(-(d2 * d2) / 0.0009);
-      const idx = y * size + x;
-      lum[idx] = clamp01(lum[idx] - rut * 0.14);
-      hgt[idx] = clamp01(hgt[idx] - rut * 0.2);
-    }
+  // Grudki ziemi: jasny wierzchołek od góry, ciemny dołek pod spodem.
+  // Rysowane przed kamykami, żeby kamyki leżały na wierzchu.
+  const clumpCount = Math.round(size * 26);
+  for (let i = 0; i < clumpCount; i++) {
+    const cx = rng() * size;
+    const cy = rng() * size;
+    const r = 0.8 + rng() * 2.2;
+    const bright = 0.5 + rng() * 0.2;
+    blob(lum, size, cx - r * 0.3, cy - r * 0.4, r * 0.9, bright, 0.5);
+    blob(lum, size, cx + r * 0.35, cy + r * 0.45, r * 1.1, bright - 0.22, 0.42);
+    blob(hgt, size, cx, cy, r, 0.62 + rng() * 0.2, 0.5);
   }
 
-  // kamyki: jasny wierzch, ciemny cień z drugiej strony, twarda krawędź
-  const pebbles = Math.round(size * 2.6);
-  for (let i = 0; i < pebbles; i++) {
+  // Kamyki: twarda krawędź, jasny czubek, krótki cień po prawej-dolnej stronie.
+  // Wielkość liczona od kafla: 1 px to ~1,2 cm, więc kamień 3–6 cm ma
+  // promień 1,5–2,5 px, a otoczak 10 cm — 4 px. Skupiamy je w łatach żwiru,
+  // bo równomiernie rozsypane ziarna wyglądają jak szum, nie jak kamienie.
+  for (let i = 0; i < Math.round(size * 3.2); i++) {
     const px = rng() * size;
     const py = rng() * size;
-    const r = 0.7 + rng() * 2.6;
-    const bright = 0.58 + rng() * 0.34;
-    blob(hgt, size, px, py, r, 0.9, 0.95);
-    blob(lum, size, px, py, r, bright, 0.92);
-    blob(lum, size, px + r * 0.45, py + r * 0.55, r * 1.05, 0.26, 0.75);
-    dot(lum, size, px - r * 0.3, py - r * 0.35, Math.min(1, bright + 0.18), 0.6);
+    const patch = pfbm(px / size, py / size, 5, 2, 733);
+    if (patch < 0.52 && rng() > 0.18) continue;
+    const r = 1.3 + rng() * 2.6 + (patch > 0.7 ? 1.2 : 0);
+    const bright = 0.6 + rng() * 0.32;
+    blob(hgt, size, px, py, r, 0.95, 0.95);
+    blob(lum, size, px, py, r * 0.94, bright, 0.9);
+    blob(lum, size, px - r * 0.3, py - r * 0.34, r * 0.55, Math.min(1, bright + 0.22), 0.65);
+    blob(lum, size, px + r * 0.85, py + r * 0.95, r * 1.05, 0.14, 0.7);
+    blob(hgt, size, px + r * 0.85, py + r * 0.95, r * 1.2, 0.2, 0.5);
   }
 
-  // sucha ziemia: spękania i rysy
-  for (let c = 0; c < 30; c++) {
-    let cx = rng() * size;
-    let cy = rng() * size;
-    let ang = rng() * TAU;
-    const seg = 6 + Math.floor(rng() * 12);
-    for (let s = 0; s < seg; s++) {
-      ang += (rng() - 0.5) * 0.9;
-      const step = 1.2 + rng() * 2.4;
-      cx += Math.cos(ang) * step;
-      cy += Math.sin(ang) * step;
-      dot(lum, size, cx, cy, 0.2, 0.55);
-      dot(hgt, size, cx, cy, 0.02, 0.7);
+  // Spękania: ciągła linia z jasną krawędzią (ziemia jest uniesiona obok rysy).
+  const drawCrack = (cx0, cy0, ang0, segs, width) => {
+    let cx = cx0;
+    let cy = cy0;
+    let ang = ang0;
+    let left = segs * 3;
+    while (left-- > 0) {
+      ang += (rng() - 0.5) * 0.55;
+      const step = 0.6;
+      const nx = cx + Math.cos(ang) * step;
+      const ny = cy + Math.sin(ang) * step;
+      for (let w = 0; w <= width; w++) {
+        dot(lum, size, nx + Math.cos(ang + 1.57) * w, ny + Math.sin(ang + 1.57) * w, 0.28, 0.6);
+        dot(hgt, size, nx + Math.cos(ang + 1.57) * w, ny + Math.sin(ang + 1.57) * w, 0.08, 0.7);
+      }
+      dot(lum, size, nx - Math.cos(ang + 1.57) * (width + 1.5), ny - Math.sin(ang + 1.57) * (width + 1.5), 0.7, 0.45);
+      cx = nx;
+      cy = ny;
     }
+  };
+  for (let c = 0; c < Math.round(size / 16); c++) {
+    drawCrack(rng() * size, rng() * size, rng() * TAU, 4 + Math.floor(rng() * 9), rng() < 0.3 ? 1 : 0);
   }
 
   return { lum, hgt };
@@ -281,67 +305,68 @@ function buildDirt(size, seed) {
 // ---------------------------------------------------------------------------
 // SKAŁA — bloki skalne (Voronoi), szczeliny, warstwy i ziarno.
 // ---------------------------------------------------------------------------
+
 function buildRock(size, seed) {
   const rng = makeRng(seed);
   const n = size * size;
   const lum = new Float32Array(n);
   const hgt = new Float32Array(n);
 
+  // Skała = warstwy osadowe. Pięć pasów przez kafel, każdy z własnym
+  // odcieniem, ostrym górnym załamaniem i cieniem tuż pod nim. Do tego
+  // zerodowana krawędź (szum) i pęknięcia — dzięki temu czyta się jak lico
+  // skalne, a nie jak siatka bąbelków.
+  const BANDS = 5;
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       const u = x / size;
       const v = y / size;
-      // zaburzenie domeny — bloki nie są foremnymi wielokątami
-      const wu = u + (pfbm(u, v, 5, 2, 101) - 0.5) * 0.12;
-      const wv = v + (pfbm(u, v, 5, 2, 211) - 0.5) * 0.12;
-      const { f1, f2, cell } = voronoi(wu, wv, 15, 61);
-      const widthNoise = pfbm(u, v, 12, 2, 303);
-      const seamW = 0.05 + widthNoise * 0.14;
-      const seam = clamp01((f2 - f1) / seamW); // 0 na szczelinie, 1 w środku bloku
-      const grain = pfbm(u, v, 55, 3, 13);
-      const patch = pfbm(u, v, 8, 3, 91);
+      // Krawędź warstwy: załamana, z ostrymi "zębami" (ridged noise), a nie
+      // gładka fala — inaczej skała wygląda jak ułożona z miękkich plastrów.
+      const ridgeRaw = pfbm(u, v, 5, 3, 101);
+      const ridged = 1 - Math.abs(2 * ridgeRaw - 1);
+      const wob = (ridgeRaw - 0.5) * 0.4 + (ridged - 0.5) * 0.35;
+      const fine = (pfbm(u, v, 24, 2, 211) - 0.5) * 0.14;
+      const bands = v * BANDS + wob + fine + u * 0.35;
+      const f = bands - Math.floor(bands);
+      const bandIndex = ((Math.floor(bands) % BANDS) + BANDS) % BANDS;
+      const bandTone = hash2i(0, bandIndex, 5501);
+      // Załamanie: dolna część pasa to zacieniony uskok, górna — oświetlone lico.
+      const ledge = smoothstep(0.0, 0.45, f);
+      const crevice = Math.exp(-((f - 0.02) * (f - 0.02)) / 0.0012);
+      // Erozja w poprzek warstw — nieregularne wżery.
+      const erode = pfbm(u, v, 12, 3, 419);
+      const pitted = smoothstep(0.42, 0.5, erode);
+      const sp = hash2i(x, y, 733);
+      const speck = sp > 0.985 ? 0.18 : sp < 0.015 ? -0.16 : 0;
+      const grain = (hash2i(x + 5, y + 3, 907) - 0.5) * 0.1;
+      const blotch = (pfbm(u, v, 3, 2, 631) - 0.5) * 0.16;
       const idx = y * size + x;
-      const blockTone = 0.36 + cell * 0.22 + patch * 0.16 + (grain - 0.5) * 0.24;
-      const seamDark = 0.72 + 0.28 * seam;
-      lum[idx] = clamp01((blockTone + 0.1) * seamDark);
-      hgt[idx] = clamp01((0.55 + cell * 0.16 + (grain - 0.5) * 0.32) * (0.45 + 0.55 * seam));
+
+      // Wewnątrz warstwy: łuski i wykruszenia w skali kilkunastu centymetrów.
+      const chisel = (pfbm(u, v, 16, 3, 887) - 0.5) * 0.2;
+      const mineral = smoothstep(0.55, 0.75, pfbm(u, v, 8, 2, 967)) * 0.12;
+      let l = 0.44 + bandTone * 0.24 + ledge * 0.26 - crevice * 0.26 - pitted * 0.1
+        + blotch + chisel + mineral + speck + grain;
+      lum[idx] = clamp01(l);
+      hgt[idx] = clamp01(0.24 + ledge * 0.5 - crevice * 0.22 + pitted * 0.12 + grain * 0.5 + speck * 0.3);
     }
   }
 
-  // warstwy skalne (delikatne, żeby nie wyglądało jak kordurka)
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const u = x / size;
-      const v = y / size;
-      const warp = (pfbm(u, v, 3, 3, 31) - 0.5) * 0.06;
-      const band = Math.sin((v + warp + pfbm(u, v, 6, 2, 177) * 0.08) * TAU * 4) * 0.5 + 0.5;
-      const idx = y * size + x;
-      lum[idx] = clamp01(lum[idx] * (0.9 + band * 0.16));
-      hgt[idx] = clamp01(hgt[idx] * (0.94 + band * 0.1));
-    }
-  }
-
-  // spękania: łamane linie w poprzek bloków
-  for (let c = 0; c < 40; c++) {
+  // Pęknięcia: łamane, lekko rozszerzające się szczeliny z jasną krawędzią.
+  for (let i = 0; i < Math.round(size / 8); i++) {
     let cx = rng() * size;
     let cy = rng() * size;
-    let ang = rng() * TAU;
-    const seg = 10 + Math.floor(rng() * 22);
-    for (let s = 0; s < seg; s++) {
-      ang += (rng() - 0.5) * 1.1;
-      const step = 1.1 + rng() * 2.2;
-      cx += Math.cos(ang) * step;
-      cy += Math.sin(ang) * step;
-      dot(lum, size, cx, cy, 0.14, 0.6);
-      dot(hgt, size, cx, cy, 0.02, 0.75);
+    let ang = (rng() < 0.5 ? 0 : Math.PI) + (rng() - 0.5) * 0.5;
+    const steps = 16 + Math.floor(rng() * 40);
+    for (let s = 0; s < steps; s++) {
+      if (rng() < 0.12) ang += (rng() - 0.5) * 1.4;
+      cx += Math.cos(ang) * 0.6;
+      cy += Math.sin(ang) * 0.6;
+      dot(lum, size, cx, cy, 0.16, 0.55);
+      dot(hgt, size, cx, cy, 0.05, 0.6);
+      dot(lum, size, cx + Math.cos(ang + 1.57) * 1.2, cy + Math.sin(ang + 1.57) * 1.2, 0.82, 0.28);
     }
-  }
-
-  // jasne odłamki kwarcu w szczelinach — drobne iskry
-  for (let i = 0; i < size * 1.6; i++) {
-    const px = rng() * size;
-    const py = rng() * size;
-    dot(lum, size, px, py, 0.82 + rng() * 0.16, 0.5);
   }
 
   return { lum, hgt };
@@ -350,6 +375,7 @@ function buildRock(size, seed) {
 // ---------------------------------------------------------------------------
 // PIASEK / ŚNIEG — drobne ziarno i zmarszczki.
 // ---------------------------------------------------------------------------
+
 function buildSand(size, seed) {
   const rng = makeRng(seed);
   const n = size * size;
@@ -360,23 +386,27 @@ function buildSand(size, seed) {
     for (let x = 0; x < size; x++) {
       const u = x / size;
       const v = y / size;
-      const warp = (pfbm(u, v, 4, 3, 71) - 0.5) * 0.16;
-      const ripple = Math.sin((v + warp) * TAU * 9) * 0.5 + 0.5;
-      const grain = pfbm(u, v, 70, 2, 19);
-      const fine = pfbm(u, v, 150, 1, 83);
+      // Zmarszczki: zaburzona fala z zaostrzonym grzbietem (wiatr układa piasek
+      // w ostre grzbiety, a nie w sinusoidę).
+      const warp = (pfbm(u, v, 4, 3, 71) - 0.5) * 0.2;
+      const wave = Math.sin((v + warp) * TAU * 11) * 0.5 + 0.5;
+      const ripple = Math.pow(wave, 0.65);
+      const g1 = hash2i(x, y, 613);
+      const g2 = hash2i(x + 31, y + 47, 887);
+      const grain = g1 * 0.6 + g2 * 0.4;
       const idx = y * size + x;
-      lum[idx] = clamp01(0.46 + ripple * 0.12 + (grain - 0.5) * 0.3 + (fine - 0.5) * 0.2);
-      hgt[idx] = clamp01(0.32 + ripple * 0.34 + (grain - 0.5) * 0.32 + (fine - 0.5) * 0.18);
+      lum[idx] = clamp01(0.58 + (ripple - 0.5) * 0.16 + (grain - 0.5) * 0.22);
+      hgt[idx] = clamp01(0.34 + ripple * 0.36 + (grain - 0.5) * 0.26);
     }
   }
 
-  // pojedyncze grubsze ziarna i kamyczki
-  for (let i = 0; i < size * 4; i++) {
+  // Drobny żwir i muszelki — pojedyncze jaśniejsze i ciemniejsze ziarna.
+  for (let i = 0; i < size * 6; i++) {
     const px = rng() * size;
     const py = rng() * size;
-    const bright = rng() > 0.45 ? 0.86 : 0.22;
-    dot(lum, size, px, py, bright, 0.55);
-    dot(hgt, size, px, py, bright, 0.5);
+    const bright = rng() > 0.4 ? 0.9 : 0.3;
+    dot(lum, size, px, py, bright, 0.4);
+    dot(hgt, size, px, py, bright > 0.5 ? 0.85 : 0.2, 0.35);
   }
 
   return { lum, hgt };
@@ -403,7 +433,11 @@ export function buildGroundLayers(size = 512) {
   };
 }
 
-/** Pakuje warstwę do RGBA (kolor) — wartości ~0,5 to poziom neutralny. */
+/**
+ * Pakuje warstwę do RGBA. Alfa trzyma WYSOKOŚĆ tej samej warstwy — dzięki
+ * temu shader pobiera kolor i bump jednym próbkowaniem (4 próbki mniej na
+ * każdy piksel ekranu).
+ */
 export function layerToRGBA(layer, size, tint) {
   const out = new Uint8Array(size * size * 4);
   for (let i = 0; i < size * size; i++) {
@@ -411,7 +445,7 @@ export function layerToRGBA(layer, size, tint) {
     out[i * 4] = Math.round(clamp01(l * tint[0]) * 255);
     out[i * 4 + 1] = Math.round(clamp01(l * tint[1]) * 255);
     out[i * 4 + 2] = Math.round(clamp01(l * tint[2]) * 255);
-    out[i * 4 + 3] = 255;
+    out[i * 4 + 3] = Math.round(clamp01(layer.hgt[i]) * 255);
   }
   return out;
 }

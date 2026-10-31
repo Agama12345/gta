@@ -781,10 +781,10 @@ const rockTmp = new THREE.Color();
  * Skały są teraz widoczne od łagodniejszych zboczy (0,38) — w górach dominuje
  * kamień, żwir i odsłonięte granie, a nie jednolita trawa, jak dotąd.
  */
-export function terrainColorAt(x, z, h, slope, out = tmpC) {
+export function terrainColorAt(x, z, h, slope, out = tmpC, wGiven = null) {
   const S = WORLD_SCALE;
   const H = HEIGHT_SCALE;
-  const w = biomeWeights(x, z);
+  const w = wGiven ?? biomeWeights(x, z);
   const forest = forestMask(x, z);
   const n = fbm(x * 0.09 + 5, z * 0.09 - 2, 3) * 0.5 + 0.5;
   const n2 = fbm(x * 0.028 - 9, z * 0.03 + 3, 2) * 0.5 + 0.5;
@@ -812,8 +812,9 @@ export function terrainColorAt(x, z, h, slope, out = tmpC) {
   }
   if (w.swamp > 0.01) out.lerp(C.mud, w.swamp * 0.85);
 
-  const pathD = distanceToPath(x, z);
-  if (pathD < 7.8) out.lerp(C.dirt, smoothstep(7.8, 2.0, pathD) * 0.7);
+  // Ścieżki nie są już malowane na wierzchołkach — robi to shader gruntu
+  // (ostra krawędź i koleiny). Oszczędza to pętlę po 20 odcinkach traktów
+  // na każdy wierzchołek siatki.
 
   // ---- skały: zbocza, żwir i granie -------------------------------------
   const pal = w.desert > 0.5 ? BIOME.desert : w.ice > 0.5 ? BIOME.ice : w.savanna > 0.5 ? BIOME.savanna : BIOME.temperate;
@@ -825,8 +826,10 @@ export function terrainColorAt(x, z, h, slope, out = tmpC) {
   const rockLine = 96 * H;
   if (h > rockLine) out.lerp(pal.rock, smoothstep(rockLine, 150 * H, h) * 0.8);
   // żwir i piarg pod ścianami — szum o wysokiej częstotliwości
-  const scree = fbm(x * 0.12 + 44.1, z * 0.12 - 17.3, 3) * 0.5 + 0.5;
-  if (slope > 0.55 && scree > 0.55) out.lerp(pal.rockDark, smoothstep(0.55, 0.9, scree) * 0.35);
+  if (slope > 0.55) {
+    const scree = fbm(x * 0.12 + 44.1, z * 0.12 - 17.3, 3) * 0.5 + 0.5;
+    if (scree > 0.55) out.lerp(pal.rockDark, smoothstep(0.55, 0.9, scree) * 0.35);
+  }
 
   // popiół wokół starożytnej kuźni
   const df = dist2(x, z, LOCATIONS.forge.x, LOCATIONS.forge.z);
@@ -859,8 +862,8 @@ export function terrainColorAt(x, z, h, slope, out = tmpC) {
  * z odległości do osi traktu — oba pola zmieniają się zbyt szybko, by trzymać
  * je w wierzchołkach siatki o kroku ~8 m.
  */
-export function groundWeightsAt(x, z, h, slope, out = [0, 0, 0, 0]) {
-  const w = biomeWeights(x, z);
+export function groundWeightsAt(x, z, h, slope, out = [0, 0, 0, 0], wGiven = null) {
+  const w = wGiven ?? biomeWeights(x, z);
   const H = HEIGHT_SCALE;
   const n2 = fbm(x * 0.028 - 9, z * 0.03 + 3, 2) * 0.5 + 0.5;
 
@@ -907,37 +910,47 @@ function buildChunkGeometry(cx, cz, res) {
   const gw = [0, 0, 0, 0];
   const heights = new Float32Array(vertCount);
   const tmp = new THREE.Color();
-  const e = 2.5;
+
+  // Wysokości liczymy RAZ na siatce z marginesem 1 wierzchołka — normalne
+  // i nachylenie biorą się z sąsiadów, zamiast wołać heightAt() pięć razy
+  // na wierzchołek (to była najdroższa część przebudowy chunka).
+  const hn = n + 2;
+  const hgrid = new Float32Array(hn * hn);
+  for (let j = 0; j < hn; j++) {
+    const z = z0 + (j - 1) * step;
+    for (let i = 0; i < hn; i++) {
+      hgrid[j * hn + i] = heightAt(x0 + (i - 1) * step, z);
+    }
+  }
 
   for (let j = 0; j < n; j++) {
     for (let i = 0; i < n; i++) {
       const k = j * n + i;
       const x = x0 + i * step;
       const z = z0 + j * step;
-      const h = heightAt(x, z);
+      const h = hgrid[(j + 1) * hn + (i + 1)];
       heights[k] = h;
       positions[k * 3] = x;
       positions[k * 3 + 1] = h;
       positions[k * 3 + 2] = z;
-      const slope = slopeAt(x, z);
-      terrainColorAt(x, z, h, slope, tmp);
+      const nx = hgrid[(j + 1) * hn + i] - hgrid[(j + 1) * hn + (i + 2)];
+      const nz = hgrid[j * hn + (i + 1)] - hgrid[(j + 2) * hn + (i + 1)];
+      const slope = Math.hypot(nx, nz) / (2 * step);
+      const w = biomeWeights(x, z);
+      terrainColorAt(x, z, h, slope, tmp, w);
       colors[k * 3] = tmp.r;
       colors[k * 3 + 1] = tmp.g;
       colors[k * 3 + 2] = tmp.b;
       uvs[k * 2] = x / 22;
       uvs[k * 2 + 1] = z / 22;
-      groundWeightsAt(x, z, h, slope, gw);
+      groundWeightsAt(x, z, h, slope, gw, w);
       ground[k * 4] = gw[0];
       ground[k * 4 + 1] = gw[1];
       ground[k * 4 + 2] = gw[2];
       ground[k * 4 + 3] = gw[3];
-      // normalna liczona z pola wysokości — identyczna na styku chunków,
-      // więc nie ma widocznych szwów ani prostokątów na łąkach
-      const nx = heightAt(x - e, z) - heightAt(x + e, z);
-      const nz = heightAt(x, z - e) - heightAt(x, z + e);
-      const len = Math.hypot(nx, 2 * e, nz) || 1;
+      const len = Math.hypot(nx, 2 * step, nz) || 1;
       normals[k * 3] = nx / len;
-      normals[k * 3 + 1] = (2 * e) / len;
+      normals[k * 3 + 1] = (2 * step) / len;
       normals[k * 3 + 2] = nz / len;
     }
   }
@@ -1164,7 +1177,9 @@ export class TerrainManager {
   lodForDistance(d) {
     // Bliski plan: 3,9 m między wierzchołkami — bez tego zbocza i skarpy
     // wyglądają jak wielkie płaskie trójkąty, zwłaszcza z teksturami.
-    if (d < 210) return 64;
+    // 5,2 m w bliskim planie (res 48) — kompromis: wyraźnie gładziej niż
+    // wcześniejsze 7,8 m, ale przebudowa chunka mieści się w budżecie klatki.
+    if (d < 210) return this.nearRes ?? 48;
     if (d < 430) return 32; // 7,8 m
     if (d < 1500) return 16; // 15,6 m — dalej trójkąty były widoczne gołym okiem
     return 12; // 20,8 m tylko na skraju mapy
@@ -1194,7 +1209,7 @@ export class TerrainManager {
     for (const chunk of this.chunks.values()) {
       if (chunk.centerX < -WORLD_RADIUS || chunk.centerZ < -WORLD_RADIUS) continue;
       const d = Math.hypot(chunk.centerX - pos.x, chunk.centerZ - pos.z);
-      this.ensureChunk(chunk, d < 400 ? 32 : 16);
+      this.ensureChunk(chunk, d < 420 ? 32 : 16);
     }
   }
 
@@ -1211,13 +1226,16 @@ export class TerrainManager {
       this.queue.sort((a, b) => a.d - b.d);
     }
 
-    // przebudowa kilku chunków na klatkę (bez zacięć)
-    let budget = this.updatesPerFrame;
-    while (budget > 0 && this.queue.length) {
+    // Przebudowa z budżetem CZASOWYM, nie „na sztuki”: lepiej zrobić dwa
+    // chunki po 3 ms niż cztery po 14 ms i zgubić dwie klatki.
+    const deadline = performance.now() + (this.frameBudget ?? 6);
+    let done = 0;
+    while (this.queue.length && done < (this.maxPerFrame ?? 3)) {
       const job = this.queue.shift();
       if (job.chunk.res === job.want) continue;
       this.ensureChunk(job.chunk, job.want);
-      budget -= 1;
+      done += 1;
+      if (performance.now() > deadline) break;
     }
   }
 

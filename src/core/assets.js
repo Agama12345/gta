@@ -146,15 +146,19 @@ function measure(obj) {
  * Skleja siatki modelu w jeden zestaw geometrii na materiał (zachowuje tekstury).
  * Wynik nadaje się do InstancedMesh — tysiące drzew rysowanych jednym wywołaniem.
  */
-export function prepareInstancing(scene) {
+export function prepareInstancing(scene, { mergeAll = false } = {}) {
   scene.updateMatrixWorld(true);
   const groups = new Map();
+  let canMergeAll = mergeAll;
+  const collected = [];
   scene.traverse((o) => {
     if (!o.isMesh || !o.geometry) return;
     const material = o.material;
+    // teksturowanych modeli nie da się scalić w jeden materiał — zostają grupy
+    if (mergeAll && (material?.map || material?.alphaTest > 0)) canMergeAll = false;
     let g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
     for (const key of Object.keys(g.attributes)) {
-      if (!['position', 'normal', 'uv'].includes(key)) g.deleteAttribute(key);
+      if (!['position', 'normal', 'uv', 'color'].includes(key)) g.deleteAttribute(key);
     }
     if (!g.attributes.uv) {
       const n = g.attributes.position.count;
@@ -162,10 +166,42 @@ export function prepareInstancing(scene) {
     }
     if (!g.attributes.normal) g.computeVertexNormals();
     g.applyMatrix4(o.matrixWorld);
-    const key = material.uuid;
-    if (!groups.has(key)) groups.set(key, { material, geometries: [] });
-    groups.get(key).geometries.push(g);
+    if (canMergeAll) {
+      // kolor materiału wchodzi w kolor wierzchołków — jeden materiał na model
+      const n = g.attributes.position.count;
+      const col = new Float32Array(n * 3);
+      const existing = g.attributes.color;
+      const mr = material?.color?.r ?? 1;
+      const mg = material?.color?.g ?? 1;
+      const mb = material?.color?.b ?? 1;
+      for (let i = 0; i < n; i++) {
+        const vr = existing ? existing.getX(i) : 1;
+        const vg = existing ? existing.getY(i) : 1;
+        const vb = existing ? existing.getZ(i) : 1;
+        col[i * 3] = vr * mr;
+        col[i * 3 + 1] = vg * mg;
+        col[i * 3 + 2] = vb * mb;
+      }
+      g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      collected.push(g);
+    } else {
+      const key = material.uuid;
+      if (!groups.has(key)) groups.set(key, { material, geometries: [] });
+      groups.get(key).geometries.push(g);
+    }
   });
+
+  if (canMergeAll && collected.length) {
+    const material = new THREE.MeshLambertMaterial({ vertexColors: true });
+    const merged = collected.length === 1 ? collected[0] : mergeGeometries(collected, false);
+    if (merged) {
+      if (collected.length > 1) for (const g of collected) g.dispose();
+      merged.computeBoundingSphere();
+      merged.computeBoundingBox();
+      return [{ geometry: merged, material }];
+    }
+  }
+  for (const g of collected) g.dispose();
 
   const parts = [];
   for (const { material, geometries } of groups.values()) {
@@ -390,7 +426,7 @@ export async function loadAssets(onProgress) {
       const scene = naturalizeFoliage(gltf.scene);
       const info = measure(scene);
       lib.nature[key] = {
-        parts: prepareInstancing(scene),
+        parts: prepareInstancing(scene, { mergeAll: true }),
         height: info.height,
         width: info.width,
         raw: scene,
@@ -460,8 +496,9 @@ export class ModelScatter {
    * temu silnik odrzuca całe kafle poza kamerą — kilka tysięcy drzew nie musi
    * być rysowane, gdy patrzysz w drugą stronę.
    */
-  finalize(lib, cellSize = 1000) {
+  finalize(lib, cellSize = 1600) {
     let meshes = 0;
+    this.cells = [];
     const white = new THREE.Color(0xffffff);
     for (const [key, list] of this.buckets) {
       const model = lib.nature[key];
@@ -489,13 +526,48 @@ export class ModelScatter {
           if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
           mesh.computeBoundingSphere();
           mesh.frustumCulled = true;
+          mesh.userData.cellId = cellId;
           this.group.add(mesh);
           meshes += 1;
+          // środek kafla — po nim wyłączamy całe kafle poza zasięgiem mgły
+          const cell = this.cells.find((c) => c.id === cellId);
+          if (!cell) this.cells.push({ id: cellId, x: 0, z: 0, meshes: [mesh], count: 1, sumX: 0, sumZ: 0 });
+          else {
+            cell.meshes.push(mesh);
+            cell.sumX += entries[0].matrix.elements[12];
+            cell.sumZ += entries[0].matrix.elements[14];
+            cell.count += 1;
+          }
         }
       }
     }
     this.buckets.clear();
+    for (const cell of this.cells) {
+      const [cx, cz] = cell.id.split(':').map(Number);
+      cell.x = (cx + 0.5) * cellSize;
+      cell.z = (cz + 0.5) * cellSize;
+      cell.radius = cellSize * 0.75;
+    }
     return meshes;
+  }
+
+  /**
+   * Ukrywa kafle instancji dalej niż `far` od kamery. Mgła i tak zamalowuje
+   * wszystko powyżej ~1,2 km, a frustum trójki przepuszcza obiekty z boku —
+   * to realnie zdejmuje dziesiątki procent trójkątów z klatki.
+   */
+  cullByDistance(camX, camZ, far = 1450) {
+    if (!this.cells) return 0;
+    let hidden = 0;
+    for (const cell of this.cells) {
+      const d = Math.hypot(cell.x - camX, cell.z - camZ) - (cell.radius ?? 0);
+      const visible = d < far;
+      for (const m of cell.meshes) {
+        if (m.visible !== visible) m.visible = visible;
+      }
+      if (!visible) hidden += cell.count;
+    }
+    return hidden;
   }
 }
 

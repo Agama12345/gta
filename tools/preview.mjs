@@ -926,6 +926,31 @@ function skinVertex(mesh, index, target) {
   return target.applyMatrix4(mesh.matrixWorld);
 }
 
+// --- statystyki geometrii (--tris) -----------------------------------------
+if (argv.includes('--tris')) {
+  const agg = new Map();
+  game.scene.traverse((o) => {
+    if (!o.isMesh && !o.isInstancedMesh) return;
+    const idx = o.geometry?.index;
+    const tri = idx ? idx.count / 3 : (o.geometry?.attributes?.position?.count ?? 0) / 3;
+    const count = o.isInstancedMesh ? o.count : 1;
+    const key = (o.name || o.geometry?.type || 'mesh').replace(/-?\d+(-\d+)*$/, '').slice(0, 28);
+    const e = agg.get(key) ?? { meshes: 0, tris: 0, inst: 0 };
+    e.meshes += 1;
+    e.tris += tri * count;
+    e.inst += count;
+    agg.set(key, e);
+  });
+  const rows = [...agg.entries()].sort((a, b) => b[1].tris - a[1].tris).slice(0, 16);
+  console.log('--- trójkąty wg grup ---');
+  let total = 0;
+  for (const [, v] of agg) total += v.tris;
+  for (const [k, v] of rows) {
+    console.log(`${(v.tris / 1000).toFixed(0).padStart(7)}k  ${String(v.inst).padStart(6)} szt.  ${String(v.meshes).padStart(4)} siatek  ${k}`);
+  }
+  console.log(`SUMA: ${(total / 1e6).toFixed(2)} M trójkątów, obiektów rysowalnych: ${[...agg.values()].reduce((a, b) => a + b.meshes, 0)}`);
+}
+
 game.scene.traverse((o) => {
   if (o.visible === false) return;
   if (o.isInstancedMesh) {

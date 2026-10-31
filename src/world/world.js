@@ -49,6 +49,7 @@ export class World {
     this.rng = new RNG(20260413);
 
     this.terrain = new TerrainManager(this.group);
+    this.viewDistance = 1450; // zasięg rysowania roślinności (mgła i tak dalej nie sięga)
     this.water = createWater();
     this.group.add(this.water.mesh);
 
@@ -168,6 +169,14 @@ export class World {
     }
     this._updateGulls(dt);
     if (playerPos) this._updateGrass(playerPos.x, playerPos.z);
+    // kafle roślinności poza zasięgiem mgły nie są rysowane wcale
+    if (this.scatter && playerPos) {
+      this._cullTimer = (this._cullTimer ?? 0) + dt;
+      if (this._cullTimer > 0.35) {
+        this._cullTimer = 0;
+        this.scatter.cullByDistance(playerPos.x, playerPos.z, this.viewDistance ?? 1450);
+      }
+    }
     if (this.beacon) {
       const nightF = 1 - (time?.dayF ?? 1);
       this.beacon.beamMat.opacity = Math.max(0, nightF - 0.22) * 0.38;
@@ -2644,6 +2653,7 @@ export class World {
     this._buildFireflies();
     this._buildGulls();
     if (scatter) {
+      this.scatter = scatter;
       this.instancedModels = scatter.finalize(lib);
       console.log(`Modele CC0: ${this.instancedModels} siatek instancjonowanych (${lib.loaded} plików)`);
     }
@@ -2868,7 +2878,9 @@ export class World {
    */
   _buildGrassField(geo) {
     if (!geo) return;
-    const COUNT = 6000;
+    // Pojemność bufora musi pokryć najwyższy poziom jakości — zmiana gęstości
+    // nie może pisać poza zaalokowaną tablicę instancji (inaczej trawa znika).
+    const COUNT = 9000;
     const inst = new THREE.InstancedMesh(geo, createGrassCardMaterial(), COUNT);
     inst.castShadow = false;
     inst.receiveShadow = true;
@@ -2878,12 +2890,31 @@ export class World {
     this.group.add(inst);
     this.grassField = {
       mesh: inst,
-      count: COUNT,
+      capacity: COUNT,
+      count: 6000,
       lastX: 1e9,
       lastZ: 1e9,
       dummy: new THREE.Object3D(),
       color: new THREE.Color(),
     };
+  }
+
+  /** Zasięg rysowania roślinności (zależny od poziomu jakości). */
+  setViewDistance(d) {
+    this.viewDistance = Math.max(260, Math.min(1600, d));
+    if (this.scatter) this.scatter.cullByDistance(this._lastCullX ?? 0, this._lastCullZ ?? 0, this.viewDistance);
+  }
+
+  /** Gęstość trawy w polu wokół gracza — sterowana poziomem jakości. */
+  setGrassDensity(n) {
+    const field = this.grassField;
+    if (!field) return;
+    const cap = field.capacity ?? field.mesh?.instanceMatrix?.count ?? 6000;
+    const target = Math.max(400, Math.min(cap, Math.round(n)));
+    if (field.count === target) return;
+    field.count = target;
+    field.mesh.count = Math.min(field.mesh.count, target);
+    field.lastX = 1e9; // wymuś przebudowę pola (ustawi też nową liczbę instancji)
   }
 
   /** Przesuwa pole trawy, jeśli gracz odszedł wystarczająco daleko. */
@@ -2901,7 +2932,8 @@ export class World {
     const color = f.color;
     let n = 0;
     const attempts = Math.round(f.count * 2.4);
-    for (let i = 0; i < attempts && n < f.count; i++) {
+    const capacity = inst.instanceMatrix.count;
+    for (let i = 0; i < attempts && n < f.count && n < capacity; i++) {
       const a = rng.float(0, Math.PI * 2);
       const r = Math.sqrt(rng.next()) * R;
       const x = px + Math.cos(a) * r;

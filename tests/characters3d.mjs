@@ -76,7 +76,13 @@ const wanted = ['hips', 'spine1', 'spine3', 'head', 'upperArmL', 'upperArmR', 'h
 const missingRoles = wanted.filter((r) => !heroRoles[r]);
 check('szkielet bohatera ma wszystkie potrzebne kości', missingRoles.length === 0, missingRoles.join(','));
 check('kości dłoni rozpoznane', !!heroRoles.handL && !!heroRoles.handR, `${heroRoles.handL?.name}/${heroRoles.handR?.name}`);
-check('model bohatera ma własne animacje (KayKit)', hero.animations.length >= 50, String(hero.animations.length));
+// Modele Quaternius (realistyczne proporcje) nie mają wbudowanych klipów —
+// animacje dostają z biblioteki UAL przez retargeting, tak samo jak NPC.
+const heroRig = new CharacterRig(hero, { library: { scene: lib.scene, clips: lib.animations }, name: 'bohater' });
+check('bohater ma pełny zestaw animacji', Object.keys(heroRig.actions).length >= 20, String(Object.keys(heroRig.actions).length));
+check('bohater dostał animacje z biblioteki', heroRig.libraryAdded.length >= 20, String(heroRig.libraryAdded.length));
+check('bohater nie jest kurczony na głowie', !heroRig.headScale || heroRig.headScale > 0.95, String(heroRig.headScale));
+heroRig.dispose();
 
 const libRoles = collectRigRoles(lib.scene);
 check('biblioteka używa innego nazewnictwa kości', !!libRoles.hips && libRoles.hips.name.startsWith('DEF-'), libRoles.hips?.name);
@@ -184,8 +190,9 @@ check('obcy szkielet rozpoznany', !!otherRoles.hips && !!otherRoles.handR, Objec
 check('obcy model ma własne animacje', otherGltf.animations.length >= 8, String(otherGltf.animations.length));
 const otherMap = buildBoneMap(lib.scene, otherGltf.scene);
 check('animacje biblioteki pasują też do obcego szkieletu', Object.keys(otherMap).length >= 14, String(Object.keys(otherMap).length));
-const quatHero = await load(manifest.npcs.marena); // Quaternius — inny szkielet niż KayKit
-check('sygnatury szkieletów się różnią', rigSignature(hero.scene) !== rigSignature(quatHero.scene));
+const quatHero = await load(manifest.npcs.marena); // Quaternius — inny szkielet niż biblioteka UAL
+check('sygnatury szkieletów się różnią', rigSignature(lib.scene) !== rigSignature(quatHero.scene));
+check('bohater i NPC dzielą jedną rodzinę szkieletów', rigSignature(hero.scene) === rigSignature(quatHero.scene));
 
 // uszkodzony eksport (NaN w wagach skórowania) musi zostać naprawiony w locie
 const brokenGltf = await load(manifest.npcs.iskra);

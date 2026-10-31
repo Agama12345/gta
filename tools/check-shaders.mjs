@@ -115,6 +115,8 @@ check('nawiasy zbalansowane (wkładka vertex)', balanced(FRAG_DECL(20) + FRAG_BO
 check('deklaracje fragmentu bez powtórzeń', (FRAG_DECL(20).match(/uniform sampler2D uGrassMap;/g) || []).length === 1);
 
 const sampled = (FRAG_BODY.match(/texture2D\(/g) || []).length;
-check('fragment próbkuje tekstury', sampled >= 9, `${sampled} sampli`);
+// Koszt piksela: im mniej próbek, tym lżej — pilnujemy górnej granicy,
+// bo splat pokrywa większość ekranu.
+check('fragment próbkuje tekstury w rozsądnym zakresie', sampled >= 5 && sampled <= 8, `${sampled} sampli`);
 
 process.exit(failed ? 1 : 0);

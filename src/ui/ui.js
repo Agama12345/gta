@@ -11,6 +11,7 @@ import { clamp, dist2 } from '../core/utils.js';
 import { SHOPS } from '../data/dialogue.js';
 import { icon } from './icons.js';
 import { biomeLabel } from '../world/biomes.js';
+import { tierForQuality } from '../core/quality.js';
 
 const fmt = (n) => Math.round(n).toLocaleString('pl-PL');
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
@@ -764,26 +765,19 @@ export class UI {
   /** Nakłada ustawienia grafiki na renderer, kamerę i mgłę. */
   applyVideoSettings(cfg = this.videoSettings()) {
     const g = this.game;
-    const r = g.renderer;
-    if (r) {
-      try {
-        r.setPixelRatio?.(Math.max(0.6, Math.min(2, cfg.quality / 100)));
-        r.setSize?.(window.innerWidth, window.innerHeight);
-        if (r.shadowMap) r.shadowMap.enabled = !!cfg.shadows;
-      } catch (err) {
-        console.warn('Nie udało się zmienić jakości grafiki', err);
-      }
-    }
-    if (g.sun) g.sun.castShadow = !!cfg.shadows;
     if (g.camera) {
       g.camera.fov = cfg.fov;
       g.camera.updateProjectionMatrix?.();
     }
+    // Jakość to jeden poziom: rozdzielczość, cienie, zasięg mgły, trawa i LOD.
+    const tier = tierForQuality(cfg.quality);
+    g.setQualityTier?.(tier, { shadowsOverride: cfg.shadows ? null : false });
     if (g.scene?.fog) {
       const scale = cfg.view / 100;
       g.scene.fog.near = 90 * scale;
-      g.scene.fog.far = 1150 * scale;
+      g.scene.fog.far = 1150 * scale * (g.qualityTier >= 3 ? 1 : 1);
     }
+    g.world?.setViewDistance?.(1150 * (cfg.view / 100));
     return cfg;
   }
 

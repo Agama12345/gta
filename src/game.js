@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { AutoQuality, applyQualityTier, tierForQuality } from './core/quality.js';
 import { Input } from './core/input.js';
 import { DayNight } from './core/time.js';
 import { clamp, dist2 } from './core/utils.js';
@@ -56,15 +57,23 @@ export class Game {
       this.renderer = this.options.renderer;
       return;
     }
+    const dpr = window.devicePixelRatio || 1;
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
-      antialias: true,
+      // przy ekranach HiDPI antyaliasing zjada pasmo bez widocznego zysku
+      antialias: dpr < 1.75,
       powerPreference: 'high-performance',
+      stencil: false,
     });
-    this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    this.renderer.setPixelRatio(Math.min(1.5, dpr));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // Cienie nie muszą być przeliczane w każdej klatce — słońce stoi,
+    // a mapa cieni i tak jest odświeżana co `shadowEvery` klatek.
+    this.renderer.shadowMap.autoUpdate = false;
+    this.renderer.shadowMap.needsUpdate = true;
+    this.shadowEvery = 2;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.4;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -107,13 +116,13 @@ export class Game {
 
     this.sun = new THREE.DirectionalLight('#fff3d6', 1.8);
     this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(2048, 2048);
+    this.sun.shadow.mapSize.set(1536, 1536);
     this.sun.shadow.camera.near = 1;
     this.sun.shadow.camera.far = 300;
-    this.sun.shadow.camera.left = -60;
-    this.sun.shadow.camera.right = 60;
-    this.sun.shadow.camera.top = 60;
-    this.sun.shadow.camera.bottom = -60;
+    this.sun.shadow.camera.left = -46;
+    this.sun.shadow.camera.right = 46;
+    this.sun.shadow.camera.top = 46;
+    this.sun.shadow.camera.bottom = -46;
     this.sun.shadow.bias = -0.0006;
     this.sun.shadow.normalBias = 0.045;
     this.scene.add(this.sun);
@@ -457,7 +466,9 @@ export class Game {
     }
     this.fpsFrames = 0;
     this.fpsTime = 0;
-    this.autoQualityDone = !!this.softwareRendering;
+    this.autoQuality = new AutoQuality(this, { startTier: this.softwareRendering ? 0 : 3 });
+    if (this.softwareRendering) this.autoQuality.locked = true;
+    this.autoQuality.setTier(this.softwareRendering ? 0 : tierForQuality(this.ui.videoSettings().quality));
     this.clock.start();
     const loop = () => {
       requestAnimationFrame(loop);
@@ -485,7 +496,20 @@ export class Game {
 
     if (this.state !== 'title') this.ui.update(dt);
     this._watchPerformance(dt);
+    this._updateShadows();
     this.renderer.render(this.scene, this.camera);
+  }
+
+  /** Odświeżanie mapy cieni co N klatek (albo od razu, gdy trzeba). */
+  _updateShadows() {
+    const map = this.renderer.shadowMap;
+    if (!map || !map.enabled) return;
+    const every = Math.max(1, this.shadowEvery || 1);
+    this._shadowFrame = (this._shadowFrame ?? 0) + 1;
+    if (map.needsUpdate || this._shadowFrame >= every) {
+      this._shadowFrame = 0;
+      map.needsUpdate = true;
+    }
   }
 
   /**
@@ -493,17 +517,18 @@ export class Game {
    * Ekran tytułowy też się liczy — „zacinające się menu” to najczęstsza skarga.
    */
   _watchPerformance(dt) {
-    if (this.autoQualityDone || !this.ui?.applyVideoSettings) return;
-    this.fpsFrames = (this.fpsFrames ?? 0) + 1;
-    this.fpsTime = (this.fpsTime ?? 0) + dt;
-    if (this.fpsTime < 4) return;
-    const fps = this.fpsFrames / this.fpsTime;
-    this.fpsFrames = 0;
-    this.fpsTime = 0;
-    if (fps >= 26) return;
-    this.autoQualityDone = true;
-    this.ui.applyVideoSettings({ quality: 70, shadows: false, view: 85, fov: 66 });
-    this.ui.toast?.('Obniżono jakość grafiki, żeby gra chodziła płynniej.', 'info');
+    this.autoQuality?.update(dt);
+  }
+
+  /** Ręczne ustawienie poziomu (panel opcji / komenda). */
+  setQualityTier(index, opts = {}) {
+    const tier = applyQualityTier(this, index, opts);
+    if (this.autoQuality) {
+      this.autoQuality.tier = tier.id;
+      this.autoQuality.ema = 16.7;
+      this.autoQuality.samples = 0;
+    }
+    return tier;
   }
 
   updateGame(dt) {

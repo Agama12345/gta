@@ -1,0 +1,16 @@
+import * as T from '/home/user/gta/src/world/terrain.js';
+const N = 20000;
+let t = performance.now();
+for (let i = 0; i < N; i++) T.heightAt(i * 0.37, i * 0.11);
+console.log('heightAt', ((performance.now() - t) / N * 1000).toFixed(2), 'µs/szt');
+const col = new (await import('three')).Color();
+t = performance.now();
+for (let i = 0; i < N; i++) T.terrainColorAt(i * 0.37, i * 0.11, 40, 0.4, col);
+console.log('terrainColorAt', ((performance.now() - t) / N * 1000).toFixed(2), 'µs/szt');
+const gw = [0,0,0,0];
+t = performance.now();
+for (let i = 0; i < N; i++) T.groundWeightsAt(i * 0.37, i * 0.11, 40, 0.4, gw);
+console.log('groundWeightsAt', ((performance.now() - t) / N * 1000).toFixed(2), 'µs/szt');
+t = performance.now();
+for (let i = 0; i < N; i++) T.slopeAt(i * 0.37, i * 0.11);
+console.log('slopeAt', ((performance.now() - t) / N * 1000).toFixed(2), 'µs/szt');

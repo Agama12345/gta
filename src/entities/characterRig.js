@@ -178,17 +178,31 @@ const HAND_ALIASES = {
   spine: ['spine2', 'spine1', 'spine', 'chest', 'mixamorigspine2'],
 };
 
-/** Szuka kości-gniazda po nazwie (obsługuje prefiks `mixamorig:`). */
+/**
+ * Szuka kości-gniazda po nazwie (obsługuje prefiks `mixamorig:`).
+ *
+ * Ważne: w plikach GLB obok kości potrafią leżeć grupy o tej samej nazwie
+ * (`Adventurer_Head` obejmująca siatki głowy, `Head_end` jako końcówka kości).
+ * Gdybyśmy brali pierwsze trafienie, „kością” głowy zostawała grupa w punkcie
+ * zero — a skalowanie takiej „głowy” kurczyło całą postać. Dlatego zbieramy
+ * wszystkie trafienia i wybieramy najlepsze: prawdziwą kość, najpierw dopasowanie
+ * dokładne, a nie „końcówkę” nazwy.
+ */
 export function findSocket(root, names) {
-  let found = null;
   if (!root) return null;
   const wanted = names.map(norm);
+  const hits = [];
   root.traverse((o) => {
-    if (found || !o.name) return;
+    if (!o.name) return;
     const key = norm(o.name);
-    if (wanted.some((w) => key === w || key.endsWith(w))) found = o;
+    const rank = wanted.indexOf(key);
+    const tail = rank < 0 ? wanted.findIndex((w) => key.endsWith(w)) : -1;
+    if (rank < 0 && tail < 0) return;
+    hits.push({ node: o, bone: !!o.isBone, exact: rank >= 0, order: rank >= 0 ? rank : tail });
   });
-  return found;
+  if (!hits.length) return null;
+  hits.sort((a, b) => Number(b.bone) - Number(a.bone) || Number(b.exact) - Number(a.exact) || a.order - b.order);
+  return hits[0].node;
 }
 
 /**
@@ -322,6 +336,30 @@ export function normalizeRig(scene, targetHeight = 1.85) {
 }
 
 /**
+ * Dobiera skalę kości głowy tak, aby głowa zajmowała ~1/7,5 wzrostu.
+ *
+ * Mierzymy, ile wysokości modelu przypada na czaszkę (od nasady czaszki do
+ * czubka), i tylko nadmiar ponad realistyczne proporcje ścinamy. Dzięki temu
+ * jeden wzór obsługuje i kreskówkowe figurki, i realistyczne modele, i modele
+ * dodane później — bez ręcznego dobierania współczynnika do każdego pliku.
+ */
+export function autoHeadScale(root, headBone) {
+  if (!root || !headBone) return 1;
+  const box = new THREE.Box3().setFromObject(root);
+  const total = box.max.y - box.min.y;
+  if (!Number.isFinite(total) || total < 0.2) return 1;
+  const v = new THREE.Vector3();
+  headBone.getWorldPosition(v);
+  const headHeight = box.max.y - v.y;
+  if (!Number.isFinite(headHeight) || headHeight <= 0.01) return 1;
+  const ratio = headHeight / total;
+  const realistic = 0.142; // ~1/7 wzrostu na czaszkę (z włosami)
+  if (ratio <= realistic * 1.12) return 1;
+  const k = realistic / ratio;
+  return Math.min(1, Math.max(0.62, k));
+}
+
+/**
  * Sterownik animacji postaci z zewnętrznego pliku.
  * Używa AnimationMixer + crossfade; poziom sterowania jest ten sam dla
  * bohatera i mieszkańców (stany: idle, walk, run, attack, hurt, death, talk…).
@@ -355,14 +393,18 @@ export class CharacterRig {
       head: findSocket(this.source, HAND_ALIASES.head),
       spine: findSocket(this.source, HAND_ALIASES.spine),
     };
-    // Proporcje: modele z paczek CC0 mają głowy jak figurki (ok. 1/5 wzrostu).
-    // W realistycznej konwencji dorosły człowiek ma ok. 1/7,5 — zmniejszamy
-    // kość głowy, co od razu zdejmuje „bobbleheadowy” wygląd.
+    // Proporcje głowy. Część paczek CC0 (KayKit) ma głowy jak figurki —
+    // ok. 1/5 wzrostu. Realistyczny dorosły ma ok. 1/7,5. Skalujemy więc
+    // kość głowy **tylko wtedy, gdy model naprawdę jest „bobbleheadowy”**;
+    // modele o poprawnych proporcjach (Quaternius) zostawiamy nietknięte,
+    // bo ich zmniejszanie robiło z ludzi karłów z mikroskopijną głową.
     const headBone = this.sockets.head;
-    if (headBone && headBone.scale && opts.headScale !== 1) {
-      const k = opts.headScale ?? 0.8;
-      headBone.scale.multiplyScalar(k);
-      this.headScale = k;
+    if (headBone && headBone.scale) {
+      const k = opts.headScale ?? autoHeadScale(this.source, headBone);
+      if (k < 0.995) {
+        headBone.scale.multiplyScalar(k);
+        this.headScale = k;
+      }
     }
     this.hasClips = Object.keys(this.actions).length > 0;
     if (this.actions.idle) {
