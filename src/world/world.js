@@ -19,7 +19,7 @@ import {
 } from './models.js';
 import { dominantBiome, biomeRegionsWorld } from './biomes.js';
 import { PropBatcher, flattenGroup, mergeStaticGroups } from './mergeProps.js';
-import { ModelScatter, placeProp } from '../core/assets.js';
+import { ModelScatter, placeProp, prepareInstancing } from '../core/assets.js';
 import { makeGrassCardGeometry, createGrassCardMaterial } from './grassCards.js';
 
 const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
@@ -2743,41 +2743,57 @@ export class World {
   _buildGulls() {
     const rng = new RNG(555);
     this.gulls = [];
-    const gullsGroup = new THREE.Group();
-    gullsGroup.name = 'gulls';
-    for (let i = 0; i < 26; i++) {
+    // 26 mew × 7 bryłek = 208 wywołań rysowania na samą chmurę ptaków.
+    // Sklejamy jedną mewę i rysujemy wszystkie jako instancje — jedno wywołanie.
+    const parts = prepareInstancing(makeGull(), { mergeAll: true });
+    const part = parts[0];
+    const GULLS = 26;
+    const inst = new THREE.InstancedMesh(part.geometry, part.material, GULLS);
+    inst.name = 'gulls';
+    inst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    inst.castShadow = false;
+    inst.receiveShadow = false;
+    inst.frustumCulled = false; // ptaki krążą nad całym wybrzeżem
+    this.gullsMesh = inst;
+    this._gullDummy = new THREE.Object3D();
+    for (let i = 0; i < GULLS; i++) {
       const a = rng.float(0, Math.PI * 2);
       const r = COAST_RADIUS * rng.float(0.72, 1.02);
       const cx = Math.cos(a) * r;
       const cz = Math.sin(a) * r;
-      const g = makeGull();
-      g.position.set(cx, WATER_LEVEL + rng.float(16, 46), cz);
-      g.scale.setScalar(rng.float(0.8, 1.3));
-      gullsGroup.add(g);
       this.gulls.push({
-        mesh: g,
         cx, cz,
         radius: rng.float(24, 80),
         speed: rng.float(0.12, 0.3) * (rng.chance(0.5) ? 1 : -1),
         phase: rng.float(0, Math.PI * 2),
-        y: g.position.y,
+        y: WATER_LEVEL + rng.float(16, 46),
+        scale: rng.float(0.8, 1.3),
       });
     }
-    this.group.add(gullsGroup);
+    this.group.add(inst);
+    if (this.gulls[0]) this._updateGulls(0);
   }
 
   _updateGulls(dt) {
-    if (!this.gulls) return;
+    const inst = this.gullsMesh;
+    if (!inst || !this.gulls) return;
     this.gullTime = (this.gullTime ?? 0) + dt;
     const t = this.gullTime;
-    for (const g of this.gulls) {
+    const dummy = this._gullDummy;
+    for (let i = 0; i < this.gulls.length; i++) {
+      const g = this.gulls[i];
       const a = g.phase + t * g.speed;
-      const x = g.cx + Math.cos(a) * g.radius;
-      const z = g.cz + Math.sin(a) * g.radius;
-      g.mesh.position.set(x, g.y + Math.sin(t * 0.7 + g.phase) * 2.4, z);
-      g.mesh.rotation.y = -a + (g.speed > 0 ? Math.PI : 0);
-      g.mesh.rotation.z = Math.sin(t * 1.6 + g.phase) * 0.22;
+      dummy.position.set(
+        g.cx + Math.cos(a) * g.radius,
+        g.y + Math.sin(t * 0.7 + g.phase) * 2.4,
+        g.cz + Math.sin(a) * g.radius,
+      );
+      dummy.rotation.set(0, -a + (g.speed > 0 ? Math.PI : 0), Math.sin(t * 1.6 + g.phase) * 0.22);
+      dummy.scale.setScalar(g.scale);
+      dummy.updateMatrix();
+      inst.setMatrixAt(i, dummy.matrix);
     }
+    inst.instanceMatrix.needsUpdate = true;
   }
 
   /** Świetliki nad łąkami i skrajem lasu — widoczne tylko nocą. */

@@ -21,7 +21,11 @@
     "test:characters3d": "node tests/characters3d.mjs",
     "check:shaders": "node tools/check-shaders.mjs",
     "preview:ground": "node tools/ground-preview.mjs",
-    "dump:ground": "node tools/dump-ground.mjs"
+    "dump:ground": "node tools/dump-ground.mjs",
+    "smoke:play": "node tools/smoke-play.mjs",
+    "diag:draws": "node tools/diag-draws.mjs",
+    "diag:head": "node tools/diag-head.mjs",
+    "diag:lod": "node tools/diag-lod.mjs"
   },
   "dependencies": {
     "three": "^0.169.0"
