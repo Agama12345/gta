@@ -19,25 +19,36 @@ function qs(sel, root = document) {
   return root.querySelector(sel);
 }
 
-const POI_LABELS = [
-  { ...LOCATIONS.village, short: 'Wilcza Dolina', color: '#e2b878' },
-  { ...LOCATIONS.trading, short: 'Kotlina Kupców', color: '#d8b85a' },
-  { ...LOCATIONS.crossroads, short: 'Rozdroże', color: '#cfc2a4' },
-  { ...LOCATIONS.forge, short: 'Kowalska Góra', color: '#6ee0d6' },
-  { ...LOCATIONS.bandits, short: 'Obóz bandytów', color: '#d0705a' },
-  { ...LOCATIONS.barrow, short: 'Kurhan Szeptu', color: '#b49ae0' },
-  { ...LOCATIONS.ruins, short: 'Mgliste Wrota', color: '#b977e8' },
-  { ...LOCATIONS.quarry, short: 'Kamieniołom', color: '#c9c2b0' },
-  { ...LOCATIONS.lake, short: 'Jezioro Zwierciadło', color: '#7fb8cc' },
-  { ...LOCATIONS.castle, short: 'Warownia Popiołu', color: '#c08f6a' },
-  { ...LOCATIONS.hermit, short: 'Pustelnia', color: '#9fc48a' },
-  { ...LOCATIONS.swamp, short: 'Bagno Wieszczki', color: '#7f9670' },
-  { ...LOCATIONS.pass, short: 'Przełęcz Kalmoru', color: '#b0a898' },
-  { ...LOCATIONS.circle, short: 'Kamienny Krąg', color: '#9f7cf0' },
-  { ...LOCATIONS.mine, short: 'Kopalnia', color: '#a89a80' },
-  { name: 'Jezioro Mgliste', x: LAKE_SURFACES[3]?.x ?? 315, z: LAKE_SURFACES[3]?.z ?? -215, short: 'Jezioro Mgliste', color: '#7fb8cc' },
-  { name: 'Jezioro Kamienne', x: LAKE_SURFACES[4]?.x ?? 269, z: LAKE_SURFACES[4]?.z ?? -377, short: 'Jezioro Kamienne', color: '#7fb8cc' },
+const POI_DEFS = [
+  ['village', 'Wilcza Dolina', '#e2b878'],
+  ['trading', 'Kotlina Kupców', '#d8b85a'],
+  ['crossroads', 'Rozdroże', '#cfc2a4'],
+  ['forge', 'Kowalska Góra', '#6ee0d6'],
+  ['bandits', 'Obóz bandytów', '#d0705a'],
+  ['barrow', 'Kurhan Szeptu', '#b49ae0'],
+  ['ruins', 'Mgliste Wrota', '#b977e8'],
+  ['quarry', 'Kamieniołom', '#c9c2b0'],
+  ['lake', 'Jezioro Zwierciadło', '#7fb8cc'],
+  ['castle', 'Warownia Popiołu', '#c08f6a'],
+  ['hermit', 'Pustelnia', '#9fc48a'],
+  ['swamp', 'Bagno Wieszczki', '#7f9670'],
+  ['pass', 'Przełęcz Kalmoru', '#b0a898'],
+  ['circle', 'Kamienny Krąg', '#9f7cf0'],
+  ['mine', 'Kopalnia', '#a89a80'],
+  ['lighthouse', 'Latarnia na Cyplu', '#f0dca8'],
+  ['wreck', 'Wrak „Zimnej Fali”', '#9fb2c0'],
+  ['fisherhut', 'Chata rybaka', '#a8c0a0'],
+  ['island', 'Samotna Wyspa', '#8fc2c8'],
+  ['highlands', 'Górskie Rozłogi', '#c9c6bc'],
 ];
+
+const POI_LABELS = POI_DEFS
+  .filter(([key]) => LOCATIONS[key])
+  .map(([id, short, color]) => ({ ...LOCATIONS[id], id, short, color }))
+  .concat([
+    { id: 'lake_misty', name: 'Jezioro Mgliste', x: LAKE_SURFACES[3]?.x ?? 315, z: LAKE_SURFACES[3]?.z ?? -215, short: 'Jezioro Mgliste', color: '#7fb8cc' },
+    { id: 'lake_stone', name: 'Jezioro Kamienne', x: LAKE_SURFACES[4]?.x ?? 269, z: LAKE_SURFACES[4]?.z ?? -377, short: 'Jezioro Kamienne', color: '#7fb8cc' },
+  ]);
 
 // Kolor terenu w danym punkcie świata — wspólny dla mapy i minimapy.
 function terrainSample(wx, wz) {
@@ -413,7 +424,7 @@ export class UI {
     map.innerHTML = `
       <div class="panel" style="width:min(900px,95vw)">
         <div class="panel-head">
-          <div><h2>Mapa Krainy</h2><div class="sub">Mgła skrywa północ — ale nie przed tobą</div></div>
+          <div><h2>Mapa Krainy</h2><div class="sub" id="map-sub">Odkryte miejsca: —</div></div>
           <div class="spacer"></div>
           <button class="close-x" data-close="map">✕</button>
         </div>
@@ -425,6 +436,7 @@ export class UI {
             <span><i style="background:#d0705a"></i> Wrogowie</span>
             <span><i style="background:#8fbf72"></i> Mieszkańcy</span>
             <span><i style="background:#8b5fd6"></i> Cel zadania</span>
+            <span class="map-legend-note"><i class="q">?</i> nieodkryte</span>
           </div>
         </div>
       </div>`;
@@ -2236,6 +2248,13 @@ export class UI {
     for (const poi of POI_LABELS) {
       const s = toScreen(poi.x, poi.z);
       if (Math.hypot(s.x - size / 2, s.y - size / 2) > size / 2 - 6) continue;
+      if (!(this.game.isDiscovered?.(poi.id) ?? true)) {
+        ctx.fillStyle = 'rgba(210,198,176,0.22)';
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, 2, 0, Math.PI * 2);
+        ctx.fill();
+        continue;
+      }
       ctx.fillStyle = poi.color;
       ctx.beginPath();
       ctx.arc(s.x, s.y, 4, 0, Math.PI * 2);
@@ -2301,8 +2320,23 @@ export class UI {
     ctx.restore();
   }
 
+  /** Lista punktów na mapie (używana też przez system odkrywania w Game). */
+  poiList() {
+    return POI_LABELS;
+  }
+
+  /** Podsumowanie odkryć do nagłówka mapy. */
+  discoverySummary() {
+    const total = POI_LABELS.length;
+    const found = POI_LABELS.filter((p) => this.game.isDiscovered?.(p.id)).length;
+    return { found, total };
+  }
+
   drawBigMap() {
     this._ensureMap();
+    const sum = this.discoverySummary();
+    const sub = qs('#map-sub');
+    if (sub) sub.textContent = `Odkryte miejsca: ${sum.found} / ${sum.total}`;
     const canvas = qs('#bigmap');
     const ctx = canvas.getContext('2d');
     const W = canvas.width;
@@ -2334,6 +2368,14 @@ export class UI {
     const placedLabels = [];
     for (const poi of POI_LABELS) {
       const sp = toScreen(poi.x, poi.z);
+      const known = this.game.isDiscovered?.(poi.id) ?? true;
+      if (!known) {
+        // nieodkryte miejsce to tylko pytajnik — mapa nie zdradza świata za darmo
+        ctx.fillStyle = 'rgba(210,198,176,0.28)';
+        ctx.font = '600 15px Cinzel, Georgia, serif';
+        ctx.fillText('?', sp.x, sp.y + 5);
+        continue;
+      }
       ctx.fillStyle = poi.color;
       ctx.beginPath();
       ctx.arc(sp.x, sp.y, 6.5, 0, Math.PI * 2);

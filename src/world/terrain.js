@@ -957,7 +957,8 @@ function buildChunkGeometry(cx, cz, res) {
 // Proceduralna tekstura detalu gruntu — rozbija jednolite płaszczyzny łąk.
 function makeDetailTexture() {
   try {
-    const size = 256;
+    // 512 px zamiast 256 — kafel mniej „mydli” się pod nogami
+    const size = 512;
     const c = document.createElement('canvas');
     c.width = size;
     c.height = size;
@@ -993,11 +994,79 @@ function makeDetailTexture() {
       ctx.fillStyle = `rgba(148,126,92,${0.06 + rnd() * 0.1})`;
       ctx.fillRect(x, y, 3 + rnd() * 9, 2 + rnd() * 4);
     }
+    // wielkoskalowe łaty — rozbijają widoczny „kafel” powtarzającego się detalles
+    for (let i = 0; i < 42; i++) {
+      const x = rnd() * size;
+      const y = rnd() * size;
+      const r = 18 + rnd() * 54;
+      const light = rnd() > 0.5;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, light ? 'rgba(255,252,232,0.07)' : 'rgba(56,64,40,0.09)');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     const tex = new THREE.CanvasTexture(c);
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.RepeatWrapping;
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 4;
+    return tex;
+  } catch (err) {
+    return null;
+  }
+}
+
+/**
+ * Mikrorzeźba gruntu (bump mapa): szum + kamyki + drobne koleiny.
+ * Daje wrażenie nierównej ziemi bez ani jednego kilobajta tekstur z sieci.
+ */
+export function makeBumpTexture() {
+  try {
+    const size = 256;
+    const c = document.createElement('canvas');
+    c.width = size;
+    c.height = size;
+    const ctx = c.getContext('2d');
+    if (!ctx || typeof ctx.fillRect !== 'function') return null;
+    ctx.fillStyle = '#808080';
+    ctx.fillRect(0, 0, size, size);
+
+    let seed = 90210;
+    const rnd = () => {
+      seed = (seed * 1664525 + 1013904223) % 4294967296;
+      return seed / 4294967296;
+    };
+    // grube „garby” terenu
+    for (let i = 0; i < 900; i++) {
+      const x = rnd() * size;
+      const y = rnd() * size;
+      const r = 4 + rnd() * 22;
+      const v = 118 + Math.floor(rnd() * 34);
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, `rgba(${v},${v},${v},0.5)`);
+      g.addColorStop(1, 'rgba(128,128,128,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // kamyki — ostre, małe pixele
+    for (let i = 0; i < 2600; i++) {
+      const x = rnd() * size;
+      const y = rnd() * size;
+      const v = rnd() > 0.5 ? 148 + Math.floor(rnd() * 60) : 96 + Math.floor(rnd() * 30);
+      ctx.fillStyle = `rgba(${v},${v},${v},${0.25 + rnd() * 0.5})`;
+      ctx.fillRect(x, y, 1 + rnd() * 3, 1 + rnd() * 2);
+    }
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.anisotropy = 2;
     return tex;
   } catch (err) {
     return null;
@@ -1012,7 +1081,13 @@ export class TerrainManager {
     scene.add(this.group);
 
     const detail = makeDetailTexture();
-    this.material = new THREE.MeshLambertMaterial({ vertexColors: true, map: detail ?? null });
+    const bump = makeBumpTexture();
+    this.material = new THREE.MeshLambertMaterial({
+      vertexColors: true,
+      map: detail ?? null,
+      bumpMap: bump ?? null,
+      bumpScale: 0.55,
+    });
     this.chunks = new Map();
     this.queue = [];
     this.lastLodPos = new THREE.Vector2(1e9, 1e9);

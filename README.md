@@ -63,6 +63,11 @@ Alternatywy: [paczka ZIP](https://github.com/Agama12345/gta/raw/arena/68dc2b6a-g
   mieszkańców, którzy mają własne kroki słyszalne w panoramie dźwięku.
 - **Realistyczniejsza sylwetka:** dłonie z nadgarstkiem, palcami i kciukiem, barki,
   nos, brwi, żuchwa i uszy — zamiast samych kul i walców.
+- **Ekwipunek jak w „poważnym” RPG:** trzy kolumny — założone / torba / karta
+  przedmiotu. Karta pokazuje rzadkość kolorowaną krawędzią, statystyki z **porównaniem
+  do założonego** (zielone `+`, czerwone `−`), wartość i akcje; `Enter` zakłada lub
+  używa wybranego przedmiotu, filtry i sortowanie są segmentowe, siatka ma stałe 6
+  kolumn, a wybór nie przerysowuje całej torby. Karta postaci dostała paski atrybutów.
 - **Menu i interfejs:** ekran tytułowy z kartą wyprawy (poziom, złoto, zadania, data zapisu,
   obracająca się wskazówka, zegar świata), menu pauzy z podsumowaniem stanu, obsługa
   klawiatury (↑ ↓ · Enter · Esc), czytelniejszy HUD z plakietkami stanu (skradanie, blok,
@@ -73,6 +78,22 @@ Alternatywy: [paczka ZIP](https://github.com/Agama12345/gta/raw/arena/68dc2b6a-g
   canvasem, a ustawienia mają **cienie, zasięg widzenia, pole widzenia i ostrość obrazu**.
   Start pilnuje watchdog: zamiast wiecznego „Rozpalanie pochodni…” pojawia się konkretny
   komunikat z przyciskiem „Spróbuj ponownie”. Cały przepływ menu pokrywa `tests/menu.mjs`.
+- **Odkrywanie mapy:** na starcie znana jest tylko Wilcza Dolina — pozostałe miejsca
+  trzeba zobaczyć na własne oczy. Wejście w promień punktu odsłania go na mapie
+  i minimapie, daje **+25 PD** i komunikat; nieodkryte punkty rysują się jako „?”.
+  Odkrycia zapisują się razem ze stanem gry (HUD pokazuje licznik w panelu mapy).
+- **Trawa w całej dolinie:** 1600 kępek w promieniu 48 m, przesuwanych za graczem —
+  łąki wyglądają gęsto w każdym miejscu, a nie tylko wokół osad. Kolor i gęstość
+  zależą od biomu (pustynia rzadko, las gęsto), poza ścieżkami i wodą.
+- **Grunt z mikrorzeźbą:** teren ma teraz mapę detalu 512 px z wielkoskalowymi łatami
+  (kafel przestaje się „powtarzać”) oraz **bump mapę** z kamykami i garby — ziemia
+  pod stopami ma fakturę, nie tylko kolor.
+- **Modele postaci od Ciebie — wtykane bez kodu:** wystarczy wrzucić `.glb` do
+  `public/assets/models/chars/` i dopisać wpis w `models.json`. Gra dopasuje skalę,
+  znajdzie kości dłoni (miecz i tarcza same się przypną), rozpozna klipy po nazwach
+  (`Idle`, `Walk`, `Run`, `Attack`, `Death`… także `Armature|Idle_01` i Mixamo),
+  a przy braku pliku wróci do sylwetek proceduralnych. Instrukcja:
+  `public/assets/models/chars/README.md`, walidacja: `node tests/character.mjs`.
 - **Nagrany dźwięk (130 plików, 7,1 MB) + synteza w zapasie:** kroki na sześciu
   podłożach (trawa, ziemia, śnieg, drewno, kamień, metal) w wersji chód/bieg, lądowania,
   świst i zgrzyt ostrza, uderzenia, monety, drzwi, zwierzęta, potwory, kliknięcia

@@ -246,6 +246,27 @@ check('atrybuty mają paski', qa('.attr-bar').length === 4, String(qa('.attr-bar
 game.ui.closePanels();
 
 // ---------------------------------------------------------------------------
+console.log('\nMAPA — odkrywanie miejsc');
+game.returnToTitle();
+game.startNew();
+check('na starcie znana jest tylko wioska', game.discovered.size === 1 && game.discovered.has('village'));
+const pois = game.ui.poiList();
+check('lista punktów mapy jest pełna', pois.length >= 15, String(pois.length));
+const target2 = pois.find((x) => x.id === 'forge') ?? pois[1];
+game.player.pos.x = target2.x;
+game.player.pos.z = target2.z;
+game.discoveryTimer = 0;
+game._checkDiscovery(0.7);
+check('wejście w promień odkrywa miejsce', game.discovered.has(target2.id), target2.id);
+check('kolejne punkty nadal ukryte', game.discovered.size === 2, String(game.discovered.size));
+game.ui.openMap();
+check('mapa pokazuje licznik odkryć', (q('#map-sub')?.textContent ?? '').includes('/'), q('#map-sub')?.textContent ?? '');
+game.ui.closePanels();
+game.saveGame();
+const rawSave = JSON.parse(global.localStorage.getItem('runy-przeznaczenia-save'));
+check('odkrycia trafiają do zapisu', Array.isArray(rawSave.discovered) && rawSave.discovered.includes(target2.id));
+
+// ---------------------------------------------------------------------------
 console.log('\nMENU — higiena');
 const fs = await import('node:fs');
 const indexHtml = fs.readFileSync('index.html', 'utf8');

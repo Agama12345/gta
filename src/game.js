@@ -39,6 +39,9 @@ export class Game {
     this.lastRegion = null;
     this.titleAngle = 0;
     this.running = false;
+    // odkryte miejsca (mgła na mapie, nagrody za eksplorację)
+    this.discovered = new Set(['village']);
+    this.discoveryTimer = 0;
 
     this._initRenderer();
     this._initScene();
@@ -322,6 +325,8 @@ export class Game {
   // STANY
   // ------------------------------------------------------------------
   startNew() {
+    this.discovered = new Set(['village']);
+    this.discoveryTimer = 0;
     this.music?.start?.();
     this.audio.unlock();
     // świeży gracz
@@ -490,6 +495,7 @@ export class Game {
 
   updateGame(dt) {
     this.contracts?.update(dt);
+    this._checkDiscovery(dt);
     const mouse = this.input.consumeMouse();
     if (mouse.x !== 0 || mouse.y !== 0) {
       const sens = this.input.locked ? 0.0022 : 0.0042;
@@ -1173,6 +1179,42 @@ export class Game {
   }
 
   // ------------------------------------------------------------------
+  // ODKRYWANIE ŚWIATA
+  // ------------------------------------------------------------------
+  /** Czy miejsce na mapie zostało już odwiedzone. */
+  isDiscovered(id) {
+    return !id || this.discovered.has(id);
+  }
+
+  /**
+   * Eksploracja ma znaczenie: wejście w promień miejsca odsłania je na mapie,
+   * daje doświadczenie i komunikat. Bez tego mapa była „za darmo” znana.
+   */
+  _checkDiscovery(dt) {
+    this.discoveryTimer -= dt;
+    if (this.discoveryTimer > 0) return;
+    this.discoveryTimer = 0.6;
+    const p = this.player?.pos;
+    if (!p) return;
+    for (const poi of this.ui?.poiList?.() ?? []) {
+      if (this.discovered.has(poi.id)) continue;
+      const d = Math.hypot(p.x - poi.x, p.z - poi.z);
+      if (d > 58) continue;
+      this.discovered.add(poi.id);
+      this.player.gainXp(25);
+      this.audio?.quest?.();
+      this.ui?.toast?.(`Odkryto: ${poi.short}`, 'Nowe miejsce na mapie · +25 PD');
+      this.ui?.log?.(`Odkrywasz ${poi.short}. Mapa uzupełnia się o nowy punkt.`, 'good');
+      this.ui?.refreshHud?.();
+    }
+  }
+
+  /** Wywoływane po wczytaniu zapisu — stare zapisy znają tylko wioskę. */
+  _restoreDiscovery(list) {
+    this.discovered = new Set(Array.isArray(list) && list.length ? list : ['village']);
+  }
+
+  // ------------------------------------------------------------------
   // ZAPIS
   // ------------------------------------------------------------------
   saveGame(manual = false) {
@@ -1188,6 +1230,7 @@ export class Game {
         hour: this.dayNight.hour,
         day: this.dayNight.day,
         kills: this.kills,
+        discovered: [...this.discovered],
       };
       localStorage.setItem(SAVE_KEY, JSON.stringify(data));
       if (manual) {
@@ -1233,6 +1276,7 @@ export class Game {
     this.enemies.reset();
     this.fx.clear();
     this.kills = data.kills ?? 0;
+    this._restoreDiscovery(data.discovered);
     this.dayNight.setHour(data.hour ?? 8.5);
     this.dayNight.day = data.day ?? 1;
     this.cameraRig.initialized = false;

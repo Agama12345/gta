@@ -163,6 +163,7 @@ export class World {
       }
     }
     this._updateGulls(dt);
+    if (playerPos) this._updateGrass(playerPos.x, playerPos.z);
     if (this.beacon) {
       const nightF = 1 - (time?.dayF ?? 1);
       this.beacon.beamMat.opacity = Math.max(0, nightF - 0.22) * 0.38;
@@ -2348,5 +2349,87 @@ export class World {
     if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
     this.group.add(inst);
     this.grassInstanced = inst;
+
+    // gęsta trawa wokół gracza — niezależna od osad, pokrywa całą dolinę
+    this._buildGrassField(tuftGeo);
+  }
+
+  /**
+   * Trawa „wędrująca” za graczem: 1600 kępek w promieniu 48 m, przebudowywane
+   * po przejściu ~3 m. Dzięki temu łąki wyglądają gęsto w każdym miejscu mapy,
+   * a koszt to jedna instancja i jedno przeliczenie na kilka kroków.
+   */
+  _buildGrassField(geo) {
+    if (!geo) return;
+    const COUNT = 1600;
+    const mat = new THREE.MeshLambertMaterial({ color: '#ffffff' });
+    const inst = new THREE.InstancedMesh(geo, mat, COUNT);
+    inst.castShadow = false;
+    inst.receiveShadow = true;
+    inst.frustumCulled = false;
+    inst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    inst.count = 0;
+    this.group.add(inst);
+    this.grassField = {
+      mesh: inst,
+      count: COUNT,
+      lastX: 1e9,
+      lastZ: 1e9,
+      dummy: new THREE.Object3D(),
+      color: new THREE.Color(),
+    };
+  }
+
+  /** Przesuwa pole trawy, jeśli gracz odszedł wystarczająco daleko. */
+  _updateGrass(px, pz) {
+    const f = this.grassField;
+    if (!f || !Number.isFinite(px) || !Number.isFinite(pz)) return;
+    if (dist2(px, pz, f.lastX, f.lastZ) < 9) return; // przebudowa co ~3 m
+    f.lastX = px;
+    f.lastZ = pz;
+
+    const R = 48;
+    const rng = new RNG(Math.round(px * 13 + pz * 7) | 0);
+    const inst = f.mesh;
+    const dummy = f.dummy;
+    const color = f.color;
+    let n = 0;
+    const attempts = Math.round(f.count * 2.4);
+    for (let i = 0; i < attempts && n < f.count; i++) {
+      const a = rng.float(0, Math.PI * 2);
+      const r = Math.sqrt(rng.next()) * R;
+      const x = px + Math.cos(a) * r;
+      const z = pz + Math.sin(a) * r;
+      if (Math.abs(x) > WORLD_RADIUS - 8 || Math.abs(z) > WORLD_RADIUS - 8) continue;
+      if (isWater(x, z)) continue;
+      if (slopeAt(x, z) > 1.15) continue;
+      if (distanceToPath(x, z) < 3) continue;
+      const biome = dominantBiome(x, z);
+      // gęstość zależna od biomu: pustynia i lód — rzadko, las i łąka — gęsto
+      const density = biome === 'desert' ? 0.22 : biome === 'ice' ? 0.4 : biome === 'savanna' ? 0.7 : 1;
+      if (rng.next() > density) continue;
+      const h = heightAt(x, z);
+      if (h < WATER_LEVEL + 0.3) continue;
+      dummy.position.set(x, h - 0.03, z);
+      dummy.rotation.set(0, rng.float(0, 6.28), 0);
+      const s = rng.float(0.65, 1.35);
+      dummy.scale.set(s, s * rng.float(0.75, 1.5), s);
+      dummy.updateMatrix();
+      inst.setMatrixAt(n, dummy.matrix);
+      if (biome === 'desert') {
+        color.setHSL(0.13 + rng.float(-0.02, 0.02), rng.float(0.22, 0.38), rng.float(0.4, 0.52));
+      } else if (biome === 'savanna') {
+        color.setHSL(0.14 + rng.float(-0.02, 0.03), rng.float(0.3, 0.44), rng.float(0.34, 0.46));
+      } else if (biome === 'ice') {
+        color.setHSL(0.28 + rng.float(-0.03, 0.03), rng.float(0.07, 0.18), rng.float(0.55, 0.7));
+      } else {
+        color.setHSL(0.24 + rng.float(-0.04, 0.05), rng.float(0.28, 0.5), rng.float(0.24, 0.4));
+      }
+      inst.setColorAt(n, color);
+      n += 1;
+    }
+    inst.count = n;
+    inst.instanceMatrix.needsUpdate = true;
+    if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
   }
 }
