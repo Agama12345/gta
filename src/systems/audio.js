@@ -106,7 +106,7 @@ export class AudioSystem {
     this.started = false;
     this.lastStep = 0;
     this.env = { night: 0, sea: 0, forest: 0, fire: 0, rain: 0, wind: 0.5, underwater: 0, river: 0, lake: 0 };
-    this._timers = { bird: 2, owl: 9, wolf: 16, cricket: 1.5, fire: 0.6, wave: 3, drip: 5 };
+    this._timers = { bird: 2, owl: 9, wolf: 16, cricket: 1.5, fire: 0.6, wave: 3, drip: 5, church: 45, chime: 60 };
     this._firePos = null;
     this.listener = { x: 0, z: 0, yaw: 0 };
     // warstwa sample'owa
@@ -173,7 +173,14 @@ export class AudioSystem {
   async _loadSamples() {
     if (!this.ctx || this.samplesLoading) return;
     this.samplesLoading = true;
-    const stage = (files) => Promise.all(files.map((f) => this._loadOne(f)));
+    // Partie po 4 pliki: nie zapychamy łącza i nie zamrażamy pierwszej klatki.
+    const stage = async (files) => {
+      const queue = [...new Set(files)];
+      const workers = Array.from({ length: 4 }, async () => {
+        while (queue.length) await this._loadOne(queue.shift());
+      });
+      await Promise.all(workers);
+    };
     try {
       await stage([...Object.values(STEP_SAMPLES).flat(), ...Object.values(UI_SAMPLES).flat()]);
       await stage([...Object.values(FOLEY_SAMPLES).flat(), ...Object.values(MUSIC_SAMPLES).flat()]);
@@ -502,6 +509,38 @@ export class AudioSystem {
     if (timers.drip <= 0) {
       timers.drip = 3 + Math.random() * 7;
       if (e.rain > 0.3) this.drip();
+    }
+
+    // nocą z oddali niesie się organowy chorał z kaplicy na cmentarzu
+    timers.church -= dt;
+    if (timers.church <= 0) {
+      timers.church = 70 + Math.random() * 110;
+      if (e.night > 0.55) {
+        this._sample('organ', {
+          group: MUSIC_SAMPLES,
+          gain: 0.16,
+          rate: 0.94 + Math.random() * 0.06,
+          pan: (Math.random() * 2 - 1) * 0.6,
+          reverb: 0.7,
+          bus: 'music',
+        });
+      }
+    }
+
+    // w dzień, przy osadzie, dzwonią kuranty na wietrze
+    timers.chime -= dt;
+    if (timers.chime <= 0) {
+      timers.chime = 45 + Math.random() * 80;
+      if (e.night < 0.5 && e.forest < 0.75) {
+        this._sample('chimes', {
+          group: MUSIC_SAMPLES,
+          gain: 0.12,
+          rate: 0.95 + Math.random() * 0.1,
+          pan: (Math.random() * 2 - 1) * 0.7,
+          reverb: 0.5,
+          bus: 'ambient',
+        });
+      }
     }
   }
 

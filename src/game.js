@@ -65,6 +65,18 @@ export class Game {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.4;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+    // Renderowanie programowe (brak akceleracji) = kilka klatek na sekundę.
+    // Lepiej od razu zejść z jakością, niż dać graczowi „zawieszone” menu.
+    this.softwareRendering = false;
+    try {
+      const gl = this.renderer.getContext?.();
+      const dbg = gl?.getExtension?.('WEBGL_debug_renderer_info');
+      const name = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : '';
+      this.softwareRendering = /swiftshader|llvmpipe|software|basic render|mesa offscreen/i.test(name);
+    } catch (err) {
+      /* brak dostępu do informacji o GPU — zostają ustawienia gracza */
+    }
   }
 
   _initScene() {
@@ -416,6 +428,13 @@ export class Game {
     this.running = true;
     // zapamiętane ustawienia grafiki wchodzą od razu — jeszcze przed pierwszym kadrem
     this.ui.applyVideoSettings?.();
+    if (this.softwareRendering) {
+      this.ui.applyVideoSettings?.({ quality: 70, shadows: false, view: 70, fov: 64 });
+      setTimeout(() => this.ui.toast?.('Brak akceleracji grafiki — włączono tryb oszczędny.', 'warn'), 1200);
+    }
+    this.fpsFrames = 0;
+    this.fpsTime = 0;
+    this.autoQualityDone = !!this.softwareRendering;
     this.clock.start();
     const loop = () => {
       requestAnimationFrame(loop);
@@ -442,7 +461,26 @@ export class Game {
     }
 
     if (this.state !== 'title') this.ui.update(dt);
+    this._watchPerformance(dt);
     this.renderer.render(this.scene, this.camera);
+  }
+
+  /**
+   * Automatyczna degradacja jakości, gdy komputer nie wyrabia.
+   * Ekran tytułowy też się liczy — „zacinające się menu” to najczęstsza skarga.
+   */
+  _watchPerformance(dt) {
+    if (this.autoQualityDone || !this.ui?.applyVideoSettings) return;
+    this.fpsFrames = (this.fpsFrames ?? 0) + 1;
+    this.fpsTime = (this.fpsTime ?? 0) + dt;
+    if (this.fpsTime < 4) return;
+    const fps = this.fpsFrames / this.fpsTime;
+    this.fpsFrames = 0;
+    this.fpsTime = 0;
+    if (fps >= 26) return;
+    this.autoQualityDone = true;
+    this.ui.applyVideoSettings({ quality: 70, shadows: false, view: 85, fov: 66 });
+    this.ui.toast?.('Obniżono jakość grafiki, żeby gra chodziła płynniej.', 'info');
   }
 
   updateGame(dt) {
