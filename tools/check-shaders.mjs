@@ -6,6 +6,10 @@ import {
   injectVertexShader, injectFragmentShader, FRAG_BODY, FRAG_NORMAL, FRAG_DECL,
 } from '../src/world/groundMaterial.js';
 import { parser } from '@shaderfrog/glsl-parser';
+import {
+  WATER_VERT_DECL, WATER_VERT_SETUP, WATER_FRAG_DECL, WATER_FRAG_NORMAL,
+  createWaveNormalTexture,
+} from '../src/world/waterShader.js';
 
 function resolveIncludes(src, depth = 0) {
   if (depth > 12) throw new Error('zbyt głębokie zagnieżdżenie #include');
@@ -62,13 +66,9 @@ const fragStub = `
 precision highp float;
 uniform vec4 uPaths[20];
 uniform sampler2D uGrassMap;
-uniform sampler2D uGrassH;
 uniform sampler2D uDirtMap;
-uniform sampler2D uDirtH;
 uniform sampler2D uRockMap;
-uniform sampler2D uRockH;
 uniform sampler2D uSandMap;
-uniform sampler2D uSandH;
 uniform vec2 uPathEdge;
 uniform float uDetailGain;
 uniform float uBumpScale;
@@ -118,5 +118,52 @@ const sampled = (FRAG_BODY.match(/texture2D\(/g) || []).length;
 // Koszt piksela: im mniej próbek, tym lżej — pilnujemy górnej granicy,
 // bo splat pokrywa większość ekranu.
 check('fragment próbkuje tekstury w rozsądnym zakresie', sampled >= 5 && sampled <= 8, `${sampled} sampli`);
+
+
+// --- woda: fale w shaderze ---------------------------------------------------
+const waterStub = `
+precision highp float;
+uniform sampler2D uWaveTex;
+uniform float uWaveTime;
+uniform vec3 uWaveParams;
+uniform mat4 viewMatrix;
+varying vec3 vWatPos;
+varying vec3 vNormal;
+vec3 normal;
+void main() {
+  normal = vNormal;
+${WATER_FRAG_NORMAL}
+}
+`;
+try {
+  parser.parse(waterStub, { quiet: true });
+  check('GLSL fal wody parsuje się', true);
+} catch (err) {
+  check('GLSL fal wody parsuje się', false, err.message.split('\n')[0]);
+}
+check('woda: kotwice chunków istnieją',
+  THREE.ShaderLib.standard.vertexShader.includes('#include <common>')
+  && THREE.ShaderLib.standard.vertexShader.includes('#include <begin_vertex>')
+  && THREE.ShaderLib.standard.fragmentShader.includes('#include <normal_fragment_maps>'));
+check('woda: varying wierzchołka i fragmentu zgodne',
+  WATER_VERT_DECL === WATER_FRAG_DECL().match(/varying vec3 vWatPos;/)[0]);
+check('woda: mapa normalnych ma sensowny rozmiar',
+  (() => {
+    const tex = createWaveNormalTexture(64);
+    const a = tex.image.data;
+    let min = 255;
+    let max = 0;
+    for (let i = 0; i < a.length; i += 4) {
+      min = Math.min(min, a[i]);
+      max = Math.max(max, a[i]);
+    }
+    // mapa musi mieć kontrast — inaczej woda jest płaska jak lustro
+    return tex.image.width === 64 && max - min > 120;
+  })());
+const terrainSrc = fs.readFileSync(new URL('../src/world/terrain.js', import.meta.url), 'utf8');
+check('woda: fale podpięte do morza i wód śródlądowych',
+  (terrainSrc.match(/injectWaterWaves\(/g) || []).length >= 2);
+check('woda: brak liczenia wysokości na CPU w pętli klatki',
+  !/arr\[i \* 3 \+ 1\] = wave\(/.test(terrainSrc));
 
 process.exit(failed ? 1 : 0);

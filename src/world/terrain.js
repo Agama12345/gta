@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { injectWaterWaves } from './waterShader.js';
 import { clamp, fbm, lerp, smoothstep, dist2 } from '../core/utils.js';
 import { biomeWeights } from './biomes.js';
 import { createGroundMaterial } from './groundMaterial.js';
@@ -1405,6 +1406,8 @@ export function createWater() {
   seaMat.side = THREE.DoubleSide;
 
   const seaGeo = buildSeaGeometry();
+  // Fale w shaderze: drobna tętnica normalnych zamiast merdania rzadką siatką.
+  const seaWaves = injectWaterWaves(seaMat, { scale: 0.045, strength: 0.6, speed: 1.0 });
   const sea = new THREE.Mesh(seaGeo, seaMat);
   sea.position.y = WATER_LEVEL;
   sea.name = 'sea';
@@ -1450,6 +1453,7 @@ export function createWater() {
     vertexColors: true,
     side: THREE.DoubleSide,
   });
+  const freshWaves = injectWaterWaves(freshMat, { scale: 0.12, strength: 0.42, speed: 1.7 });
   const fresh = new THREE.Group();
   fresh.name = 'fresh-water';
   group.add(fresh);
@@ -1580,13 +1584,7 @@ export function createWater() {
   const updateFresh = (dt) => {
     freshTime += dt;
     for (const srf of freshSurfaces) {
-      const posAttr = srf.mesh.geometry.attributes.position;
-      const arr = posAttr.array;
-      const amp = srf.kind === 'river' ? 0.035 : 0.05;
-      for (let i = 0; i < srf.baseY.length; i++) {
-        arr[i * 3 + 1] = srf.baseY[i] + Math.sin(freshTime * 1.9 + srf.phases[i]) * amp;
-      }
-      posAttr.needsUpdate = true;
+      // wysokości wierzchołków zostają stałe — falują normalne w shaderze
       // ruchome smugi — jasna „piana” pełznąca z nurtem
       const col = srf.colors;
       const baseCol = srf.baseColors;
@@ -1603,36 +1601,10 @@ export function createWater() {
   };
 
   // ---- fale ---------------------------------------------------------------
-  const base = Float32Array.from(seaGeo.attributes.position.array);
-  const pos = seaGeo.attributes.position;
-  const wave = (x, z, t) =>
-    Math.sin(x * 0.055 + t * 0.85) * 0.19 +
-    Math.cos(z * 0.071 + t * 0.62) * 0.15 +
-    Math.sin((x + z) * 0.021 + t * 1.31) * 0.24;
-  // pochodne cząstkowe — normalna liczona wprost, bez przemiatania trójkątów
-  const waveSlope = (x, z, t) => [
-    Math.cos(x * 0.055 + t * 0.85) * 0.19 * 0.055 +
-      Math.cos((x + z) * 0.021 + t * 1.31) * 0.24 * 0.021,
-    -Math.sin(z * 0.071 + t * 0.62) * 0.15 * 0.071 +
-      Math.cos((x + z) * 0.021 + t * 1.31) * 0.24 * 0.021,
-  ];
-
-  const nrm = seaGeo.attributes.normal;
-  const refreshNormals = (t) => {
-    for (let i = 0; i < pos.count; i++) {
-      const [dx, dz] = waveSlope(base[i * 3], base[i * 3 + 2], t);
-      const len = Math.hypot(dx, 1, dz) || 1;
-      nrm.array[i * 3] = -dx / len;
-      nrm.array[i * 3 + 1] = 1 / len;
-      nrm.array[i * 3 + 2] = -dz / len;
-    }
-    nrm.needsUpdate = true;
-  };
-  for (let i = 0; i < pos.count; i++) {
-    pos.array[i * 3 + 1] = wave(base[i * 3], base[i * 3 + 2], 0);
-  }
-  pos.needsUpdate = true;
-  refreshNormals(0);
+  // Wysokości wierzchołków są STAŁE: siatka morza ma wierzchołek co ~130 m,
+  // więc animacja na CPU dawała tylko kołysanie całej tafli przy dużym koszcie.
+  // Ruch wody robią teraz normalne z shadera (patrz `waterShader.js`) oraz
+  // unosząca się piana przy brzegu.
 
   let t = 0;
   let frame = 0;
@@ -1644,12 +1616,8 @@ export function createWater() {
     update(dt) {
       t += dt;
       frame += 1;
-      const arr = pos.array;
-      for (let i = 0; i < pos.count; i++) {
-        arr[i * 3 + 1] = wave(base[i * 3], base[i * 3 + 2], t);
-      }
-      pos.needsUpdate = true;
-      if (frame % 2 === 0) refreshNormals(t);
+      seaWaves.time.value = t;
+      freshWaves.time.value = t;
 
       foamMat.opacity = 0.4 + Math.sin(t * 0.9) * 0.1 + Math.sin(t * 2.3) * 0.04;
       const lift = Math.sin(t * 0.9) * 0.03;

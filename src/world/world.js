@@ -2869,12 +2869,24 @@ export class World {
 
     // gęsta trawa wokół gracza — niezależna od osad, pokrywa całą dolinę
     this._buildGrassField(tuftGeo);
+    if (this.grassField) this._prepareGrass(this.grassField.count);
   }
 
   /**
-   * Trawa „wędrująca” za graczem: 1600 kępek w promieniu 48 m, przebudowywane
-   * po przejściu ~3 m. Dzięki temu łąki wyglądają gęsto w każdym miejscu mapy,
-   * a koszt to jedna instancja i jedno przeliczenie na kilka kroków.
+   * Trawa „wędrująca” za graczem.
+   *
+   * Wcześniej po każdych 3 m ruchu losowano od nowa 14 400 kandydatów i dla
+   * każdego liczono odległość od traktu (20 odcinków), wodę, spadek i biom —
+   * ok. 25 ms na przebudowę, czyli zacinanie w trakcie chodzenia. Teraz:
+   *
+   *  - pozycje kępek są stałe (spirala złotego kąta w kole, liczona raz),
+   *  - siatka InstancedMesh wisi na grupie przesuwanej razem z graczem, więc
+   *    przesunięcie pola to zmiana jednej macierzy, a nie 9000 instancji,
+   *  - odświeżanie wysokości idzie partiami po ~1500 kępek na klatkę,
+   *  - maska traktów jest rasteryzowana raz na przebudowę (kilka odcinków),
+   *    zamiast liczenia odległości dla każdego kandydata.
+   *
+   * Efekt: płynne pole trawy bez klatek-spadków.
    */
   _buildGrassField(geo) {
     if (!geo) return;
@@ -2887,16 +2899,182 @@ export class World {
     inst.frustumCulled = false;
     inst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     inst.count = 0;
-    this.group.add(inst);
+    const holder = new THREE.Group();
+    holder.name = 'trawa-pole';
+    holder.add(inst);
+    this.group.add(holder);
     this.grassField = {
       mesh: inst,
+      holder,
       capacity: COUNT,
       count: 6000,
-      lastX: 1e9,
-      lastZ: 1e9,
-      dummy: new THREE.Object3D(),
+      radius: 42,
+      anchorX: 1e9,
+      anchorZ: 1e9,
+      cursor: 0,
+      base: null,
+      spots: null,
+      preparedFor: 0,
       color: new THREE.Color(),
     };
+  }
+
+  /**
+   * Siatka pozycji kępek dla danej liczby instancji (raz na zmianę gęstości).
+   * Wypełnia też macierze bazowe (obrót + skala + x/z lokalne) i kolory.
+   */
+  _prepareGrass(count) {
+    const f = this.grassField;
+    if (!f) return;
+    const n = Math.max(1, Math.min(f.capacity, count | 0));
+    const arr = f.mesh.instanceMatrix.array;
+    const buff = new Float32Array(n * 16);
+    const spots = new Float32Array(n * 2);
+    const rng = new RNG(20251);
+    const R = f.radius;
+    const color = f.color;
+    const hueBase = 0.23;
+    for (let i = 0; i < n; i++) {
+      // rozkład równomierny na kole: sqrt(t) daje stałą gęstość na m²
+      const t = (i + 0.5) / n;
+      const r = Math.sqrt(t) * R;
+      const a = i * 2.3999632 + rng.float(-0.16, 0.16);
+      const x = Math.cos(a) * r + rng.float(-0.9, 0.9);
+      const z = Math.sin(a) * r + rng.float(-0.9, 0.9);
+      const s = rng.float(0.62, 1.35);
+      const sy = s * rng.float(0.7, 1.55);
+      const rot = rng.float(0, 6.283);
+      const cos = Math.cos(rot);
+      const sin = Math.sin(rot);
+      const o = i * 16;
+      buff[o + 0] = cos * s;
+      buff[o + 1] = 0;
+      buff[o + 2] = -sin * s;
+      buff[o + 3] = 0;
+      buff[o + 4] = 0;
+      buff[o + 5] = sy;
+      buff[o + 6] = 0;
+      buff[o + 7] = 0;
+      buff[o + 8] = sin * s;
+      buff[o + 9] = 0;
+      buff[o + 10] = cos * s;
+      buff[o + 11] = 0;
+      buff[o + 12] = x;
+      buff[o + 13] = 0;
+      buff[o + 14] = z;
+      buff[o + 15] = 1;
+      spots[i * 2] = x;
+      spots[i * 2 + 1] = z;
+      color.setHSL(hueBase + rng.float(-0.045, 0.05), rng.float(0.2, 0.38), rng.float(0.58, 0.84));
+      f.mesh.setColorAt(i, color);
+    }
+    arr.set(buff.subarray(0, Math.min(buff.length, arr.length)));
+    f.base = buff;
+    f.spots = spots;
+    f.preparedFor = n;
+    f.cursor = 0;
+    f.anchorX = 1e9; // wymuś przeliczenie wysokości
+    f.mesh.count = n;
+    f.mesh.instanceMatrix.needsUpdate = true;
+    if (f.mesh.instanceColor) f.mesh.instanceColor.needsUpdate = true;
+  }
+
+  /**
+   * Maska traktów w kole wokół gracza (1 = zbyt blisko drogi, nie sadzimy).
+   * Rasteryzujemy tylko odcinki, których prostokąt przecina pole — zwykle 1–3.
+   */
+  _grassRoadMask(px, pz) {
+    const f = this.grassField;
+    const R = f.radius + 2;
+    const CELL = 2;
+    const dim = Math.ceil((R * 2) / CELL);
+    const mask = f.mask && f.mask.length === dim * dim ? f.mask : new Uint8Array(dim * dim);
+    mask.fill(0);
+    const segs = PATHS;
+    for (let k = 0; k < segs.length; k++) {
+      const [ax, az, bx, bz] = segs[k];
+      const minX = Math.min(ax, bx) - px;
+      const maxX = Math.max(ax, bx) - px;
+      const minZ = Math.min(az, bz) - pz;
+      const maxZ = Math.max(az, bz) - pz;
+      if (maxX < -R || minX > R || maxZ < -R || minZ > R) continue;
+      const i0 = Math.max(0, Math.floor((minX + R - 3) / CELL));
+      const i1 = Math.min(dim - 1, Math.ceil((maxX + R + 3) / CELL));
+      const j0 = Math.max(0, Math.floor((minZ + R - 3) / CELL));
+      const j1 = Math.min(dim - 1, Math.ceil((maxZ + R + 3) / CELL));
+      for (let j = j0; j <= j1; j++) {
+        const cz = -R + (j + 0.5) * CELL + pz;
+        for (let i = i0; i <= i1; i++) {
+          const cx = -R + (i + 0.5) * CELL + px;
+          if (segmentDistance(cx, cz, ax, az, bx, bz) < 3.2) mask[j * dim + i] = 1;
+        }
+      }
+    }
+    f.mask = mask;
+    f.maskDim = dim;
+    return mask;
+  }
+
+  /** Przesuwa pole trawy i dociąga wysokości kępek partiami (bez spadków FPS). */
+  _updateGrass(px, pz) {
+    const f = this.grassField;
+    if (!f || !Number.isFinite(px) || !Number.isFinite(pz)) return;
+    const n = f.preparedFor || 0;
+    if (!n) return;
+    const R = f.radius;
+    const moved = dist2(px, pz, f.anchorX, f.anchorZ);
+    if (moved > 9) {
+      f.anchorX = px;
+      f.anchorZ = pz;
+      f.holder.position.set(px, 0, pz);
+      f.cursor = 0;
+      f.mask = this._grassRoadMask(px, pz);
+    }
+    if (f.cursor >= n) return;
+
+    const arr = f.mesh.instanceMatrix.array;
+    const base = f.base;
+    const spots = f.spots;
+    const dim = f.maskDim ?? 0;
+    const mask = f.mask;
+    // Partia na klatkę: ok. 1500 kępek to ~1 ms pracy.
+    const batch = Math.min(n - f.cursor, 1500);
+    const end = f.cursor + batch;
+    for (let i = f.cursor; i < end; i++) {
+      const lx = spots[i * 2];
+      const lz = spots[i * 2 + 1];
+      const x = px + lx;
+      const z = pz + lz;
+      const o = i * 16;
+      let y = -9999;
+      if (Math.abs(x) < WORLD_RADIUS - 8 && Math.abs(z) < WORLD_RADIUS - 8) {
+        let blocked = false;
+        if (mask && dim) {
+          const gi = Math.floor((lx + R + 2) / 2);
+          const gj = Math.floor((lz + R + 2) / 2);
+          if (gi >= 0 && gj >= 0 && gi < dim && gj < dim && mask[gj * dim + gi]) blocked = true;
+        }
+        if (!blocked) {
+          const h = heightAt(x, z);
+          if (h > WATER_LEVEL + 0.25 && slopeAt(x, z) < 1.15) y = h - 0.03;
+        }
+      }
+      // kopiujemy bazę tylko raz na kępkę (skala/obrót/x/z), potem samą wysokość
+      if (base) {
+        arr[o] = base[o];
+        arr[o + 2] = base[o + 2];
+        arr[o + 5] = base[o + 5];
+        arr[o + 8] = base[o + 8];
+        arr[o + 10] = base[o + 10];
+        arr[o + 12] = base[o + 12];
+        arr[o + 14] = base[o + 14];
+      }
+      arr[o + 13] = y;
+    }
+    f.cursor = end;
+    // Cały bufor idzie do GPU i tak przy każdej zmianie — ale tylko wtedy,
+    // gdy naprawdę coś zmieniliśmy.
+    f.mesh.instanceMatrix.needsUpdate = true;
   }
 
   /** Zasięg rysowania roślinności (zależny od poziomu jakości). */
@@ -2913,61 +3091,20 @@ export class World {
     const target = Math.max(400, Math.min(cap, Math.round(n)));
     if (field.count === target) return;
     field.count = target;
-    field.mesh.count = Math.min(field.mesh.count, target);
-    field.lastX = 1e9; // wymuś przebudowę pola (ustawi też nową liczbę instancji)
+    this._prepareGrass(target);
   }
 
-  /** Przesuwa pole trawy, jeśli gracz odszedł wystarczająco daleko. */
-  _updateGrass(px, pz) {
-    const f = this.grassField;
-    if (!f || !Number.isFinite(px) || !Number.isFinite(pz)) return;
-    if (dist2(px, pz, f.lastX, f.lastZ) < 9) return; // przebudowa co ~3 m
-    f.lastX = px;
-    f.lastZ = pz;
+}
 
-    const R = 42;
-    const rng = new RNG(Math.round(px * 13 + pz * 7) | 0);
-    const inst = f.mesh;
-    const dummy = f.dummy;
-    const color = f.color;
-    let n = 0;
-    const attempts = Math.round(f.count * 2.4);
-    const capacity = inst.instanceMatrix.count;
-    for (let i = 0; i < attempts && n < f.count && n < capacity; i++) {
-      const a = rng.float(0, Math.PI * 2);
-      const r = Math.sqrt(rng.next()) * R;
-      const x = px + Math.cos(a) * r;
-      const z = pz + Math.sin(a) * r;
-      if (Math.abs(x) > WORLD_RADIUS - 8 || Math.abs(z) > WORLD_RADIUS - 8) continue;
-      if (isWater(x, z)) continue;
-      if (slopeAt(x, z) > 1.15) continue;
-      if (distanceToPath(x, z) < 3) continue;
-      const biome = dominantBiome(x, z);
-      // gęstość zależna od biomu: pustynia i lód — rzadko, las i łąka — gęsto
-      const density = biome === 'desert' ? 0.08 : biome === 'ice' ? 0.4 : biome === 'savanna' ? 0.7 : 1;
-      if (rng.next() > density) continue;
-      const h = heightAt(x, z);
-      if (h < WATER_LEVEL + 0.3) continue;
-      dummy.position.set(x, h - 0.03, z);
-      dummy.rotation.set(0, rng.float(0, 6.28), 0);
-      const s = rng.float(0.65, 1.35);
-      dummy.scale.set(s, s * rng.float(0.75, 1.5), s);
-      dummy.updateMatrix();
-      inst.setMatrixAt(n, dummy.matrix);
-      if (biome === 'desert') {
-        color.setHSL(0.13 + rng.float(-0.02, 0.02), rng.float(0.18, 0.3), rng.float(0.66, 0.8));
-      } else if (biome === 'savanna') {
-        color.setHSL(0.13 + rng.float(-0.02, 0.03), rng.float(0.22, 0.34), rng.float(0.6, 0.76));
-      } else if (biome === 'ice') {
-        color.setHSL(0.3 + rng.float(-0.03, 0.03), rng.float(0.05, 0.14), rng.float(0.86, 1.0));
-      } else {
-        color.setHSL(0.23 + rng.float(-0.04, 0.05), rng.float(0.2, 0.38), rng.float(0.58, 0.84));
-      }
-      inst.setColorAt(n, color);
-      n += 1;
-    }
-    inst.count = n;
-    inst.instanceMatrix.needsUpdate = true;
-    if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
-  }
+/** Odległość punktu od odcinka — lokalna kopia, żeby nie ciągnąć całego API terenu. */
+function segmentDistance(px, pz, ax, az, bx, bz) {
+  const vx = bx - ax;
+  const vz = bz - az;
+  const wx = px - ax;
+  const wz = pz - az;
+  const len = vx * vx + vz * vz;
+  const t = len > 1e-6 ? Math.max(0, Math.min(1, (wx * vx + wz * vz) / len)) : 0;
+  const dx = wx - vx * t;
+  const dz = wz - vz * t;
+  return Math.hypot(dx, dz);
 }

@@ -14,3 +14,12 @@ console.log('groundWeightsAt', ((performance.now() - t) / N * 1000).toFixed(2), 
 t = performance.now();
 for (let i = 0; i < N; i++) T.slopeAt(i * 0.37, i * 0.11);
 console.log('slopeAt', ((performance.now() - t) / N * 1000).toFixed(2), 'µs/szt');
+t = performance.now();
+for (let i = 0; i < N; i++) T.distanceToPath(i * 0.37, i * 0.11);
+console.log('distanceToPath', ((performance.now() - t) / N * 1000).toFixed(2), 'µs/szt');
+t = performance.now();
+for (let i = 0; i < N; i++) T.dominantBiome(i * 0.37, i * 0.11);
+console.log('dominantBiome', ((performance.now() - t) / N * 1000).toFixed(2), 'µs/szt');
+t = performance.now();
+for (let i = 0; i < N; i++) T.isWater(i * 0.37, i * 0.11);
+console.log('isWater', ((performance.now() - t) / N * 1000).toFixed(2), 'µs/szt');

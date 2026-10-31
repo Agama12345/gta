@@ -11,7 +11,15 @@ export const smoothstep = (edge0, edge1, x) => {
   return t * t * (3 - 2 * t);
 };
 export const damp = (a, b, lambda, dt) => lerp(a, b, 1 - Math.exp(-lambda * dt));
-export const dist2 = (ax, az, bx, bz) => Math.hypot(ax - bx, az - bz);
+// Odległość (NIE kwadrat!) na płaszczyźnie. `Math.hypot` jest wygodne, ale
+// liczy z zabezpieczeniami przeciw przepełnieniu i jest ~4× wolniejsze od
+// pierwiastka z sumy kwadratów — a w pętli po tysiącach obiektów na klatkę
+// robi różnicę. Wynik jest ten sam w zakresie naszych współrzędnych (±3000 m).
+export const dist2 = (ax, az, bx, bz) => {
+  const dx = ax - bx;
+  const dz = az - bz;
+  return Math.sqrt(dx * dx + dz * dz);
+};
 
 export function angleDelta(from, to) {
   let d = (to - from) % TAU;
