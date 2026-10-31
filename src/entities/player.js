@@ -7,6 +7,7 @@ import {
 import { applyGait, applyFootIK, phaseRate } from '../core/gait.js';
 import { makeHumanoid, makeSword, makeShield } from '../world/models.js';
 import { CharacterRig, animStateFor } from './characterRig.js';
+import { Cape, CAPE_COLORS } from './cape.js';
 import { Inventory } from '../systems/inventory.js';
 import { Perks } from '../systems/perks.js';
 import { ITEMS } from '../data/items.js';
@@ -115,6 +116,7 @@ export class Player {
         this.model = this.rig.group;
         this.parts = null;
         this._buildRigWeapons();
+        this._buildCape();
         this.group.add(this.model);
         this.group.position.copy(this.pos);
         this._buildAura();
@@ -168,6 +170,21 @@ export class Player {
   }
 
   /** Broń i tarcza dla modelu z zewnątrz — przypięte do kości dłoni. */
+  /** Peleryna z ruchem tkaniny — tylko dla modeli z kośćmi. */
+  _buildCape() {
+    if (!this.rig) return;
+    try {
+      this.cape = new Cape(this.rig, {
+        color: CAPE_COLORS.bohater,
+        length: 1.04,
+        width: 0.64,
+      });
+    } catch (err) {
+      console.warn('Peleryna nie wystartowała', err);
+      this.cape = null;
+    }
+  }
+
   _buildRigWeapons() {
     const sword = makeSword({ blade: '#d9e2e8', guard: '#b08a3e', grip: '#3a2a1c' });
     sword.scale.setScalar(0.9);
@@ -907,6 +924,12 @@ export class Player {
       });
       this.rig.play(state, { speed: state === 'walk' || state === 'run' ? speedMag : null });
       this.rig.update(dt);
+      this.cape?.update(dt, {
+        speed: speedMag,
+        yaw: this.yaw,
+        wind: 0.35 + (this.game.weather?.rain ?? 0) * 0.9,
+        wet: (this.game.weather?.rain ?? 0) > 0.3,
+      });
       if (this.shadowBlob) {
         const ground = heightAt(this.pos.x, this.pos.z);
         this.shadowBlob.position.y = ground - this.pos.y + 0.05;

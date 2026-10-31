@@ -4,6 +4,7 @@ import { heightAt, LOCATIONS, distanceToPath } from '../world/terrain.js';
 import { makeHumanoid } from '../world/models.js';
 import { applyGait, applyFootIK, phaseRate, applyTorsoCounter } from '../core/gait.js';
 import { CharacterRig, animStateFor } from './characterRig.js';
+import { Cape, CAPE_COLORS } from './cape.js';
 
 export class NPC {
   constructor(game, id, def) {
@@ -41,6 +42,15 @@ export class NPC {
         });
         this.model = this.rig.group;
         this.parts = null;
+        // peleryna z ruchem tkaniny (zjawy nie noszą płaszczy — są zjawami)
+        if (!def.ghost) {
+          try {
+            const color = CAPE_COLORS[id] ?? def.visual?.cloak ?? '#43392c';
+            this.cape = new Cape(this.rig, { color, length: 0.98, width: 0.58 });
+          } catch {
+            this.cape = null;
+          }
+        }
       } catch (err) {
         console.warn(`Model mieszkańca „${def.name}” nie wystartował`, err);
         this.rig = null;
@@ -147,6 +157,11 @@ export class NPC {
     this.phase += dt;
 
     if (this.rig) {
+      this.cape?.update(dt, {
+        speed: this.moving ? this.speed : 0,
+        yaw: this.yaw,
+        wind: 0.3 + (this.game.weather?.rain ?? 0) * 0.8,
+      });
       const talking = this.game.dialogue?.npcId === this.id;
       // trwająca „czynność” (uderzenie młotem, sięgnięcie po zioła) ma pierwszeństwo
       if (this._working > 0) {

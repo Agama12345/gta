@@ -67,6 +67,14 @@ export const NATURE_MODELS_EXTRA = {
   q_flowers: 'nature/q_flowers_q.glb',
   q_log: 'nature/q_log_q.glb',
   q_stump: 'nature/q_stump_q.glb',
+  // Quaternius — Crops Pack (CC0): pola uprawne wokół osad
+  q_wheat: 'crops/q_wheat.glb',
+  q_wheat_short: 'crops/q_wheat_short.glb',
+  q_corn: 'crops/q_corn.glb',
+  q_pumpkin: 'crops/q_pumpkin.glb',
+  q_carrot: 'crops/q_carrot.glb',
+  q_lettuce: 'crops/q_lettuce.glb',
+  q_tomato: 'crops/q_tomato.glb',
 };
 
 export const PROP_MODELS = {
@@ -116,7 +124,14 @@ export const PROP_MODELS = {
 };
 
 export const CHAR_MODELS = {
+  // przeciwnicy (CC0): KayKit — szkielety, Quaternius — zwierzęta i robactwo
   skeleton: 'chars/Skeleton_Warrior.glb',
+  skeleton_warrior: 'chars/enemies/kk_Skeleton_Warrior.glb',
+  skeleton_minion: 'chars/enemies/kk_Skeleton_Minion.glb',
+  skeleton_mage: 'chars/enemies/kk_Skeleton_Mage.glb',
+  wolf: 'chars/enemies/q_Wolf.glb',
+  spider: 'chars/enemies/q_Spider.glb',
+  rat: 'chars/enemies/q_Rat.glb',
 };
 
 /** Wysokość bryły modelu (bez skalowania). */
@@ -183,6 +198,24 @@ class AssetLibrary {
 
   has(kind, key) {
     return !!this[kind]?.[key];
+  }
+
+  /**
+   * Model postaci po nazwie pliku (np. `kk_Rogue`) — najpierw z listy
+   * przeciwników, potem z obsady bohatera i mieszkańców. Dzięki temu ten sam
+   * plik GLB nie jest pobierany dwa razy, gdy używa go i NPC, i bandyta.
+   */
+  charEntry(key) {
+    if (!key) return null;
+    if (this.chars[key]) return this.chars[key];
+    const pool = [this.custom.hero, ...Object.values(this.custom.npcs ?? {})].filter(Boolean);
+    const want = String(key).toLowerCase();
+    for (const entry of pool) {
+      const file = String(entry.file ?? '').toLowerCase();
+      const base = file.split('/').pop()?.replace(/\.glb$/, '') ?? '';
+      if (base === want || file.includes(`/${want}.glb`)) return entry;
+    }
+    return null;
   }
 }
 

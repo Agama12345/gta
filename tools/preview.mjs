@@ -192,6 +192,32 @@ game.world.addAssetProp = (key, x, z, rotY, opts) => {
   return obj;
 };
 
+// --- podgląd przeciwnika: `--enemy <typ>` stawia gracza przed nim ----------
+// Bez tego nie da się ocenić nowych modeli wrogów: spawn jest rozrzucony po
+// całej mapie, a kamera pokazuje tylko okolicę gracza.
+const enemyType = argStr('enemy', null);
+if (enemyType) {
+  const list = game.enemies?.list ?? [];
+  const matches = list.filter((e) => e.type === enemyType || e.def?.name?.toLowerCase().includes(enemyType.toLowerCase()));
+  const target = matches[Math.max(0, Math.min(matches.length - 1, arg('enemy-index', 0)))];
+  if (target) {
+    target.active = true;
+    target.dead = false;
+    target.model.visible = true;
+    target.aggro = false;
+    const ex = target.pos.x;
+    const ez = target.pos.z;
+    const dist = Math.max(2.4, arg('enemy-gap', 4.2));
+    game.player.pos.set(ex, heightAt(ex, ez + dist), ez + dist);
+    game.player.model.position.copy(game.player.pos);
+    globalThis.__previewEnemy = target;
+    console.log(`podgląd przeciwnika: ${target.name} (${target.type}) na ${ex.toFixed(0)}, ${ez.toFixed(0)}, model: ${target.def.rig ?? target.def.model}`);
+  } else {
+    console.log(`nie znaleziono przeciwnika typu „${enemyType}”; dostępne:`,
+      [...new Set(list.map((e) => e.type))].join(', '));
+  }
+}
+
 // --- ustawienie kamery -----------------------------------------------------
 const px = arg('x', game.player.pos.x);
 const pz = arg('z', game.player.pos.z);
@@ -205,6 +231,58 @@ for (let i = 0; i < 30; i += 1) {
   game.cameraRig.update(1 / 30, game.player.pos, 0, 0);
   game.player.update(1 / 60, null);
 }
+// Przeciwnik w kadrze: chowamy gracza i ustawiamy kamerę tuż przed wrogiem.
+// Wcześniej wróg stał za plecami gracza, więc był przez niego zasłonięty.
+if (globalThis.__previewEnemy) {
+  const target = globalThis.__previewEnemy;
+  const gap = Math.max(1.8, arg('enemy-gap', 4.0));
+  const height = arg('enemy-cam-y', 1.35);
+  // gracz to ten sam model (łotr), więc chowamy całe jego poddrzewo
+  if (game.player.model) {
+    game.player.model.visible = false;
+    game.player.model.traverse((o) => { o.visible = false; });
+  }
+  const yaw = target.yaw ?? 0;
+  const look = new THREE.Vector3(target.pos.x, target.pos.y + 1.05, target.pos.z);
+  // kamera patrzy na wroga od przodu (twarz do gracza) i lekko z boku
+  const dir = new THREE.Vector3(Math.sin(yaw + 0.35), 0, Math.cos(yaw + 0.35)).normalize();
+  const camPos = look.clone().addScaledVector(dir, gap);
+  camPos.y = target.pos.y + height;
+  game.camera.position.copy(camPos);
+  game.camera.lookAt(look);
+  game.camera.updateMatrixWorld(true);
+  game.cameraRig.update = () => {};
+  // bez tego model stoi w pozie bind (T-pose) — a właśnie pozę oceniamy
+  const wanted = argStr('enemy-clip', 'Idle');
+  target.playClip?.(wanted, { fade: 0 });
+  for (let i = 0; i < 24; i += 1) target.mixer?.update(1 / 30);
+  console.log('  poza:', target.clipNow ?? wanted, '→ stan', target.rig?.current ?? '?');
+  {
+    const rig = target.playClip?.name ? null : null;
+    let bone = null;
+    target.model.traverse((o) => { if (!bone && o.isBone && /upperarml/i.test(o.name)) bone = o; });
+    let head = null;
+    target.model.traverse((o) => { if (!head && o.isBone && /head/i.test(o.name)) head = o; });
+    console.log('  DBG klip:', target.clipNow, 'rigCur:', target.model.userData?.rigCurrent, 'kość ramię:', bone?.name, bone?.quaternion.toArray().map((v) => v.toFixed(2)).join(','), 'głowa:', head?.name, head?.quaternion.toArray().map((v) => v.toFixed(2)).join(','));
+  }
+  const ebox = new THREE.Box3().setFromObject(target.model);
+  const esize = ebox.getSize(new THREE.Vector3());
+  let meshes = 0;
+  let trisInModel = 0;
+  target.model.traverse((o) => {
+    if (!o.isMesh) return;
+    meshes += 1;
+    const p2 = o.geometry?.attributes?.position;
+    if (p2) trisInModel += (o.geometry.index ? o.geometry.index.count : p2.count) / 3;
+  });
+  const near = (game.enemies?.list ?? [])
+    .filter((e) => e !== target && e.active !== false)
+    .map((e) => ({ e, d: Math.hypot(e.pos.x - target.pos.x, e.pos.z - target.pos.z) }))
+    .filter((q) => q.d < 12);
+  if (near.length) console.log('inni wrogowie < 12 m:', near.map((q) => `${q.e.type}@${q.d.toFixed(1)}`).join(', '));
+  console.log(`przeciwnik: ${target.name} — bryła ${esize.x.toFixed(2)}×${esize.y.toFixed(2)}×${esize.z.toFixed(2)} m, siatek ${meshes}, trójkątów ${Math.round(trisInModel)}`);
+}
+
 const camera = game.camera;
 camera.aspect = W / H;
 camera.updateProjectionMatrix();
@@ -844,8 +922,19 @@ game.scene.traverse((o) => {
     return;
   }
   if (!o.isMesh) return;
+  // w prawdziwym rendererze skeleton.update() wywołuje WebGL; tutaj rysujemy
+  // sami, więc macierze kości trzeba przeliczyć ręcznie — inaczej animowane
+  // postacie znikają z podglądu (zwijają się do punktu).
+  if (o.isSkinnedMesh && o.skeleton?.update) {
+    o.skeleton.update();
+    if (o.skeleton.boneTexture) o.skeleton.computeBoneTexture?.();
+  }
   if (o.material?.transparent && (o.material.opacity ?? 1) < 0.4) return;
   if (o.name === 'sky' || o.name === 'clouds') return;
+  if (process.env.DBG_CAPE === 'hero' && o.name === 'cape' && Math.abs(o.getWorldPosition(new THREE.Vector3()).x - px) < 1.5) {
+    const c = o.getWorldPosition(new THREE.Vector3()).project(camera);
+    console.log('DBG cape clip', c.x.toFixed(2), c.y.toFixed(2), c.z.toFixed(2), 'matrix', o.matrixWorld.elements.slice(12, 15).map((v) => v.toFixed(2)).join(','));
+  }
   drawGeometry(o.geometry, o.matrixWorld, o.material, !!o.geometry.attributes.color && o.material?.vertexColors, 1, o, null, o);
 });
 
@@ -917,6 +1006,19 @@ if (probePixel) {
 if (debugNear) {
   const rows2 = [...debugNear.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
   console.log('trójkąty bliżej niż 7 m:', rows2.map(([k, v]) => `${k} ×${v}`).join('\n  '));
+}
+if (process.env.DBG_SCENE) {
+  let found = 0;
+  game.scene.traverse((o) => {
+    if (o.name === 'cape' && !globalThis.__dbgCape) { globalThis.__dbgCape = 1; const b = new THREE.Box3().setFromObject(o); console.log('DBG peleryna bryła', b.min.toArray().map(v=>v.toFixed(2)).join(','), b.max.toArray().map(v=>v.toFixed(2)).join(','), 'mat', o.material?.color?.getHexString?.(), 'przezroczysta', o.material?.transparent, o.material?.opacity); }
+    if (!o.isMesh || !/Rogue|cape/i.test(o.name ?? '')) return;
+    found += 1;
+    const chain = [];
+    let p = o;
+    while (p) { chain.push(`${p.type}:${p.name || '?'}:vis=${p.visible}`); p = p.parent; }
+    if (found <= 2) console.log('DBG', chain.slice(0, 6).join(' < '));
+  });
+  console.log('DBG znaleziono siatek Rogue w scenie:', found);
 }
 console.log(`zapisano ${out} (${W}×${H}), trójkątów: ${tris}, pozycja gracza: ${px.toFixed(0)}, ${pz.toFixed(0)}`);
 staticServer?.close();

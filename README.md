@@ -95,6 +95,20 @@ Alternatywy: [paczka ZIP](https://github.com/Agama12345/gta/raw/arena/68dc2b6a-g
   stanowią postacie Quaternius (starosta, zielarka, rybak, pustelnik, zjawa),
   którym animacje przelicza biblioteka ruchu. Miecz i tarcza bohatera siedzą
   w kościach dłoni i mają poprawną skalę (kości w tych modelach są w skali 100×).
+- **Przeciwnicy to też prawdziwe modele:** bandyci i łucznicy stoją na modelach
+  KayKit (łotr, łotr w kapturze, barbarzyńca, rycerz — przyciemnionych, żeby nie
+  wyglądali jak mieszkańcy), szkielety na paczce „Skeletons” (z animacjami
+  budzenia się z ziemi i śmierci), wilki i bagniaki to animowane zwierzęta
+  Quaterniusa (galop, atak, padanie). Kamienny Strażnik jest złożony z prawdziwych
+  teksturowanych skał z paczki natury, ze świecącym rdzeniem.
+- **Zapełniona mapa:** poza 20 głównymi miejscami krainę wypełniają
+  5 przysiółków (chaty, studnia, palenisko, skrzynia), 7 zagród z obsianymi
+  polami (pszenica, kukurydza, dynia, marchew), 64 dzikie obozowiska, 84
+  przydrożne znaki i kapliczki oraz 92 żyły rudy, zioła i skrzynie rozsiane po
+  całej krainie. Na mapie świata przysiółki i zagrody mają własne znaczniki.
+- **Peleryna z ruchem tkaniny:** bohater i mieszkańcy noszą płaszcze, które
+  opóźniają się przy skręcie, unoszą przy biegu, falują na wietrze i opadają
+  na przeszkodach.
 - **Roślinność dobrana do biomu:** 32 nowe modele Quaternius (CC0) — sosny, dęby,
   brzozy i wierzby w klimacie umiarkowanym, palmy i kaktusy na pustyni, ośnieżone
   sosny w tundrze, do tego trawa, kwiaty, krzaki, kłody i pniaki jako poszycie.

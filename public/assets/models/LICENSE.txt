@@ -148,3 +148,16 @@ proceduralnych — nic się nie wysypuje.
 
 12. POSTACIE Z PACZEK QUATERNIUS (postac_*.glb)
    Uzupełnienie obsady: starosta, zielarka, rybak, pustelnik i zjawa.
+
+13. CHARS/ENEMIES/*.GLB — PRZECIWNICY
+   * kk_Skeleton_Warrior.glb, kk_Skeleton_Minion.glb, kk_Skeleton_Mage.glb
+     — KayKit „Character Pack: Skeletons” 1.0, autor Kay Lousberg,
+     licencja CC0 1.0 (public domain). Komplet animacji szkieletów
+     (ataki, wstawanie z ziemi, śmierć, czary).
+   * q_Wolf.glb, q_Spider.glb, q_Rat.glb — Quaternius „Animated Animals”
+     i „Easy Enemies”, licencja CC0 1.0. Wilki, pająki i szczury z własnymi
+     klipami (Galop, Attack, Death, Idle).
+
+14. CROPS/Q_*.GLB — UPRAWY (Quaternius Crops Pack, CC0 1.0)
+   pszenica, kukurydza, dynia, marchew, sałata, pomidor.
+   Rosną w rzędach na polach wokół zagród rozsianych po krainie.

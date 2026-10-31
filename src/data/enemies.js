@@ -3,20 +3,20 @@
 export const ENEMY_TYPES = {
   // ---------- Wilki i bestie ----------
   wolf: {
-    name: 'Wilk z Doliny', model: 'wolf',
+    name: 'Wilk z Doliny', model: 'wolf', rig: 'wolf',
     level: 1, hp: 40, damage: 7, speed: 4.9, aggro: 20, attackRange: 2.1, attackCooldown: 1.25,
     xp: 20, gold: [0, 2], behavior: 'beast', radius: 0.55, scale: 1,
     loot: [{ id: 'wolf_pelt', chance: 0.85 }, { id: 'wolf_meat', chance: 0.45 }],
   },
   wolf_alpha: {
-    name: 'Wilk Alfa', model: 'wolf', elite: true,
+    name: 'Wilk Alfa', model: 'wolf', rig: 'wolf', elite: true,
     level: 5, hp: 190, damage: 16, speed: 5.2, aggro: 26, attackRange: 2.5, attackCooldown: 1.1,
     xp: 120, gold: [10, 24], behavior: 'beast', radius: 0.7, scale: 1.45,
     loot: [{ id: 'wolf_pelt', chance: 1 }, { id: 'wolf_amulet', chance: 0.25 }, { id: 'wolf_meat', chance: 0.6 }],
     bossBanner: 'Przywódca stada',
   },
   bog_lurker: {
-    name: 'Bagniak', model: 'lurker',
+    name: 'Bagniak', model: 'lurker', rig: 'spider',
     level: 4, hp: 130, damage: 14, speed: 2.6, aggro: 18, attackRange: 2.6, attackCooldown: 1.7,
     xp: 70, gold: [4, 14], behavior: 'melee', radius: 0.8, scale: 1.1,
     loot: [{ id: 'herbs', chance: 0.5 }, { id: 'crystal_mana', chance: 0.15 }, { id: 'health_potion', chance: 0.15 }],
@@ -24,21 +24,21 @@ export const ENEMY_TYPES = {
 
   // ---------- Ludzie ----------
   bandit: {
-    name: 'Bandyta z Wilczej Bandy', model: 'humanoid',
+    name: 'Bandyta z Wilczej Bandy', model: 'humanoid', rig: 'kk_Rogue', tint: '#a08563',
     visual: { tunic: '#6a3f2c', pants: '#3a3128', cloak: '#4a2f24', hood: '#3d2a20', skin: '#c99a70', hair: '#2b1d13', bulk: 1 },
     level: 2, hp: 62, damage: 9, speed: 3.5, aggro: 18, attackRange: 2.3, attackCooldown: 1.4,
     xp: 28, gold: [4, 13], behavior: 'melee', weapon: 'iron', radius: 0.5,
     loot: [{ id: 'bread', chance: 0.25 }, { id: 'health_potion', chance: 0.1 }, { id: 'iron_ore', chance: 0.12 }],
   },
   bandit_archer: {
-    name: 'Łucznik z Wilczej Bandy', model: 'humanoid',
+    name: 'Łucznik z Wilczej Bandy', model: 'humanoid', rig: 'kk_Rogue_Hooded', tint: '#8d8a72',
     visual: { tunic: '#4e4230', pants: '#38322a', hood: '#3a3226', skin: '#c99a70', hair: '#2b1d13', bulk: 0.95 },
     level: 3, hp: 46, damage: 12, speed: 3.0, aggro: 24, attackRange: 19, preferredRange: 12, attackCooldown: 2.1,
     xp: 34, gold: [6, 16], behavior: 'ranged', weapon: 'bow', radius: 0.45,
     loot: [{ id: 'herbs', chance: 0.25 }, { id: 'bread', chance: 0.2 }],
   },
   bandit_veteran: {
-    name: 'Weteran Wilczej Bandy', model: 'humanoid', elite: true,
+    name: 'Weteran Wilczej Bandy', model: 'humanoid', rig: 'kk_Barbarian', tint: '#7c6a55', elite: true,
     visual: { tunic: '#503529', pants: '#332c24', cloak: '#5a2f24', skin: '#bd8f68', hair: '#2b1d13', beard: true, armor: '#6a5f4c', bulk: 1.14 },
     level: 5, hp: 210, damage: 19, speed: 3.6, aggro: 22, attackRange: 2.7, attackCooldown: 1.2,
     xp: 130, gold: [20, 40], behavior: 'melee', weapon: 'axe', radius: 0.6,
@@ -46,7 +46,7 @@ export const ENEMY_TYPES = {
     bossBanner: 'Zastępca Rudego Wilka',
   },
   bandit_leader: {
-    name: 'Rudy Wilk', model: 'humanoid', elite: true,
+    name: 'Rudy Wilk', model: 'humanoid', rig: 'kk_Knight', tint: '#9c6a46', elite: true,
     visual: { tunic: '#5d2e22', pants: '#3a3128', cloak: '#7a2f2f', skin: '#c08858', hair: '#a2542a', beard: true, scar: true, bulk: 1.16, armor: '#7a6a4a' },
     level: 6, hp: 300, damage: 17, speed: 3.7, aggro: 22, attackRange: 2.6, attackCooldown: 1.2,
     xp: 220, gold: [55, 85], behavior: 'melee', weapon: 'axe', radius: 0.62,
@@ -56,26 +56,26 @@ export const ENEMY_TYPES = {
 
   // ---------- Kurhan, ruiny, warownia ----------
   skeleton: {
-    name: 'Strażnik Kurhanu', model: 'skeleton',
+    name: 'Strażnik Kurhanu', model: 'skeleton', rig: 'skeleton_warrior',
     level: 3, hp: 84, damage: 13, speed: 3.0, aggro: 16, attackRange: 2.4, attackCooldown: 1.5,
     xp: 48, gold: [6, 18], behavior: 'melee', radius: 0.5,
     loot: [{ id: 'iron_ore', chance: 0.35 }, { id: 'ancient_metal', chance: 0.18 }, { id: 'health_potion', chance: 0.12 }],
   },
   mine_guard: {
-    name: 'Zapomniany Górnik', model: 'skeleton', elite: true,
+    name: 'Zapomniany Górnik', model: 'skeleton', rig: 'skeleton_minion', elite: true,
     level: 5, hp: 190, damage: 18, speed: 3.2, aggro: 17, attackRange: 2.6, attackCooldown: 1.45,
     xp: 120, gold: [12, 26], behavior: 'melee', radius: 0.55, scale: 1.12,
     loot: [{ id: 'iron_ore', chance: 0.7 }, { id: 'ancient_metal', chance: 0.3 }],
   },
   castle_wraith: {
-    name: 'Zjawisko z Warowni', model: 'wraith', nightOnly: true,
+    name: 'Zjawisko z Warowni', model: 'wraith', rig: 'skeleton_mage', nightOnly: true,
     visual: { tint: '#c08fa8' },
     level: 6, hp: 150, damage: 15, speed: 3.4, aggro: 24, attackRange: 14, preferredRange: 9, attackCooldown: 2.0,
     xp: 140, gold: [10, 24], behavior: 'ranged', radius: 0.6,
     loot: [{ id: 'crystal_mana', chance: 0.6 }, { id: 'seer_bone', chance: 0.1 }],
   },
   wraith: {
-    name: 'Wieszczka z Kurhanu', model: 'wraith', elite: true, nightOnly: true,
+    name: 'Wieszczka z Kurhanu', model: 'wraith', rig: 'skeleton_mage', ghost: true, elite: true, nightOnly: true,
     level: 5, hp: 240, damage: 15, speed: 3.3, aggro: 24, attackRange: 14, preferredRange: 9, attackCooldown: 2.0,
     xp: 180, gold: [35, 60], behavior: 'ranged', radius: 0.6,
     loot: [{ id: 'shard_dawn', chance: 1 }, { id: 'crystal_mana', chance: 1 }, { id: 'seer_bone', chance: 1 }],

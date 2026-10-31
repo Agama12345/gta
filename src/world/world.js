@@ -4,7 +4,7 @@ import {
   LOCATIONS, WATER_LEVEL, WORLD_RADIUS, WORLD_SCALE, LAND_RADIUS, COAST_RADIUS,
   TerrainManager, createWater,
   RIVER_SURFACES, LAKE_SURFACES, pathRiverCrossings, riverSurfaceAt,
-  distanceToRiver,
+  distanceToRiver, PATHS,
 } from './terrain.js';
 import { RNG, dist2 } from '../core/utils.js';
 import {
@@ -68,6 +68,9 @@ export class World {
     this._buildCrossroads();
     this._buildHighlands();
     this._buildRoadCamp();
+    this._buildSettlements();
+    this._buildRoadside();
+    this._scatterResourceNodes();
     this._buildCoast();
     this._buildBridges();
     this._buildRiverProps();
@@ -215,7 +218,7 @@ export class World {
 
     const siteKinds = ['camp', 'shrine', 'watchtower', 'den', 'grove', 'cart', 'charcoal', 'fisher'];
     let placed = 0;
-    for (let attempt = 0; attempt < 2600 && placed < 22; attempt++) {
+    for (let attempt = 0; attempt < 9000 && placed < 64; attempt++) {
       const a = rng.float(0, Math.PI * 2);
       const rad = rng.float(230, WORLD_RADIUS * 0.82);
       const x = Math.cos(a) * rad;
@@ -225,7 +228,7 @@ export class World {
       if (slopeAt(x, z) > 0.5) continue;
       if (distanceToPath(x, z) < 14) continue;
       if (nearLocation(x, z, 150)) continue;
-      if (tooClose(x, z, 210)) continue;
+      if (tooClose(x, z, 120)) continue;
       if (distanceToRiver(x, z) < 12) continue;
       taken.push({ x, z });
       placed += 1;
@@ -1523,6 +1526,345 @@ export class World {
   }
 
   // =========================================================================
+  // ZAPEŁNIENIE MAPY — ZAGRODY, OSADY, PRZYSTANKI, ZASOBY
+  //
+  // Duża mapa bez drobnych miejsc była pusta między głównymi punktami.
+  // Tutaj dokładamy to, co w Gothicu robiło robotę: pojedyncze zagrody,
+  // przysiółki, obsiane pola, przydrożne krzyże i kapliczki, zniszczone wozy,
+  // oraz rozsiane po całej krainie żyły rudy i zioła.
+  // =========================================================================
+
+  /** Czy w tym miejscu można coś postawić (sucho, płasko, bez kolizji). */
+  _buildable(x, z, { r = 0, slope = 0.55, pathGap = 12, locGap = 120 } = {}) {
+    if (Math.abs(x) > WORLD_RADIUS - 30 || Math.abs(z) > WORLD_RADIUS - 30) return false;
+    if (isWater(x, z)) return false;
+    if (heightAt(x, z) < WATER_LEVEL + 2.2) return false;
+    if (slopeAt(x, z) > slope) return false;
+    if (distanceToPath(x, z) < pathGap) return false;
+    if (distanceToRiver(x, z) < 8) return false;
+    if (r > 0) {
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        const px = x + Math.cos(a) * r;
+        const pz = z + Math.sin(a) * r;
+        if (isWater(px, pz) || slopeAt(px, pz) > 0.9) return false;
+      }
+    }
+    return true;
+  }
+
+  /** Czy punkt leży w obrębie zabudowy którejś z głównych lokacji. */
+  _nearLocation(x, z, r) {
+    for (const l of Object.values(LOCATIONS)) {
+      if (!l || l.x === undefined) continue;
+      if (dist2(l.x, l.z, x, z) < r) return true;
+    }
+    return false;
+  }
+
+  _buildSettlements() {
+    this.farmFields = [];
+    this.settlements = [];
+    this.spawnHints = [];
+    const rng = new RNG(77123);
+    const placed = [];
+    // uwaga: dist2() w tym projekcie zwraca zwykły dystans (hypot), nie kwadrat
+    const far = (x, z, gap) => placed.every((p) => dist2(p.x, p.z, x, z) > gap)
+      && Object.values(LOCATIONS).every((l) => !l || l.x === undefined || dist2(l.x, l.z, x, z) > gap);
+
+    // --- przysiółki (2–3 chaty, studnia, palenisko, ogrodzenie) -------------
+    let hamlets = 0;
+    for (let attempt = 0; attempt < 900 && hamlets < 5; attempt++) {
+      const a = rng.float(0, Math.PI * 2);
+      const r = rng.float(420, WORLD_RADIUS * 0.66);
+      const x = Math.cos(a) * r;
+      const z = Math.sin(a) * r;
+      if (!this._buildable(x, z, { r: 26, slope: 0.4, pathGap: 14 })) continue;
+      if (!far(x, z, 330)) continue;
+      placed.push({ x, z });
+      hamlets += 1;
+      (this.settlements ??= []).push({ x, z, kind: 'hamlet', name: 'Przysiółek' });
+      this._buildHamlet(x, z, rng);
+      this.spawnHints.push({ x, z, type: 'bandit', level: 2, r: 40 });
+      this.spawnHints.push({ x, z, type: 'wolf', level: 1, r: 60 });
+    }
+
+    // --- zagrody z polami uprawnymi ---------------------------------------
+    let farms = 0;
+    for (let attempt = 0; attempt < 900 && farms < 7; attempt++) {
+      const a = rng.float(0, Math.PI * 2);
+      const r = rng.float(300, WORLD_RADIUS * 0.72);
+      const x = Math.cos(a) * r;
+      const z = Math.sin(a) * r;
+      if (!this._buildable(x, z, { r: 30, slope: 0.35, pathGap: 16 })) continue;
+      if (!far(x, z, 280)) continue;
+      placed.push({ x, z });
+      farms += 1;
+      (this.settlements ??= []).push({ x, z, kind: 'farm', name: 'Zagroda' });
+      this._buildFarm(x, z, rng);
+      this.spawnHints.push({ x, z, type: 'wolf', level: 2, r: 45 });
+    }
+  }
+
+  /**
+   * Zawartość skrzyń w nowych miejscach. Wcześniej `data.loot` było tylko
+   * etykietą tekstową, a gra iteruje po parach [id, ilość] — trzeba podać
+   * prawdziwą tabelę, inaczej otwarcie skrzyni kończyło się błędem.
+   */
+  _chestLoot(tier, rng) {
+    const roll = (entries) => entries[rng.int(0, entries.length - 1)];
+    if (tier === 'hamlet') {
+      return [
+        ['gold', rng.int(18, 42)],
+        roll([['health_potion', 1], ['mana_potion', 1]]),
+        roll([['bread', 2], ['herbs', 1], ['iron_ore', 1]]),
+      ];
+    }
+    if (tier === 'farm') {
+      return [
+        ['gold', rng.int(10, 26)],
+        roll([['bread', 2], ['stolen_grain', 2], ['wolf_meat', 1]]),
+        ['herbs', rng.int(1, 2)],
+      ];
+    }
+    return [
+      ['gold', rng.int(22, 60)],
+      roll([['crystal_mana', 1], ['iron_ore', 2], ['ancient_metal', 1]]),
+    ];
+  }
+
+  _buildHamlet(x, z, rng) {
+    const rot = rng.float(0, Math.PI * 2);
+    const count = rng.int(2, 3);
+    const walls = ['#b9a17c', '#a8916d', '#c1ab84'];
+    for (let i = 0; i < count; i++) {
+      const a = rot + (i / count) * Math.PI * 2 + rng.float(-0.3, 0.3);
+      const d = rng.float(7, 11);
+      const hx = x + Math.cos(a) * d;
+      const hz = z + Math.sin(a) * d;
+      if (isWater(hx, hz) || slopeAt(hx, hz) > 0.7) continue;
+      const house = makeHouse({
+        w: rng.float(4.6, 6.2), d: rng.float(4.2, 5.4), h: rng.float(2.7, 3.2),
+        wall: walls[rng.int(0, walls.length - 1)], roof: rng.chance(0.5) ? '#5d3f33' : '#6a4a2c',
+      });
+      this.addStatic(house, hx, hz, a + Math.PI / 2 + rng.float(-0.2, 0.2), { collide: 3.4 });
+      // obejście: beczka, skrzynia, drewutnia
+      if (rng.chance(0.7)) {
+        const px = hx + rng.float(-3.6, 3.6);
+        const pz = hz + rng.float(-3.6, 3.6);
+        if (!isWater(px, pz)) this.batcher.add(rng.chance(0.5) ? makeBarrel() : makeCrate(0.7), px, heightAt(px, pz), pz, rng.float(0, 6.28));
+      }
+      if (rng.chance(0.5)) {
+        const fx = hx + rng.float(-4.5, 4.5);
+        const fz = hz + rng.float(-4.5, 4.5);
+        if (!isWater(fx, fz)) this.batcher.add(makeFence(3.2, rng.int(1, 99)), fx, heightAt(fx, fz), fz, rng.float(0, 6.28));
+      }
+    }
+
+    // studnia na środku
+    this.addStatic(makeWell(), x, z, rot, { collide: 1.2 });
+    // palenisko i ława
+    const fire = makeCampfire();
+    const fx = x + Math.cos(rot + 2.2) * 3.4;
+    const fz = z + Math.sin(rot + 2.2) * 3.4;
+    if (!isWater(fx, fz)) {
+      fire.group.position.set(fx, heightAt(fx, fz), fz);
+      this.group.add(fire.group);
+      this.animated.push(fire);
+      this.addLight('#ff9a45', 2.6, 11, fx, fz, 2.2);
+    }
+    this.addStatic(makeSignpost(), x + Math.cos(rot - 1.1) * 4.2, z + Math.sin(rot - 1.1) * 4.2, rot, { collide: 0.4 });
+    // ogrodzenie wokół placu
+    for (let i = 0; i < 5; i++) {
+      const a = rot + i * (Math.PI * 2 / 5) + 0.3;
+      const px = x + Math.cos(a) * 13;
+      const pz = z + Math.sin(a) * 13;
+      if (isWater(px, pz) || slopeAt(px, pz) > 0.8) continue;
+      this.batcher.add(makeFence(4.2, rng.int(1, 99)), px, heightAt(px, pz), pz, a + Math.PI / 2);
+    }
+    // skrzynia z łupem (jednorazowa) — nagroda za zwiedzanie
+    this.addInteractive({
+      id: `hamlet_chest_${Math.round(x)}_${Math.round(z)}`,
+      kind: 'chest', x: x - Math.cos(rot) * 5, z: z - Math.sin(rot) * 5, radius: 3,
+      label: 'Otwórz skrzynię', mesh: makeChest(), data: { loot: this._chestLoot('hamlet', rng) },
+    });
+    this.settlementCount = (this.settlementCount ?? 0) + 1;
+  }
+
+  _buildFarm(x, z, rng) {
+    const rot = rng.float(0, Math.PI * 2);
+    // dom gospodarza + stodoła
+    this.addStatic(makeHouse({
+      w: 6.4, d: 5.2, h: 3.1, wall: '#bfa87f', roof: '#5a3b2c',
+    }), x, z, rot, { collide: 3.6 });
+    const bx = x + Math.cos(rot + 1.4) * 10;
+    const bz = z + Math.sin(rot + 1.4) * 10;
+    if (!isWater(bx, bz)) {
+      this.addStatic(makeHouse({
+        w: 7.6, d: 5.6, h: 3.6, wall: '#8d7a5c', roof: '#4a3326',
+      }), bx, bz, rot + 0.3, { collide: 4 });
+    }
+
+    // pole uprawne — prostokąt kęp, które rozsypie _scatterNature
+    const crops = ['q_wheat', 'q_wheat', 'q_corn', 'q_pumpkin', 'q_carrot', 'q_lettuce', 'q_tomato'];
+    const cropKey = crops[rng.int(0, crops.length - 1)];
+    const cx = x + Math.cos(rot - 1.2) * 15;
+    const cz = z + Math.sin(rot - 1.2) * 15;
+    if (!isWater(cx, cz) && slopeAt(cx, cz) < 0.7) {
+      this.farmFields.push({ x: cx, z: cz, r: rng.float(8, 11), key: cropKey, rot });
+    }
+
+    // stogi siana przy stodole
+    for (let i = 0; i < 3; i++) {
+      const px = bx + rng.float(-6, 6);
+      const pz = bz + rng.float(-6, 6);
+      if (isWater(px, pz)) continue;
+      const hay = new THREE.Group();
+      const stack = new THREE.Mesh(cyl(0.9, 1.5, 1.7, 8), mat('#c9ab63', { rough: 1 }));
+      stack.position.y = 0.85;
+      hay.add(stack);
+      const top = new THREE.Mesh(cyl(0.2, 0.9, 0.9, 8), mat('#b89a55', { rough: 1 }));
+      top.position.y = 2.1;
+      hay.add(top);
+      this.addStatic(hay, px, pz, rng.float(0, 6.28), { collide: 1.2 });
+    }
+
+    // strach na wróble
+    const sx = cx + Math.cos(rot) * 5;
+    const sz = cz + Math.sin(rot) * 5;
+    if (!isWater(sx, sz)) {
+      const scare = new THREE.Group();
+      const pole = new THREE.Mesh(cyl(0.07, 0.09, 2.4, 5), mat('#5a4227', { rough: 1 }));
+      pole.position.y = 1.2;
+      scare.add(pole);
+      const arms = new THREE.Mesh(box(1.5, 0.1, 0.1), mat('#5a4227', { rough: 1 }));
+      arms.position.y = 1.85;
+      scare.add(arms);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 7, 6), mat('#c9b487', { rough: 1 }));
+      head.position.y = 2.18;
+      scare.add(head);
+      const coat = new THREE.Mesh(box(0.7, 0.9, 0.32), mat('#7a5c3c', { rough: 1 }));
+      coat.position.y = 1.45;
+      scare.add(coat);
+      this.addStatic(scare, sx, sz, rng.float(0, 6.28), { collide: 0.4 });
+    }
+
+    // płot wokół pola
+    for (let i = 0; i < 4; i++) {
+      const a = rot + i * (Math.PI / 2) + 0.5;
+      const px = cx + Math.cos(a) * 12;
+      const pz = cz + Math.sin(a) * 12;
+      if (isWater(px, pz) || slopeAt(px, pz) > 0.8) continue;
+      this.batcher.add(makeFence(5.4, rng.int(1, 99)), px, heightAt(px, pz), pz, a + Math.PI / 2);
+    }
+
+    this.addInteractive({
+      id: `farm_chest_${Math.round(x)}_${Math.round(z)}`,
+      kind: 'chest', x: bx + 3, z: bz - 2, radius: 3.2,
+      label: 'Otwórz skrzynię gospodarza', mesh: makeChest(), data: { loot: this._chestLoot('farm', rng) },
+    });
+    this.farmCount = (this.farmCount ?? 0) + 1;
+  }
+
+  /** Przydrożne znaki, krzyże, kapliczki i latarnie — mapa przestaje być pusta. */
+  _buildRoadside() {
+    const rng = new RNG(5150);
+    let placed = 0;
+    for (const [ax, az, bx, bz] of PATHS) {
+      const len = Math.hypot(bx - ax, bz - az);
+      const steps = Math.max(2, Math.floor(len / 130));
+      for (let i = 1; i < steps; i++) {
+        const t = i / steps;
+        const x = ax + (bx - ax) * t;
+        const z = az + (bz - az) * t;
+        const side = rng.chance(0.5) ? 1 : -1;
+        const ox = -((bz - az) / len) * side * 5.5;
+        const oz = ((bx - ax) / len) * side * 5.5;
+        const px = x + ox;
+        const pz = z + oz;
+        if (isWater(px, pz) || slopeAt(px, pz) > 0.9) continue;
+        const kind = placed % 5;
+        if (kind === 0) {
+          this.batcher.add(makeSignpost(), px, heightAt(px, pz), pz, rng.float(0, 6.28));
+        } else if (kind === 1) {
+          this.batcher.add(makeMenhir(rng.float(1.1, 1.6), rng.int(1, 99)), px, heightAt(px, pz), pz, rng.float(0, 6.28));
+        } else if (kind === 2) {
+          const shrine = makeShrine();
+          shrine.group.position.set(px, heightAt(px, pz), pz);
+          shrine.group.scale.setScalar(0.62);
+          shrine.group.rotation.y = rng.float(0, 6.28);
+          this.group.add(shrine.group);
+          this.animated.push(shrine);
+          this.addLight('#ffb060', 1.6, 8, px, pz, 1.6);
+        } else if (kind === 3) {
+          this.batcher.add(makeCrate(0.6), px, heightAt(px, pz), pz, rng.float(0, 6.28));
+        } else {
+          this.batcher.add(makeHerbPatch(rng.int(1, 99)), px, heightAt(px, pz), pz, rng.float(0, 6.28));
+        }
+        placed += 1;
+      }
+    }
+    this.roadsideCount = placed;
+  }
+
+  /**
+   * Żyły rudy, zioła i skrzynie rozsiane po całej krainie — dzięki temu
+   * zwiedzanie mapy daje zysk, a nie tylko widoki.
+   */
+  _scatterResourceNodes() {
+    const rng = new RNG(24680);
+    let ore = 0;
+    let herbs = 0;
+    let chests = 0;
+    const taken = [];
+    const free = (x, z, gap) => taken.every((p) => dist2(p.x, p.z, x, z) > gap);
+    for (let attempt = 0; attempt < 6000 && (ore < 34 || herbs < 46 || chests < 12); attempt++) {
+      const a = rng.float(0, Math.PI * 2);
+      const r = rng.float(240, WORLD_RADIUS * 0.86);
+      const x = Math.cos(a) * r;
+      const z = Math.sin(a) * r;
+      if (isWater(x, z) || heightAt(x, z) < WATER_LEVEL + 1.2) continue;
+      if (this._nearLocation(x, z, 70)) continue;
+      if (!free(x, z, 140)) continue;
+      const steep = slopeAt(x, z);
+      const high = heightAt(x, z) > 110;
+      const biome = dominantBiome(x, z);
+      let kind = null;
+      if ((steep > 0.55 || high) && ore < 34) kind = 'ore';
+      else if ((biome === 'temperate' || biome === 'swamp') && herbs < 46 && steep < 0.7) kind = 'herb';
+      else if (chests < 12 && steep < 0.6) kind = 'chest';
+      if (!kind) continue;
+      taken.push({ x, z });
+      if (kind === 'ore') {
+        this.addInteractive({
+          id: `wild_ore_${ore}`, kind: 'resource', x, z, radius: 3,
+          label: 'Wydobądź rudę żelaza', mesh: makeOreNode(300 + ore), cooldown: 70,
+        });
+        // kilka kamieni wokół żyły
+        for (let i = 0; i < 3; i++) {
+          const px = x + rng.float(-2.4, 2.4);
+          const pz = z + rng.float(-2.4, 2.4);
+          if (!isWater(px, pz)) this.batcher.add(makeRock(rng.int(1, 999), rng.float(0.35, 0.8)), px, heightAt(px, pz), pz, rng.float(0, 6.28));
+        }
+        ore += 1;
+      } else if (kind === 'herb') {
+        this.addInteractive({
+          id: `wild_herb_${herbs}`, kind: 'resource', x, z, radius: 2.6,
+          label: 'Zbierz zioła', mesh: makeHerbPatch(400 + herbs), cooldown: 50,
+        });
+        herbs += 1;
+      } else {
+        this.addInteractive({
+          id: `wild_chest_${chests}`, kind: 'chest', x, z, radius: 3,
+          label: 'Otwórz skrzynię', mesh: makeChest(), data: { loot: this._chestLoot('wild', rng) },
+        });
+        chests += 1;
+      }
+    }
+    this.resourceCount = { ore, herbs, chests };
+  }
+
+  // =========================================================================
   // ROŚLINNOŚĆ I SKAŁY
   // =========================================================================
   // =========================================================================
@@ -2093,6 +2435,33 @@ export class World {
 
     // Gęsta flora charakterystyczna dla biomu (pustynia, sawanna, tundra).
     this._scatterBiomeFlora(scatter, lib, isBlocked);
+
+    // Zasiane pola wokół zagród — kępy upraw w rzędach.
+    if (scatter && this.farmFields?.length) {
+      let cropCount = 0;
+      for (const field of this.farmFields) {
+        const model = lib.nature[field.key];
+        if (!model) continue;
+        const per = 150;
+        for (let i = 0; i < per; i += 1) {
+          const a = rng.float(0, Math.PI * 2);
+          const rr = Math.sqrt(rng.next()) * field.r;
+          const x = field.x + Math.cos(a) * rr;
+          const z = field.z + Math.sin(a) * rr;
+          if (isWater(x, z) || slopeAt(x, z) > 1.1) continue;
+          if (distanceToPath(x, z) < 3) continue;
+          if (!scatter.add(field.key, lib, {
+            x, y: heightAt(x, z), z,
+            rotY: rng.float(0, Math.PI * 2),
+            scale: rng.float(0.85, 1.25) / (model.height || 1) * 1.1,
+            tilt: rng.float(-0.05, 0.05),
+            color: new THREE.Color().setScalar(0.85 + rng.float(0, 0.3)),
+          })) continue;
+          cropCount += 1;
+        }
+      }
+      this.cropCount = cropCount;
+    }
 
     // ---- poszycie: trawa, kwiaty, krzaki, kłody (modele CC0) --------------
     // Roślinność runa daje wrażenie gęstości; na pustyni zastępują ją suche

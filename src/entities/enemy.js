@@ -4,6 +4,7 @@ import { clamp, damp, dampAngle, dist2, TAU } from '../core/utils.js';
 import { heightAt, LOCATIONS, WORLD_SCALE } from '../world/terrain.js';
 import { makeHumanoid, makeSword, makeSkeleton, makeWolf, makeGolem, makeLurker } from '../world/models.js';
 import { ENEMY_TYPES, SPAWNS } from '../data/enemies.js';
+import { buildBipedEnemy, buildBeastEnemy, buildRockGolem } from './enemyRigs.js';
 
 const VILLAGE_SAFE = { x: LOCATIONS.village.x, z: LOCATIONS.village.z, r: 48 * WORLD_SCALE };
 
@@ -179,14 +180,78 @@ export function buildSkeletonFromAssets(assets, { height = 1.85, tint = null } =
   return { group, parts, mixer, clips, play, root, scale, get clip() { return current; } };
 }
 
+const WOLF_CLIPS = {
+  idle: 'AnimalArmature|Idle',
+  walk: 'AnimalArmature|Walk',
+  run: 'AnimalArmature|Gallop',
+  attack: 'AnimalArmature|Attack',
+  hurt: 'AnimalArmature|Idle_HitReact_Left',
+  death: 'AnimalArmature|Death',
+};
+
+const SPIDER_CLIPS = {
+  idle: 'SpiderArmature|Spider_Idle',
+  walk: 'SpiderArmature|Spider_Walk',
+  run: 'SpiderArmature|Spider_Walk',
+  attack: 'SpiderArmature|Spider_Attack',
+  hurt: 'SpiderArmature|Spider_Idle',
+  death: 'SpiderArmature|Spider_Death',
+};
+
+/** Przyciemnienie modeli bandytów, żeby nie wyglądali jak mieszkańcy wioski. */
+function banditTint(def) {
+  return def.tint ? new THREE.Color(def.tint) : null;
+}
+
 export function buildEnemyModel(typeId, assets = null) {
   const def = ENEMY_TYPES[typeId];
   if (def.model === 'wolf') {
+    const rig = assets ? buildBeastEnemy(assets, 'wolf', { height: 1.02, states: WOLF_CLIPS, name: 'Wilk' }) : null;
+    if (rig) return rig;
     const w = makeWolf(11);
     return { group: w.group, parts: { ...w.parts, beast: true } };
   }
+  if (def.model === 'lurker') {
+    const rig = assets ? buildBeastEnemy(assets, 'spider', { height: 1.15, states: SPIDER_CLIPS, name: 'Bagniak' }) : null;
+    if (rig) return rig;
+    return makeLurker();
+  }
+  if (def.model === 'golem') {
+    const golem = assets ? buildRockGolem(assets) : null;
+    if (golem) return golem;
+    return makeGolem();
+  }
+  if (def.model === 'wraith' && def.rig) {
+    const ghost = buildBipedEnemy(assets, def.rig, { height: 2.0, label: 'Zjawa' });
+    if (ghost) {
+      // półprzejrzysta szata i zimna poświata — zjawa, nie kościotrup
+      ghost.group.traverse((o) => {
+        if (!o.isMesh || !o.material) return;
+        o.material = o.material.clone();
+        o.material.transparent = true;
+        o.material.opacity = def.ghost ? 0.62 : 0.78;
+        o.material.depthWrite = false;
+        if (o.material.emissive) {
+          o.material.emissive = new THREE.Color('#3d7fa0');
+          o.material.emissiveIntensity = 0.55;
+        }
+      });
+      return ghost;
+    }
+  }
   if (def.model === 'skeleton') {
-    // najpierw prawdziwy, animowany szkielet z paczki CC0
+    // prawdziwy, animowany szkielet z paczki KayKit
+    const biped = assets && def.rig
+      ? buildBipedEnemy(assets, def.rig, { height: 1.92, label: 'Szkielet' })
+      : null;
+    if (biped) {
+      const sword = makeSword({ blade: '#b9b29d', guard: '#6b6250', grip: '#3a332a' });
+      sword.scale.setScalar(0.95);
+      sword.position.set(0, -0.02, 0.05);
+      sword.rotation.x = -0.3;
+      if (!biped.rig?.attach(sword, 'rightHand')) biped.group.add(sword);
+      return biped;
+    }
     const rig = assets ? buildSkeletonFromAssets(assets, { height: 1.9 }) : null;
     if (rig) {
       // miecz wieszamy na kości dłoni, żeby szedł za animacją ataku
@@ -222,6 +287,35 @@ export function buildEnemyModel(typeId, assets = null) {
   if (def.model === 'kaldras') return buildKaldras();
   if (def.model === 'golem') return makeGolem();
   if (def.model === 'lurker') return makeLurker();
+
+  // Bandyci i łucznicy: prawdziwe modele KayKit z własnymi animacjami.
+  if (def.rig) {
+    const rig = buildBipedEnemy(assets, def.rig, {
+      height: def.rig === 'kk_Barbarian' ? 1.92 : 1.86,
+      tint: banditTint(def),
+      label: def.name,
+    });
+    if (rig) {
+      if (def.weapon === 'bow') {
+        const bow = new THREE.Mesh(
+          new THREE.TorusGeometry(0.46, 0.028, 4, 14, Math.PI * 1.15),
+          new THREE.MeshStandardMaterial({ color: '#6a4a2a', roughness: 0.85 }),
+        );
+        bow.rotation.set(0, Math.PI / 2, Math.PI / 2);
+        if (!rig.rig?.attach(bow, 'leftHand')) rig.group.add(bow);
+      } else {
+        const weapon = makeSword(
+          def.weapon === 'axe'
+            ? { blade: '#b9c2c9', guard: '#6a5a3a', grip: '#3a2a1c' }
+            : { blade: '#c9d2d9', guard: '#8a7440', grip: '#3a2a1c' },
+        );
+        weapon.scale.setScalar(def.weapon === 'axe' ? 1.12 : 1);
+        weapon.rotation.x = -0.3;
+        if (!rig.rig?.attach(weapon, 'rightHand')) rig.group.add(weapon);
+      }
+      return rig;
+    }
+  }
 
   const built = makeHumanoid(def.visual);
   const weaponDef = def.weapon === 'axe'
@@ -874,8 +968,25 @@ export class EnemyManager {
   }
 
   _buildSpawns() {
-    for (const [x, z, type, level] of SPAWNS) {
+    const spawnList = [...SPAWNS];
+    // Przysiółki i zagrody powstają losowo przy budowie świata, więc wrogowie
+    // dostają je jako „wskazówki”: para bandytów przy osadzie, wilki przy polach.
+    for (const hint of this.game.world?.spawnHints ?? []) {
+      const r = hint.r ?? 40;
+      const count = hint.type === 'bandit' ? 2 : 1;
+      for (let i = 0; i < count; i += 1) {
+        const a = (i / count) * Math.PI * 2 + 1.1;
+        spawnList.push([
+          hint.x + Math.cos(a) * r,
+          hint.z + Math.sin(a) * r,
+          hint.type,
+          hint.level ?? 2,
+        ]);
+      }
+    }
+    for (const [x, z, type, level] of spawnList) {
       const typeDef = ENEMY_TYPES[type];
+      if (!typeDef) continue;
       const spawn = { x, z, type, level, home: { x, z } };
       this.spawnPoints.push(spawn);
       const enemy = new Enemy(this, spawn);

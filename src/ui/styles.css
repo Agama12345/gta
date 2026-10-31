@@ -532,6 +532,7 @@ button.primary:hover { color: #fff; }
 .map-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-size: 11px; color: var(--text-dim); }
 .map-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .map-legend i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.map-legend i.sq { border-radius: 1px; transform: rotate(45deg); }
 
 .menu-screen {
   position: absolute; inset: 0; z-index: 40; display: grid; place-items: center;

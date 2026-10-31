@@ -436,6 +436,8 @@ export class UI {
             <span><i style="background:#d0705a"></i> Wrogowie</span>
             <span><i style="background:#8fbf72"></i> Mieszkańcy</span>
             <span><i style="background:#8b5fd6"></i> Cel zadania</span>
+            <span><i class="sq" style="background:#c4b296"></i> Przysiółek</span>
+            <span><i class="sq" style="background:#beaa6e"></i> Zagroda</span>
             <span class="map-legend-note"><i class="q">?</i> nieodkryte</span>
           </div>
         </div>
@@ -2272,6 +2274,26 @@ export class UI {
       ctx.beginPath();
       ctx.arc(s.x, s.y, e.boss ? 4 : 2.6, 0, Math.PI * 2);
       ctx.fill();
+    }
+
+    // przysiółki i zagrody — drobne punkty, żeby mapa nie była pusta
+    for (const st of this.game.world?.settlements ?? []) {
+      const s = toScreen(st.x, st.z);
+      const farm = st.kind === 'farm';
+      ctx.fillStyle = farm ? 'rgba(190,170,110,0.9)' : 'rgba(196,178,150,0.92)';
+      ctx.beginPath();
+      if (farm) {
+        ctx.rect(s.x - 3.2, s.y - 3.2, 6.4, 6.4);
+      } else {
+        ctx.moveTo(s.x, s.y - 5);
+        ctx.lineTo(s.x + 4.6, s.y + 3.4);
+        ctx.lineTo(s.x - 4.6, s.y + 3.4);
+        ctx.closePath();
+      }
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(10,12,15,0.7)';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
     }
 
     for (const npc of this.game.npcs) {
