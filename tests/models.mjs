@@ -112,7 +112,11 @@ for (const list of [NATURE_MODELS, PROP_MODELS, CHAR_MODELS]) {
 const lib = await loadAssets();
 const totalModels = Object.keys(NATURE_MODELS).length + Object.keys(PROP_MODELS).length + Object.keys(CHAR_MODELS).length;
 check('wszystkie modele wczytane', lib.loaded === totalModels && lib.failed.length === 0, JSON.stringify(lib.failed));
-check('katalog ma co najmniej 20 modeli', totalModels >= 20, `(${totalModels})`);
+check('katalog ma co najmniej 55 modeli', totalModels >= 55, `(${totalModels})`);
+check('drzewa jesienne i martwe wczytane', !!lib.nature.tree_dead_large && !!lib.nature.pine_autumn_large);
+check('cmentarz i kapliczki wczytane', !!lib.props.grave_a && !!lib.props.crypt && !!lib.props.shrine_candles);
+check('meble wczytane', !!lib.props.bed_single && !!lib.props.table_med && !!lib.props.shelf);
+check('obejście osady wczytane', !!lib.props.bench && !!lib.props.streetlight);
 check('drzewa i skały gotowe', Object.keys(NATURE_MODELS).every((k) => !!lib.nature[k]));
 check('propsy gotowe', Object.keys(PROP_MODELS).every((k) => !!lib.props[k]));
 check('szkielet gotowy', !!lib.chars.skeleton);

@@ -8,6 +8,9 @@
 > | Drzewa (iglaste, liściaste, młode), głazy, grążel, rośliny wodne | **KayKit — Medieval Hexagon Pack** (CC0) | 12 modeli | lasy, zbocza, brzegi jeziora — instancjonowane (tysiące drzew w kilku wywołaniach rysowania) |
 > | Beczki, skrzynie, kufry, beczułki, pochodnie, stoły, krzesła | **KayKit — Dungeon Remastered** (CC0) | 8 modeli | wioska, targ, obóz bandytów, kuźnia, chaty rybaków, latarnia, ruiny; kufry z łupem to prawdziwe modele |
 > | Szkielet-wojownik z 97 animacjami | **KayKit — Character Pack: Skeletons** (CC0) | 1 model | „Strażnik Kurhanu” i „Zapomniany Górnik” — chodzą, biegają, atakują i padają na animacjach z paczki |
+> | Nagrobki, krypta, trumny, kapliczki, latarnie, kości, martwe drzewa, jesienne sosny | **KayKit — Halloween Bits** (CC0) | 19 modeli | cmentarz przy kurhanie, bagno wieszczki, ruiny, górskie zbocza |
+> | Łóżka, stoły, krzesła, półki, szafki, książki, dywan, lampa, obraz | **KayKit — Furniture Bits** (CC0) | 12 modeli | obejścia chat, gospoda, kuźnia, chata rybaka |
+> | Ława, latarnia uliczna, wieża wodna, skrzynia, krzew | **KayKit — City Builder Bits** (CC0) | 5 modeli | Wilcza Dolina i Kotlina Kupców |
 >
 > Pliki leżą w `public/assets/models/`, pełna lista źródeł i licencji: `public/assets/models/LICENSE.txt`.
 > Jeśli plik zginie, gra automatycznie wraca do modeli proceduralnych — nic się nie wysypuje.

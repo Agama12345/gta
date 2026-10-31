@@ -26,6 +26,11 @@ export const NATURE_MODELS = {
   rock_e: 'nature/rock_single_E.gltf',
   lily: 'nature/waterlily_A.gltf',
   waterplant: 'nature/waterplant_A.gltf',
+  // KayKit Halloween Bits — martwe drzewa i jesienne sosny (górskie zbocza)
+  tree_dead_large: 'halloween/tree_dead_large.gltf',
+  tree_dead_medium: 'halloween/tree_dead_medium.gltf',
+  pine_autumn_large: 'halloween/tree_pine_orange_large.gltf',
+  pine_gold_large: 'halloween/tree_pine_yellow_large.gltf',
 };
 
 export const PROP_MODELS = {
@@ -37,6 +42,41 @@ export const PROP_MODELS = {
   table: 'props/table_long.gltf.glb',
   chair: 'props/chair.gltf.glb',
   crates: 'props/crates_stacked.gltf.glb',
+  // KayKit Halloween Bits — cmentarz, kurhan, kapliczki
+  grave_a: 'halloween/grave_A.gltf',
+  grave_b: 'halloween/grave_B.gltf',
+  gravemarker_a: 'halloween/gravemarker_A.gltf',
+  gravemarker_b: 'halloween/gravemarker_B.gltf',
+  crypt: 'halloween/crypt.gltf',
+  coffin: 'halloween/coffin.gltf',
+  coffin_decorated: 'halloween/coffin_decorated.gltf',
+  shrine_ornate: 'halloween/shrine.gltf',
+  shrine_candles: 'halloween/shrine_candles.gltf',
+  skull: 'halloween/skull.gltf',
+  bone_a: 'halloween/bone_A.gltf',
+  ribcage: 'halloween/ribcage.gltf',
+  lantern_standing: 'halloween/lantern_standing.gltf',
+  post_lantern: 'halloween/post_lantern.gltf',
+  fence_broken: 'halloween/fence_broken.gltf',
+  // KayKit Furniture Bits — wnętrza i obejścia
+  bed_single: 'furniture/bed_single_A.gltf',
+  bed_double: 'furniture/bed_double_A.gltf',
+  table_med: 'furniture/table_medium.gltf',
+  chair_a: 'furniture/chair_A.gltf',
+  stool: 'furniture/chair_stool.gltf',
+  shelf: 'furniture/shelf_A_small.gltf',
+  cabinet: 'furniture/cabinet_small.gltf',
+  books: 'furniture/book_set.gltf',
+  rug: 'furniture/rug_rectangle_A.gltf',
+  lamp_table: 'furniture/lamp_table.gltf',
+  couch: 'furniture/couch.gltf',
+  painting: 'furniture/pictureframe_medium.gltf',
+  // KayKit City Builder Bits
+  bench: 'city/bench.gltf',
+  streetlight: 'city/streetlight.gltf',
+  watertower: 'city/watertower.gltf',
+  big_box: 'city/box_A.gltf',
+  bush_topiary: 'city/bush.gltf',
 };
 
 export const CHAR_MODELS = {

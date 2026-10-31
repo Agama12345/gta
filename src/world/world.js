@@ -1548,6 +1548,77 @@ export class World {
     P('crate', LH.x, LH.z, 4, 3, 0.3, 0.9, 0.5);
     P('torch', RU.x, RU.z, -6, 6, 0, 2.4, 0);
     P('torch', RU.x, RU.z, 7, -5, 0, 2.4, 0);
+
+    // ---- cmentarz przy kurhanie ------------------------------------------
+    const BA = LOCATIONS.barrow;
+    const graveRing = [
+      ['grave_a', -7, -8], ['grave_b', -3, -11], ['gravemarker_a', 2, -12],
+      ['gravemarker_b', 6, -10], ['grave_a', 9, -6], ['crypt', -12, -3],
+      ['coffin', 12, 2], ['coffin_decorated', -9, 6], ['shrine_ornate', 0, 9],
+    ];
+    for (const [key, dx, dz] of graveRing) {
+      P(key, BA.x, BA.z, dx, dz, (dx + dz) * 0.31, key.startsWith('crypt') ? 2.6 : 1.3, key === 'crypt' ? 1.8 : 0);
+    }
+    P('fence_broken', BA.x, BA.z, -16, -12, 0.8, 1.1, 0);
+    P('fence_broken', BA.x, BA.z, 16, -11, -0.6, 1.1, 0);
+    P('skull', BA.x, BA.z, 4, 6, 0.3, 0.35, 0);
+    P('bone_a', BA.x, BA.z, 5.4, 7.2, 1.2, 0.3, 0);
+    P('ribcage', BA.x, BA.z, -5.5, 4.4, 2.2, 0.5, 0);
+    P('lantern_standing', BA.x, BA.z, 0, -6, 0, 1.5, 0.4);
+    P('shrine_candles', BA.x, BA.z, 0, 11, 0, 1.0, 0);
+
+    // ---- bagno: szczątki, latarnie, kapliczka ----------------------------
+    const SW = LOCATIONS.swamp;
+    P('skull', SW.x, SW.z, 6, 3, 0.7, 0.35, 0);
+    P('skull', SW.x, SW.z, -8, -4, 2.1, 0.35, 0);
+    P('bone_a', SW.x, SW.z, -9, -3, 0.4, 0.3, 0);
+    P('ribcage', SW.x, SW.z, 12, -7, -0.5, 0.5, 0);
+    P('shrine_candles', SW.x, SW.z, -14, 8, 1.4, 1.0, 0);
+    P('lantern_standing', SW.x, SW.z, 16, 9, 0, 1.5, 0.4);
+    P('fence_broken', SW.x, SW.z, 3, 14, 2.6, 1.1, 0);
+    P('post_lantern', SW.x, SW.z, -4, 15, 0, 2.3, 0.3);
+
+    // ---- osada: obejścia, ławy, studnia z żurawiem -----------------------
+    P('bench', V.x, V.z, -8, -14, 0.5, 0.9, 0.6);
+    P('bench', V.x, V.z, 14, 4, -1.1, 0.9, 0.6);
+    P('stool', V.x, V.z, 6.8, -13.2, 1.2, 0.9, 0);
+    P('stool', V.x, V.z, 1.6, -10.8, -0.6, 0.9, 0);
+    P('rug', V.x, V.z, 4.2, -11.6, 0.2, 0.02, 0);
+    P('lamp_table', V.x, V.z, 5.0, -10.4, 0, 1.1, 0);
+    P('streetlight', V.x, V.z, 0, -18, 0, 3.2, 0.4);
+    P('streetlight', V.x, V.z, -16, 2, 0, 3.2, 0.4);
+    P('watertower', V.x, V.z, 20, -8, 0.6, 6.5, 2.2);
+    P('books', V.x, V.z, 3.0, -12.4, 2.2, 0.3, 0);
+    P('shelf', V.x, V.z, -14, -6, 1.4, 1.8, 0.7);
+    P('cabinet', V.x, V.z, 16, -12, -0.9, 1.7, 0.7);
+    P('painting', V.x, V.z, -11, 8, 2.9, 1.0, 0);
+    P('big_box', V.x, V.z, -9, 11, 0.3, 1.0, 0.5);
+
+    // ---- Kotlina Kupców: ławy, skrzynie, latarnie ------------------------
+    P('bench', T.x, T.z, 4, 6, 0.9, 0.9, 0.6);
+    P('bench', T.x, T.z, -9, -3, -0.4, 0.9, 0.6);
+    P('big_box', T.x, T.z, 11, 6, 1.3, 1.0, 0.5);
+    P('streetlight', T.x, T.z, 0, 12, 0, 3.2, 0.4);
+    P('stool', T.x, T.z, -2, -8, 0.5, 0.9, 0);
+    P('books', T.x, T.z, -4.2, -6.6, 1.1, 0.3, 0);
+
+    // ---- kuźnia i kopalnia ----------------------------------------------
+    P('big_box', F.x, F.z, -8, -8, 0.7, 1.0, 0.5);
+    P('post_lantern', F.x, F.z, 4, -9, 0, 2.3, 0.3);
+    P('stool', F.x, F.z, 8, 6, 0.2, 0.9, 0);
+    P('bed_single', F.x, F.z, -12, 4, 1.2, 1.3, 0);
+
+    // ---- chata rybaka: wnętrze na zewnątrz (sieci, ława, beczki) --------
+    P('bench', C.x, C.z, 6, -2, 0.3, 0.9, 0.6);
+    P('bed_single', C.x, C.z, -6, -6, 1.8, 1.3, 0);
+    P('table_med', C.x, C.z, 2, 8, 0.8, 0.85, 0.7);
+    P('books', C.x, C.z, 2.6, 9.2, 0.4, 0.3, 0);
+
+    // ---- ruiny: sarkofag i ołtarz ---------------------------------------
+    P('crypt', RU.x, RU.z, -14, -10, 0.9, 2.6, 1.8);
+    P('shrine_candles', RU.x, RU.z, 8, 10, 1.2, 1.0, 0);
+    P('coffin_decorated', RU.x, RU.z, -8, 12, 2.4, 0.9, 0.6);
+    P('skull', RU.x, RU.z, 3, 13, 1.0, 0.35, 0);
   }
 
   // =========================================================================
@@ -1693,6 +1764,9 @@ export class World {
     const useModels = !!(lib && lib.ready && Object.keys(lib.nature).length);
     const scatter = useModels ? new ModelScatter(this.group) : null;
     const treeKeys = ['tree_a', 'tree_b', 'tree_c', 'tree_medium', 'trees_cluster'];
+    // martwe drzewa i jesienne sosny — dla bagien i wyższych zboczy
+    const deadTreeKeys = ['tree_dead_large', 'tree_dead_medium'];
+    const autumnTreeKeys = ['pine_autumn_large', 'pine_gold_large'];
     const undergrowthKeys = ['tree_small', 'tree_medium'];
     const rockKeys = ['rock_a', 'rock_b', 'rock_c', 'rock_d', 'rock_e'];
     const clearR = {
@@ -1810,7 +1884,10 @@ export class World {
       const scale = biome === 'desert' ? rng.float(0.8, 1.5) : rng.float(1.0, 1.95);
       // ponad połowę drzew stawiamy z prawdziwych modeli (sosny/dęby z paczki CC0)
       if (scatter && biome !== 'desert' && rng.chance(0.62)) {
-        const key = pick(treeKeys);
+        // wybór gatunku: bagno → uschłe, wysokie zbocze → jesienne iglaki
+        const key = nearSwamp && rng.chance(0.55)
+          ? pick(deadTreeKeys)
+          : (h > 120 && rng.chance(0.4) ? pick(autumnTreeKeys) : pick(treeKeys));
         const model = lib.nature[key];
         // drzewa iglaste skalujemy po wysokości, szerokie korony po rozpiętości
         const scl = key === 'trees_cluster'
@@ -1824,6 +1901,20 @@ export class World {
           color: new THREE.Color().setScalar(0.82 + rng.float(0, 0.3)),
         })) {
           if (rng.chance(0.4)) this.colliders.push({ x, z, r: 0.55 });
+          trees += 1;
+          continue;
+        }
+      }
+      if (scatter && nearSwamp && rng.chance(0.5)) {
+        const key = pick(deadTreeKeys);
+        const model = lib.nature[key];
+        if (model && scatter.add(key, lib, {
+          x, y: h, z,
+          rotY: rng.float(0, Math.PI * 2),
+          scale: rng.float(6.5, 11) / (model.height || 1),
+          tilt: rng.float(-0.1, 0.1),
+          color: new THREE.Color().setScalar(0.75 + rng.float(0, 0.25)),
+        })) {
           trees += 1;
           continue;
         }
