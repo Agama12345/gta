@@ -16,6 +16,7 @@ import {
 } from './models.js';
 import { dominantBiome } from './biomes.js';
 import { PropBatcher, flattenGroup } from './mergeProps.js';
+import { ModelScatter, placeProp } from '../core/assets.js';
 
 const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
 const cyl = (rt, rb, h, s = 6) => new THREE.CylinderGeometry(rt, rb, h, s);
@@ -65,6 +66,7 @@ export class World {
     this._buildHighlands();
     this._buildRoadCamp();
     this._buildCoast();
+    this._buildAssetProps();
     this._scatterNature();
 
     this.batcher.finalize(true);
@@ -300,7 +302,7 @@ export class World {
     // skrzynia w wiosce (nagroda za eksplorację)
     this.addInteractive({
       id: 'village_chest', kind: 'chest', x: cx - 30, z: cz + 16, radius: 3.2,
-      label: 'Stara skrzynia', mesh: makeChest(), rotY: 0.7,
+      label: 'Stara skrzynia', mesh: this._chestModel(), rotY: 0.7,
       data: { loot: [['bread', 2], ['gold', 35], ['leather_hood', 1]] },
     });
   }
@@ -373,7 +375,7 @@ export class World {
     });
     this.addInteractive({
       id: 'trading_chest', kind: 'chest', x: cx + 22, z: cz - 16, radius: 3.2,
-      label: 'Kufer kupiecki', mesh: makeChest(), rotY: -0.5,
+      label: 'Kufer kupiecki', mesh: this._chestModel(), rotY: -0.5,
       data: { loot: [['gold', 90], ['mana_potion', 2], ['spark_ring', 1]] },
     });
 
@@ -491,7 +493,7 @@ export class World {
 
     this.addInteractive({
       id: 'bandit_chest', kind: 'chest', x: cx - 10, z: cz - 7, radius: 3.2,
-      label: 'Skrzynia bandytów', mesh: makeChest(), rotY: 0.5,
+      label: 'Skrzynia bandytów', mesh: this._chestModel(), rotY: 0.5,
       data: { loot: [['stolen_grain', 1], ['old_key', 1], ['gold', 70], ['health_potion', 2], ['iron_ore', 2]] },
     });
     this.addInteractive({
@@ -539,7 +541,7 @@ export class World {
 
     this.addInteractive({
       id: 'barrow_chest', kind: 'chest', x: cx + 4, z: cz + 15, radius: 3.2,
-      label: 'Zapomniana skrzynia', mesh: makeChest(), rotY: -0.7,
+      label: 'Zapomniana skrzynia', mesh: this._chestModel(), rotY: -0.7,
       data: { loot: [['crystal_mana', 2], ['gold', 55], ['ancient_metal', 1]] },
     });
     this.addInteractive({
@@ -602,7 +604,7 @@ export class World {
 
     this.addInteractive({
       id: 'ruins_chest', kind: 'chest', x: cx + 17, z: cz + 17, radius: 3.2,
-      label: 'Skrzynia strażnika', mesh: makeChest(), rotY: 1.0,
+      label: 'Skrzynia strażnika', mesh: this._chestModel(), rotY: 1.0,
       data: { loot: [['ancient_metal', 1], ['gold', 90], ['might_elixir', 1], ['crystal_mana', 1]] },
     });
     this.addInteractive({
@@ -639,7 +641,7 @@ export class World {
     this.batcher.add(makeBarrel(), cx - 10, heightAt(cx - 10, cz + 8), cz + 8, 0.9);
     this.addInteractive({
       id: 'quarry_chest', kind: 'chest', x: cx + 5, z: cz - 14, radius: 3.2,
-      label: 'Skrzynia górników', mesh: makeChest(), rotY: 0.3,
+      label: 'Skrzynia górników', mesh: this._chestModel(), rotY: 0.3,
       data: { loot: [['iron_ore', 4], ['gold', 40], ['might_elixir', 1]] },
     });
   }
@@ -693,7 +695,7 @@ export class World {
     });
     this.addInteractive({
       id: 'lake_chest', kind: 'chest', x: cx + 120 * K, z: cz + 51 * K, radius: 3.2,
-      label: 'Zamulona skrzynia', mesh: makeChest(), rotY: 1.4,
+      label: 'Zamulona skrzynia', mesh: this._chestModel(), rotY: 1.4,
       data: { loot: [['gold', 60], ['crystal_mana', 1], ['mana_potion', 2]] },
     });
   }
@@ -756,7 +758,7 @@ export class World {
 
     this.addInteractive({
       id: 'castle_chest', kind: 'chest', x: cx - 18, z: cz - 12, radius: 3.4,
-      label: 'Skrzynia strażnika warowni', mesh: makeChest(), rotY: 0.2,
+      label: 'Skrzynia strażnika warowni', mesh: this._chestModel(), rotY: 0.2,
       data: { loot: [['watcher_plate', 1], ['ancient_metal', 1], ['gold', 120], ['might_elixir', 1]] },
     });
     this.addInteractive({
@@ -807,7 +809,7 @@ export class World {
     });
     this.addInteractive({
       id: 'hermit_chest', kind: 'chest', x: cx + 4, z: cz - 7, radius: 3.2,
-      label: 'Kufer pustelnika', mesh: makeChest(), rotY: -0.9,
+      label: 'Kufer pustelnika', mesh: this._chestModel(), rotY: -0.9,
       data: { loot: [['seer_bone', 1], ['mana_potion', 2], ['gold', 55]] },
     });
   }
@@ -859,7 +861,7 @@ export class World {
     });
     this.addInteractive({
       id: 'swamp_chest', kind: 'chest', x: cx - 24, z: cz + 22, radius: 3.4,
-      label: 'Zapadnięta skrzynia', mesh: makeChest(), rotY: 0.9,
+      label: 'Zapadnięta skrzynia', mesh: this._chestModel(), rotY: 0.9,
       data: { loot: [['crystal_mana', 2], ['gold', 70], ['seer_bone', 1]] },
     });
     this.addInteractive({
@@ -903,7 +905,7 @@ export class World {
 
     this.addInteractive({
       id: 'pass_chest', kind: 'chest', x: cx + 20, z: cz + 8, radius: 3.2,
-      label: 'Skrzynia celników', mesh: makeChest(), rotY: 0.8,
+      label: 'Skrzynia celników', mesh: this._chestModel(), rotY: 0.8,
       data: { loot: [['gold', 85], ['health_potion', 2], ['iron_ore', 3]] },
     });
     this.addInteractive({
@@ -986,7 +988,7 @@ export class World {
     }
     this.addInteractive({
       id: 'mine_chest', kind: 'chest', x: cx - 12, z: cz + 4, radius: 3.2,
-      label: 'Skrzynia górnicza', mesh: makeChest(), rotY: -0.4,
+      label: 'Skrzynia górnicza', mesh: this._chestModel(), rotY: -0.4,
       data: { loot: [['iron_ore', 5], ['ancient_metal', 1], ['gold', 65]] },
     });
     this.batcher.add(makeCrate(0.9), cx + 7, heightAt(cx + 7, cz + 8), cz + 8, 0.2);
@@ -1042,7 +1044,7 @@ export class World {
     this.batcher.add(makeSignpost(), cx + 6, heightAt(cx + 6, cz + 5), cz + 5, 0.7);
     this.addInteractive({
       id: 'highlands_chest', kind: 'chest', x: cx - 5, z: cz + 6, radius: 3,
-      label: 'Skrzynia strażnicy', mesh: makeChest(), rotY: 0.9,
+      label: 'Skrzynia strażnicy', mesh: this._chestModel(), rotY: 0.9,
       data: { loot: [['iron_ore', 3], ['gold', 60], ['might_elixir', 1]] },
     });
     this.addInteractive({
@@ -1076,6 +1078,68 @@ export class World {
   // =========================================================================
   // ROŚLINNOŚĆ I SKAŁY
   // =========================================================================
+  // =========================================================================
+  // DROBNE PROPSY Z PACZKI CC0 (beczki, skrzynie, beczułki, stoły, pochodnie)
+  // =========================================================================
+  _buildAssetProps() {
+    const lib = this.game.assets;
+    if (!lib?.ready) return;
+    const P = (key, lx, lz, dx, dz, rotY, targetHeight, collide = 0) => {
+      const x = lx + dx;
+      const z = lz + dz;
+      if (isWater(x, z)) return;
+      this.addAssetProp(key, x, z, rotY, { targetHeight, collide });
+    };
+    const V = LOCATIONS.village;
+    const T = LOCATIONS.trading;
+    const B = LOCATIONS.bandits;
+    const F = LOCATIONS.forge;
+    const C = LOCATIONS.fisherhut;
+    const LH = LOCATIONS.lighthouse;
+    const RU = LOCATIONS.ruins;
+
+    // Wilcza Dolina — obejście gospody i targ
+    P('barrel', V.x, V.z, 9, -6, 0.4, 1.1, 0.5);
+    P('barrel', V.x, V.z, 10.4, -6.8, 1.1, 1.0, 0.5);
+    P('crate', V.x, V.z, -12, 4, 0.7, 0.9, 0.5);
+    P('crates', V.x, V.z, -13.5, 5.4, 0.3, 1.3, 0.7);
+    P('table', V.x, V.z, 4, -12, 0.2, 0.85, 0.8);
+    P('chair', V.x, V.z, 5.6, -12.6, -0.6, 1.0, 0);
+    P('chair', V.x, V.z, 2.4, -11.6, 2.3, 1.0, 0);
+    P('torch', V.x, V.z, -4, 14, 0, 2.4, 0);
+    P('torch', V.x, V.z, 12, 12, 0, 2.4, 0);
+
+    // Kotlina Kupców — stragany
+    P('crate', T.x, T.z, -6, 3, 0.9, 0.9, 0.5);
+    P('crates', T.x, T.z, -7.4, 5, -0.4, 1.4, 0.7);
+    P('barrel', T.x, T.z, 7, 2, 2.1, 1.1, 0.5);
+    P('keg', T.x, T.z, 8.4, -2, 0.6, 1.0, 0.4);
+    P('table', T.x, T.z, -2, -6, 1.2, 0.85, 0.8);
+
+    // Obozowisko bandytów — łupy
+    P('keg', B.x, B.z, 5, 4, 0.8, 1.0, 0.4);
+    P('keg', B.x, B.z, 6.4, 5.2, 1.9, 1.0, 0.4);
+    P('crates', B.x, B.z, -6, -4, 0.2, 1.4, 0.7);
+    P('barrel', B.x, B.z, -7.2, 3, 1.4, 1.1, 0.5);
+    P('torch', B.x, B.z, 0, -9, 0, 2.4, 0);
+
+    // Kuźnia
+    P('barrel', F.x, F.z, 6, 5, 0.5, 1.1, 0.5);
+    P('crate', F.x, F.z, -6, 6, 1.6, 0.9, 0.5);
+    P('torch', F.x, F.z, 8, -6, 0, 2.4, 0);
+
+    // Chaty rybaków
+    P('barrel', C.x, C.z, -3, 8, 0.9, 1.1, 0.5);
+    P('barrel', C.x, C.z, -1.6, 8.9, 2.4, 1.0, 0.5);
+    P('crates', C.x, C.z, 9, 3, 1.1, 1.3, 0.7);
+    P('table', C.x, C.z, 3, -6, 0.4, 0.85, 0.8);
+
+    // Latarnia i ruiny
+    P('crate', LH.x, LH.z, 4, 3, 0.3, 0.9, 0.5);
+    P('torch', RU.x, RU.z, -6, 6, 0, 2.4, 0);
+    P('torch', RU.x, RU.z, 7, -5, 0, 2.4, 0);
+  }
+
   // =========================================================================
   // WYBRZEŻE — latarnia, wrak, chaty rybaków
   // =========================================================================
@@ -1115,7 +1179,7 @@ export class World {
 
     this.addInteractive({
       id: 'lighthouse_chest', kind: 'chest', x: lx + 7, z: lz + 4, radius: 3.2,
-      label: 'Skrzynia latarnika', mesh: makeChest(), rotY: 0.7,
+      label: 'Skrzynia latarnika', mesh: this._chestModel(), rotY: 0.7,
       data: { loot: [['gold', 90], ['health_potion', 2], ['iron_ore', 3]] },
     });
     this.addStatic(makeFence(6, 12), lx - 9, lz + 8, 0.4);
@@ -1131,7 +1195,7 @@ export class World {
     this.colliders.push({ x: wx, z: wz, r: 5.0 });
     this.addInteractive({
       id: 'wreck_chest', kind: 'chest', x: wx + 4.5, z: wz - 3.2, radius: 3.2,
-      label: 'Skrzynia ze wraku', mesh: makeChest(), rotY: -0.5,
+      label: 'Skrzynia ze wraku', mesh: this._chestModel(), rotY: -0.5,
       data: { loot: [['gold', 120], ['crystal_mana', 1], ['leather_vest', 1]] },
     });
     this.addInteractive({
@@ -1205,7 +1269,7 @@ export class World {
       this.addStatic(makeMenhir(2.6, 33), ix + 4, iz + 3, 1.7);
       this.addInteractive({
         id: 'island_chest', kind: 'chest', x: ix + 2, z: iz - 3, radius: 3.2,
-        label: 'Zamknięta skrzynia', mesh: makeChest({ locked: false }), rotY: 2.4,
+        label: 'Zamknięta skrzynia', mesh: this._chestModel(), rotY: 2.4,
         data: { loot: [['gold', 180], ['ancient_metal', 1], ['mana_potion', 2]] },
       });
     }
@@ -1214,6 +1278,13 @@ export class World {
   _scatterNature() {
     const S = WORLD_SCALE;
     const rng = new RNG(424242);
+    // modele CC0 (jeśli są wczytane) — drzewa i skały jako instancje
+    const lib = this.game.assets ?? null;
+    const useModels = !!(lib && lib.ready && Object.keys(lib.nature).length);
+    const scatter = useModels ? new ModelScatter(this.group) : null;
+    const treeKeys = ['tree_a', 'tree_b', 'tree_c', 'tree_medium', 'trees_cluster'];
+    const undergrowthKeys = ['tree_small', 'tree_medium'];
+    const rockKeys = ['rock_a', 'rock_b', 'rock_c', 'rock_d', 'rock_e'];
     const clearR = {
       village: 64, trading: 46, forge: 30, bandits: 30, barrow: 34, ruins: 40,
       quarry: 26, castle: 44, hermit: 26, swamp: 24, pass: 30, circle: 24,
@@ -1327,9 +1398,48 @@ export class World {
       }
       if (!variant || !variant.geo) continue;
       const scale = biome === 'desert' ? rng.float(0.8, 1.5) : rng.float(1.0, 1.95);
+      // ponad połowę drzew stawiamy z prawdziwych modeli (sosny/dęby z paczki CC0)
+      if (scatter && biome !== 'desert' && rng.chance(0.62)) {
+        const key = pick(treeKeys);
+        const model = lib.nature[key];
+        // drzewa iglaste skalujemy po wysokości, szerokie korony po rozpiętości
+        const scl = key === 'trees_cluster'
+          ? rng.float(9, 14) / (model?.width || 1)
+          : rng.float(7.5, 12.5) / (model?.height || 1);
+        if (model && scatter.add(key, lib, {
+          x, y: h, z,
+          rotY: rng.float(0, Math.PI * 2),
+          scale: scl,
+          tilt: rng.float(-0.06, 0.06),
+          color: new THREE.Color().setScalar(0.82 + rng.float(0, 0.3)),
+        })) {
+          if (rng.chance(0.4)) this.colliders.push({ x, z, r: 0.55 });
+          trees += 1;
+          continue;
+        }
+      }
       this.batcher.addGeometry(variant.geo, x, h, z, rng.float(0, Math.PI * 2), scale);
       if (scale > 1.3 && biome !== 'desert') this.colliders.push({ x, z, r: 0.5 * scale });
       trees += 1;
+
+      // podszycie: młode drzewka z paczki CC0 gęsto przy większych drzewach
+      if (scatter && biome !== 'desert' && rng.chance(0.22)) {
+        const key = pick(undergrowthKeys);
+        const model = lib.nature[key];
+        if (model) {
+          const ux = x + rng.float(-3.5, 3.5);
+          const uz = z + rng.float(-3.5, 3.5);
+          if (!isBlocked(ux, uz) && !isWater(ux, uz)) {
+            scatter.add(key, lib, {
+              x: ux, y: heightAt(ux, uz), z: uz,
+              rotY: rng.float(0, Math.PI * 2),
+              scale: rng.float(2.4, 4.6) / model.height,
+              tilt: rng.float(-0.05, 0.05),
+              color: new THREE.Color().setScalar(0.8 + rng.float(0, 0.28)),
+            });
+          }
+        }
+      }
     }
 
     // ---- głazy i skalne żebra --------------------------------------------
@@ -1345,8 +1455,26 @@ export class World {
       const steep = slopeAt(x, z);
       if (steep < 0.6 && h < 120 && rng.next() > 0.16) continue;
       const biome = dominantBiome(x, z);
+      const rockSize = rng.float(0.8, 2.4);
+      if (scatter && biome !== 'ice' && rockSize < 2.0 && rng.chance(0.55)) {
+        const key = pick(rockKeys);
+        const model = lib.nature[key];
+        // skały z paczki są niskie i szerokie — skalujemy po szerokości (1,4–3,6 m)
+        const width = model.width || model.height;
+        if (model && scatter.add(key, lib, {
+          x, y: h - 0.05, z,
+          rotY: rng.float(0, 6.28),
+          scale: (0.9 + rockSize * 0.9) / width,
+          tilt: rng.float(-0.25, 0.25),
+          color: new THREE.Color().setScalar(0.85 + rng.float(0, 0.3)),
+        })) {
+          if (rockSize > 1.6) this.colliders.push({ x, z, r: rockSize * 0.5 });
+          rocks += 1;
+          continue;
+        }
+      }
       const geo = biome === 'ice' ? pick(snowRockVariants) : pick(rockVariants);
-      const scale = rng.float(0.8, 2.4);
+      const scale = rockSize;
       this.batcher.addGeometry(geo, x, h, z, rng.float(0, 6.28), scale);
       if (scale > 1.6) this.colliders.push({ x, z, r: scale * 0.55 });
       rocks += 1;
@@ -1456,9 +1584,73 @@ export class World {
       reeds += 1;
     }
 
+    this._scatterWaterPlants(scatter, lib);
     this._scatterGrass();
     this._buildFireflies();
     this._buildGulls();
+    if (scatter) {
+      this.instancedModels = scatter.finalize(lib);
+      console.log(`Modele CC0: ${this.instancedModels} siatek instancjonowanych (${lib.loaded} plików)`);
+    }
+  }
+
+  /**
+   * Stawia model z paczki CC0 (beczka, skrzynia, pochodnia...). Jeśli modelu nie
+   * ma, używa proceduralnego odpowiednika — gra wygląda dobrze w obu przypadkach.
+   */
+  /** Grążel i wodne rośliny z paczki CC0 — tylko na płytkiej wodzie jeziora. */
+  _scatterWaterPlants(scatter, lib) {
+    if (!scatter || !lib?.nature) return;
+    const rng = new RNG(90210);
+    const pick = (arr) => arr[Math.floor(rng.next() * arr.length)];
+    const L = LOCATIONS.lake;
+    const keys = ['lily', 'waterplant'];
+    let placed = 0;
+    for (let i = 0; i < 900 && placed < 240; i++) {
+      const a = rng.float(0, Math.PI * 2);
+      const r = 40 + Math.sqrt(rng.next()) * 240;
+      const x = L.x + Math.cos(a) * r;
+      const z = L.z + Math.sin(a) * r;
+      const h = heightAt(x, z);
+      if (h > WATER_LEVEL - 0.25 || h < WATER_LEVEL - 2.6) continue;
+      const key = pick(keys);
+      const model = lib.nature[key];
+      if (!model) continue;
+      if (scatter.add(key, lib, {
+        x, y: WATER_LEVEL - 0.12, z,
+        rotY: rng.float(0, Math.PI * 2),
+        scale: rng.float(1.1, 2.2) / (model.width || model.height || 1),
+        color: new THREE.Color().setScalar(0.85 + rng.float(0, 0.25)),
+      })) placed += 1;
+    }
+  }
+
+  /** Skrzynia: prawdziwy model CC0, a gdy go brak — proceduralna. */
+  _chestModel() {
+    const lib = this.game.assets;
+    if (lib?.ready && lib.props.chest) {
+      const obj = placeProp(lib, 'chest', { x: 0, y: 0, z: 0, rotY: 0, targetHeight: 0.95 });
+      if (obj) return obj;
+    }
+    return makeChest();
+  }
+
+  addAssetProp(key, x, z, rotY = 0, { targetHeight = null, yOffset = 0, collide = 0 } = {}) {
+    const lib = this.game.assets;
+    if (!lib?.ready) return null;
+    const obj = placeProp(lib, key, {
+      x, y: heightAt(x, z) + yOffset, z, rotY, targetHeight,
+    });
+    if (!obj) return null;
+    obj.traverse((o) => {
+      if (o.isMesh) {
+        o.castShadow = true;
+        o.receiveShadow = true;
+      }
+    });
+    this.group.add(obj);
+    if (collide) this.colliders.push({ x, z, r: collide });
+    return obj;
   }
 
   /** Mewy krążące nad wybrzeżem — ożywiają horyzont. */

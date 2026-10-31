@@ -1,5 +1,6 @@
 import './ui/styles.css';
 import { Game } from './game.js';
+import { loadAssets } from './core/assets.js';
 
 const loading = document.getElementById('loading');
 const canvas = document.getElementById('scene');
@@ -27,9 +28,24 @@ async function boot() {
   const subtitle = document.querySelector('.loading-sub');
   if (subtitle) subtitle.textContent = 'Budzenie Wilczej Doliny…';
 
+  // darmowe modele CC0 (drzewa, skały, beczki, szkielety) — jeśli ich nie ma,
+  // gra działa dalej na modelach proceduralnych
+  let assets = null;
+  try {
+    if (subtitle) subtitle.textContent = 'Wczytywanie modeli…';
+    assets = await loadAssets((p) => {
+      if (subtitle) subtitle.textContent = `Wczytywanie modeli… ${Math.round(p * 100)}%`;
+    });
+  } catch (err) {
+    console.warn('Modele zewnętrzne niedostępne — zostają proceduralne', err);
+    assets = null;
+  }
+
+  if (subtitle) subtitle.textContent = 'Budzenie Wilczej Doliny…';
+
   let game;
   try {
-    game = new Game(canvas);
+    game = new Game(canvas, { assets });
   } catch (err) {
     showError(err);
     return;

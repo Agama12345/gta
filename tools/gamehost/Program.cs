@@ -269,7 +269,10 @@ namespace RunyPrzeznaczenia
                 { ".ttf", "font/ttf" },
                 { ".mp3", "audio/mpeg" },
                 { ".ogg", "audio/ogg" },
-                { ".wav", "audio/wav" }
+                { ".wav", "audio/wav" },
+                { ".gltf", "model/gltf+json" },
+                { ".glb", "model/gltf-binary" },
+                { ".bin", "application/octet-stream" }
             };
 
         private static void Handle(TcpClient client)
@@ -297,6 +300,13 @@ namespace RunyPrzeznaczenia
                     byte[] body;
                     if (!Files.TryGetValue(path, out body))
                     {
+                        // pliki gry (modele, tekstury) muszą zwrócić 404, a nie stronę HTML
+                        var ext = Path.GetExtension(path);
+                        if (ext == ".gltf" || ext == ".glb" || ext == ".bin" || ext == ".png" || ext == ".js")
+                        {
+                            WriteResponse(stream, 404, "text/plain; charset=utf-8", Encoding.UTF8.GetBytes("404"));
+                            return;
+                        }
                         Files.TryGetValue("index.html", out body);
                         path = "index.html";
                     }

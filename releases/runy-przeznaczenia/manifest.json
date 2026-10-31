@@ -2,8 +2,8 @@
   "game": "runy-przeznaczenia",
   "title": "Runy Przeznaczenia",
   "version": "1.0.0",
-  "commit": "25309915809933dd17a27ac5220f06d23e407ff8",
-  "builtAt": "2026-10-31T09:11:12.873Z",
+  "commit": "f788c3a4a95f1ebfc822dd2c1b09e756d1e83efe",
+  "builtAt": "2026-10-31T10:11:32.780Z",
   "files": [
     {
       "path": "ArcaneSpire.ico",
@@ -14,8 +14,156 @@
       "size": 28218
     },
     {
-      "path": "assets/index-DMzZpsje.js",
-      "size": 766345
+      "path": "assets/index-BiUQusx2.js",
+      "size": 883285
+    },
+    {
+      "path": "assets/models/LICENSE.txt",
+      "size": 3431
+    },
+    {
+      "path": "assets/models/chars/Skeleton_Warrior.glb",
+      "size": 4863620
+    },
+    {
+      "path": "assets/models/nature/hexagons_medieval.png",
+      "size": 15783
+    },
+    {
+      "path": "assets/models/nature/rock_single_A.bin",
+      "size": 1228
+    },
+    {
+      "path": "assets/models/nature/rock_single_A.gltf",
+      "size": 3031
+    },
+    {
+      "path": "assets/models/nature/rock_single_B.bin",
+      "size": 1628
+    },
+    {
+      "path": "assets/models/nature/rock_single_B.gltf",
+      "size": 3052
+    },
+    {
+      "path": "assets/models/nature/rock_single_C.bin",
+      "size": 2192
+    },
+    {
+      "path": "assets/models/nature/rock_single_C.gltf",
+      "size": 3052
+    },
+    {
+      "path": "assets/models/nature/rock_single_D.bin",
+      "size": 1348
+    },
+    {
+      "path": "assets/models/nature/rock_single_D.gltf",
+      "size": 3052
+    },
+    {
+      "path": "assets/models/nature/rock_single_E.bin",
+      "size": 4300
+    },
+    {
+      "path": "assets/models/nature/rock_single_E.gltf",
+      "size": 3057
+    },
+    {
+      "path": "assets/models/nature/tree_single_A.bin",
+      "size": 3340
+    },
+    {
+      "path": "assets/models/nature/tree_single_A.gltf",
+      "size": 3053
+    },
+    {
+      "path": "assets/models/nature/tree_single_B.bin",
+      "size": 7368
+    },
+    {
+      "path": "assets/models/nature/tree_single_B.gltf",
+      "size": 3056
+    },
+    {
+      "path": "assets/models/nature/trees_A_large.bin",
+      "size": 57024
+    },
+    {
+      "path": "assets/models/nature/trees_A_large.gltf",
+      "size": 3066
+    },
+    {
+      "path": "assets/models/nature/trees_A_small.bin",
+      "size": 28512
+    },
+    {
+      "path": "assets/models/nature/trees_A_small.gltf",
+      "size": 3058
+    },
+    {
+      "path": "assets/models/nature/trees_B_large.bin",
+      "size": 51960
+    },
+    {
+      "path": "assets/models/nature/trees_B_large.gltf",
+      "size": 3067
+    },
+    {
+      "path": "assets/models/nature/trees_B_medium.bin",
+      "size": 37096
+    },
+    {
+      "path": "assets/models/nature/trees_B_medium.gltf",
+      "size": 3066
+    },
+    {
+      "path": "assets/models/nature/waterlily_A.bin",
+      "size": 2616
+    },
+    {
+      "path": "assets/models/nature/waterlily_A.gltf",
+      "size": 3027
+    },
+    {
+      "path": "assets/models/nature/waterplant_A.bin",
+      "size": 2988
+    },
+    {
+      "path": "assets/models/nature/waterplant_A.gltf",
+      "size": 3049
+    },
+    {
+      "path": "assets/models/props/barrel_large.gltf.glb",
+      "size": 44292
+    },
+    {
+      "path": "assets/models/props/box_large.gltf.glb",
+      "size": 28740
+    },
+    {
+      "path": "assets/models/props/chair.gltf.glb",
+      "size": 36252
+    },
+    {
+      "path": "assets/models/props/chest.glb",
+      "size": 81412
+    },
+    {
+      "path": "assets/models/props/crates_stacked.gltf.glb",
+      "size": 103704
+    },
+    {
+      "path": "assets/models/props/keg.gltf.glb",
+      "size": 59912
+    },
+    {
+      "path": "assets/models/props/table_long.gltf.glb",
+      "size": 35128
+    },
+    {
+      "path": "assets/models/props/torch_lit.gltf.glb",
+      "size": 31244
     },
     {
       "path": "favicon.png",

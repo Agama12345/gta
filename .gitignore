@@ -5,3 +5,5 @@ dist/
 .vite/
 shots/
 .env
+__pycache__/
+*.pyc

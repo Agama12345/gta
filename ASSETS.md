@@ -1,12 +1,24 @@
 # Darmowe modele, tekstury, animacje i dźwięki — lista dla „Runy Przeznaczenia”
 
+> **Aktualizacja: modele są już w grze.** Poniższa lista to katalog źródeł na przyszłość.
+> Do repozytorium wciągnąłem już konkretne, darmowe (CC0) modele i podłączyłem je w kodzie:
+>
+> | Co | Skąd | Ile | Gdzie w grze |
+> |---|------|-----|--------------|
+> | Drzewa (iglaste, liściaste, młode), głazy, grążel, rośliny wodne | **KayKit — Medieval Hexagon Pack** (CC0) | 12 modeli | lasy, zbocza, brzegi jeziora — instancjonowane (tysiące drzew w kilku wywołaniach rysowania) |
+> | Beczki, skrzynie, kufry, beczułki, pochodnie, stoły, krzesła | **KayKit — Dungeon Remastered** (CC0) | 8 modeli | wioska, targ, obóz bandytów, kuźnia, chaty rybaków, latarnia, ruiny; kufry z łupem to prawdziwe modele |
+> | Szkielet-wojownik z 97 animacjami | **KayKit — Character Pack: Skeletons** (CC0) | 1 model | „Strażnik Kurhanu” i „Zapomniany Górnik” — chodzą, biegają, atakują i padają na animacjach z paczki |
+>
+> Pliki leżą w `public/assets/models/`, pełna lista źródeł i licencji: `public/assets/models/LICENSE.txt`.
+> Jeśli plik zginie, gra automatycznie wraca do modeli proceduralnych — nic się nie wysypuje.
+
+
 Wszystko poniżej jest **darmowe i legalne do użycia w grze** (najczęściej CC0 — bez podawania autora,
 także komercyjnie). Linki prowadzą prosto do pobrania, **bez konta i bez płacenia**.
 
-> Uwaga: nie mogę pobrać tych plików automatycznie do repozytorium — ten sandbox ma dostęp tylko do
-> GitHuba. Ale wszystkie poniższe strony pozwalają ściągnąć paczkę jednym kliknięciem, bez logowania.
-> Gra nie wymaga ich do działania: modele proceduralne zostają jako zapas, a podrzucone pliki można
-> podmieniać stopniowo.
+> Poniższe pozycje to propozycje **do dalszego wzbogacania** gry (tekstury 4K, realistyczne skany
+> Poly Haven itd.). Żeby coś z tego trafiło do gry, wystarczy wrzucić plik do `public/assets/` —
+> podłączenie jest już przygotowane w `src/core/assets.js`.
 
 ---
 

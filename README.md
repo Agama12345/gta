@@ -6,7 +6,7 @@
 
 ## Pobierz i zagraj
 
-**Gra w jednym pliku `.exe` (~790 kB)** — pobierz i uruchom, nic więcej nie trzeba:
+**Gra w jednym pliku `.exe` (~7 MB, z modelami 3D w środku)** — pobierz i uruchom, nic więcej nie trzeba:
 
 ### https://github.com/Agama12345/gta/releases/download/game-latest/RunyPrzeznaczenia.exe
 
@@ -19,7 +19,7 @@ Alternatywy: [paczka ZIP](https://github.com/Agama12345/gta/raw/arena/68dc2b6a-g
 (rozpakuj → `Uruchom-gre.cmd`) albo launcher **Arcane Spire**
 ([`ArcaneSpire.exe`](https://github.com/Agama12345/gta/releases/download/launcher-latest/ArcaneSpire.exe)).
 
-## Co jest w świecie (wersja 1.2)
+## Co jest w świecie (wersja 1.3)
 
 - **Mapa 5 × 5 km (25 km², ~5× więcej terenu niż wcześniej)** — góry, przełęcze, lasy,
   bagno, jezioro i wybrzeże. Wszystkie odległości w grze są liczone w metrach.
@@ -33,9 +33,15 @@ Alternatywy: [paczka ZIP](https://github.com/Agama12345/gta/raw/arena/68dc2b6a-g
   skraju mapy: dalej jest po prostu morze.
 - **Nowe miejsca:** Latarnia na Cyplu (obraca smuga światła nocą), wrak „Zimnej Fali”,
   Chaty Rybaków z pomostem, suszarniami i rybakiem Tobiaszem (handel + własne dialogi).
-- **Modele natury w stylu Gothica:** sosny z piętrami korony i sękami, dęby z korzeniami,
-  brzozy z czarnymi pasami kory, uschłe drzewa, głazy z mchem i odłamkami, paprocie,
-  trzciny, kępy trawy — wszystkie z ręcznie ułożoną sylwetką i stonowaną paletą.
+- **Prawdziwe modele 3D (CC0, KayKit) obok proceduralnych:** 12 modeli natury
+  (drzewa iglaste i liściaste, młode drzewka, pięć rodzajów głazów, grążele i rośliny wodne)
+  rozsypywanych w tysiącach egzemplarzy przez `InstancedMesh`, 8 modeli wyposażenia
+  (beczki, skrzynie, kufry, beczułki, pochodnie, stoły, krzesła) w osadach i obozach,
+  oraz **szkielet-wojownik z 97 animacjami** (KayKit Skeletons) jako „Strażnik Kurhanu”
+  i „Zapomniany Górnik” — chodzi, biegnie, zamachuje się mieczem i pada.
+  Modele proceduralne (sosny z piętrami korony, dęby z korzeniami, brzozy, mchy) zostają
+  jako uzupełnienie i jako zapas, gdyby plików nie było.
+  Licencje i źródła: `public/assets/models/LICENSE.txt`.
 - **Animacje ze stawami:** kolana, łokcie, kołysanie bioder, skręt tułowia, przeciwfaza
   rąk i nóg, zamach i wyhamowanie ciosu, peleryna z segmentów.
 - **Dźwięk otoczenia w stereo:** wiatr, fale, ptaki, świerszcze, sowa, wilki w oddali,
@@ -52,11 +58,16 @@ Lista sprawdzonych, **darmowych** źródeł (CC0 i podobne) z linkami — po 3 p
 kategorię: trawa, skały, drzewa, roślinność, postacie, animacje, dźwięki, muzyka, efekty,
 interfejs. Zobacz plik **[ASSETS.md](ASSETS.md)**.
 
+Modele, które **już są w grze**, wraz z licencjami: **[public/assets/models/LICENSE.txt](public/assets/models/LICENSE.txt)**
+(KayKit — Kay Lousberg, CC0 1.0). Test `tests/models.mjs` sprawdza przy każdym buildzie,
+że wszystkie 22 pliki wczytują się, skalują i animują.
+
 ## Co to jest
 
-Pełna, samodzielna gra RPG 3D — działa jako program na PC (własne okno) i w przeglądarce. Cały świat, modele, animacje
-i dźwięk są generowane proceduralnie w kodzie — projekt nie potrzebuje żadnych
-zewnętrznych assetów ani serwera gry. Wystarczy otworzyć stronę.
+Pełna, samodzielna gra RPG 3D — działa jako program na PC (własne okno) i w przeglądarce.
+Teren, budynki, postacie, animacje i dźwięk są generowane proceduralnie w kodzie, a warstwę
+wykończenia stanowią darmowe modele CC0 (KayKit) dołączone do repozytorium w
+`public/assets/models/`. Gra nie potrzebuje serwera gry ani połączenia z internetem.
 
 **Stack:** JavaScript (ES2022) + Three.js + Vite. Bez frameworków UI (czysty DOM/CSS).
 
@@ -69,7 +80,7 @@ w stylu Steama, z automatycznymi aktualizacjami z GitHuba.
 
 | Gra | Plik | Jak uruchomić |
 | --- | --- | --- |
-| **Runy Przeznaczenia** | [`RunyPrzeznaczenia.zip`](https://github.com/Agama12345/gta/raw/arena/68dc2b6a-gta/downloads/RunyPrzeznaczenia.zip) (219 kB) | rozpakuj → `Uruchom-gre.cmd` (otwiera grę w oknie aplikacji na lokalnym serwerze) |
+| **Runy Przeznaczenia** | [`RunyPrzeznaczenia.zip`](https://github.com/Agama12345/gta/raw/arena/68dc2b6a-gta/downloads/RunyPrzeznaczenia.zip) (~2,1 MB) | rozpakuj → `Uruchom-gre.cmd` (otwiera grę w oknie aplikacji na lokalnym serwerze) |
 | **OreRush** | [`OreRush.zip`](https://github.com/Agama12345/gta/raw/arena/68dc2b6a-gta/downloads/OreRush.zip) (7 kB) | rozpakuj → `index.html` (gra działa też offline, bez serwera) |
 
 Paczki są generowane przez `npm run release && npm run downloads`.

@@ -174,6 +174,45 @@ check('kuźnia wiejska', world.interactables.some((n) => n.id === 'village_anvil
 check('starożytna kuźnia', world.interactables.some((n) => n.id === 'ancient_anvil'));
 check('ognisko = odpoczynek', world.interactables.some((n) => n.kind === 'rest'));
 
+console.log('▸ modele CC0');
+// atrapa biblioteki modeli (prawdziwe pliki GLB sprawdza osobny test przeglądarkowy)
+const natMat = new THREE.MeshStandardMaterial({ color: 0x3f6b34 });
+const natEntry = (h = 1, w = 0.5) => ({
+  parts: [{ geometry: new THREE.BoxGeometry(w, h, w), material: natMat }],
+  height: h, width: w, raw: new THREE.Group(),
+});
+const propEntry = (h = 1, name = 'fake-prop') => {
+  const scene = new THREE.Group();
+  const m = new THREE.Mesh(new THREE.BoxGeometry(1, h, 1), natMat);
+  m.name = name;
+  scene.add(m);
+  return { scene, height: h, width: 1 };
+};
+const fakeLib = {
+  ready: true, loaded: 16, failed: [], chars: {},
+  nature: {
+    tree_a: natEntry(1.1, 0.6), tree_b: natEntry(1.2, 0.7), trees_cluster: natEntry(0.9, 2),
+    tree_c: natEntry(1.3, 0.9), tree_small: natEntry(0.6, 0.4), tree_medium: natEntry(0.9, 0.6),
+    rock_a: natEntry(0.07, 0.3), rock_b: natEntry(0.14, 0.29), rock_c: natEntry(0.2, 0.34),
+    rock_d: natEntry(0.16, 0.29), rock_e: natEntry(0.12, 0.31),
+    lily: natEntry(0.02, 0.2), waterplant: natEntry(0.12, 0.18),
+  },
+  props: {
+    barrel: propEntry(2), crate: propEntry(1.5), chest: propEntry(1.3, 'fake-chest'),
+    keg: propEntry(2.05), torch: propEntry(1.13), table: propEntry(1), chair: propEntry(1.23), crates: propEntry(2.14),
+  },
+};
+game.assets = fakeLib;
+const modelWorld = new World(game);
+const instanced = modelWorld.group.children.filter((c) => c.isInstancedMesh && c.name.startsWith('inst-'));
+check('drzewa i skały z modeli instancjonowane', instanced.length >= 7, `(${instanced.length})`);
+check('instancje mają wiele egzemplarzy', instanced.every((m) => m.count > 0) && instanced.reduce((a, m) => a + m.count, 0) > 500);
+check('skrzynie używają modelu GLB', !!modelWorld.interactables.find((n) => n.id === 'barrow_chest')?.mesh.getObjectByName('fake-chest'));
+check('propsy z paczki stoją w osadach', modelWorld.group.children.some((c) => c.getObjectByName?.('fake-prop')));
+const propTest = modelWorld.addAssetProp('barrel', 6, 40, 0.5, { targetHeight: 1.1, collide: 0.5 });
+check('addAssetProp skaluje model do wysokości', !!propTest && Math.abs(propTest.scale.x - 0.55) < 0.02);
+game.assets = null;
+
 console.log('▸ gracz');
 const player = new Player(game);
 game.player = player;

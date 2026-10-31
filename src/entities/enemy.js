@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { clamp, damp, dampAngle, dist2, TAU } from '../core/utils.js';
 import { heightAt, LOCATIONS, WORLD_SCALE } from '../world/terrain.js';
 import { makeHumanoid, makeSword, makeSkeleton, makeWolf, makeGolem, makeLurker } from '../world/models.js';
@@ -118,13 +119,97 @@ function buildWraith() {
   };
 }
 
-export function buildEnemyModel(typeId) {
+/**
+ * Szkielet z paczki CC0 (KayKit) — prawdziwy, animowany model z 96 klipami.
+ * Zwraca grupę, atrapę `parts` (żeby stara animacja proceduralna nie wysypała
+ * się) oraz mixer z wyborem klipów po stanie przeciwnika.
+ */
+export function buildSkeletonFromAssets(assets, { height = 1.85, tint = null } = {}) {
+  const entry = assets?.chars?.skeleton;
+  if (!entry) return null;
+  const root = cloneSkinned(entry.scene);
+  const scale = height / (entry.height || 1.8);
+  root.scale.setScalar(scale);
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    o.castShadow = true;
+    o.receiveShadow = true;
+    if (o.material) {
+      o.material = o.material.clone();
+      o.material.roughness = Math.min(1, (o.material.roughness ?? 0.8) + 0.1);
+      if (tint) o.material.color = new THREE.Color(tint);
+    }
+  });
+
+  const group = new THREE.Group();
+  group.add(root);
+
+  const mixer = new THREE.AnimationMixer(root);
+  const clips = new Map();
+  for (const clip of entry.animations ?? []) clips.set(clip.name, clip);
+
+  const dummy = () => new THREE.Object3D();
+  const parts = {
+    body: dummy(), head: dummy(), torso: dummy(),
+    arms: [dummy(), dummy()], legs: [dummy(), dummy()],
+    forearms: [dummy(), dummy()], shins: [dummy(), dummy()],
+    cloak: null, skinned: true,
+  };
+
+  let current = null;
+  let currentAction = null;
+  const play = (name, { once = false, fade = 0.18 } = {}) => {
+    const clip = clips.get(name);
+    if (!clip || current === name) return false;
+    const next = mixer.clipAction(clip);
+    next.reset();
+    next.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, once ? 1 : Infinity);
+    next.clampWhenFinished = once;
+    next.enabled = true;
+    next.timeScale = 1;
+    if (currentAction) {
+      next.crossFadeFrom(currentAction, fade, false);
+    }
+    next.play();
+    current = name;
+    currentAction = next;
+    return true;
+  };
+
+  return { group, parts, mixer, clips, play, root, scale, get clip() { return current; } };
+}
+
+export function buildEnemyModel(typeId, assets = null) {
   const def = ENEMY_TYPES[typeId];
   if (def.model === 'wolf') {
     const w = makeWolf(11);
     return { group: w.group, parts: { ...w.parts, beast: true } };
   }
   if (def.model === 'skeleton') {
+    // najpierw prawdziwy, animowany szkielet z paczki CC0
+    const rig = assets ? buildSkeletonFromAssets(assets, { height: 1.9 }) : null;
+    if (rig) {
+      // miecz wieszamy na kości dłoni, żeby szedł za animacją ataku
+      const sword = makeSword({ blade: '#b9b29d', guard: '#6b6250', grip: '#3a332a' });
+      const slot = rig.root.getObjectByName('handslot.r') ?? rig.root.getObjectByName('hand.r');
+      if (slot) {
+        sword.scale.setScalar(1.15 / rig.scale);
+        slot.add(sword);
+      } else {
+        sword.scale.setScalar(0.85);
+        sword.position.set(0.34, 1.1, 0.12);
+        sword.rotation.x = -0.3;
+        rig.group.add(sword);
+      }
+      return {
+        group: rig.group,
+        parts: rig.parts,
+        mixer: rig.mixer,
+        play: rig.play,
+        clips: rig.clips,
+        get clip() { return rig.clip; },
+      };
+    }
     const s = makeSkeleton();
     const sword = makeSword({ blade: '#b9b29d', guard: '#6b6250', grip: '#3a332a' });
     sword.scale.setScalar(0.85);
@@ -197,9 +282,12 @@ export class Enemy {
     this.alerted = false;
     this.nameplateEl = null;
 
-    const built = buildEnemyModel(spawn.type);
+    const built = buildEnemyModel(spawn.type, this.game.assets);
     this.model = built.group;
     this.parts = built.parts;
+    this.mixer = built.mixer ?? null;
+    this.playClip = built.play ?? null;
+    this.clipNow = null;
     this.baseY = 0;
     this.model.position.copy(this.pos);
     this.model.rotation.y = this.yaw;
@@ -293,6 +381,14 @@ export class Enemy {
     this.aggro = false;
     this.deathTime = 0;
     this.phase = 1;
+    this._deathClipPlayed = false;
+    this.deathClipTime = 0;
+    this.clipNow = null;
+    if (this.mixer) {
+      this.mixer.stopAllAction();
+      this.playClip?.('Idle', { fade: 0 });
+    }
+    this.model.rotation.x = 0;
     this.pos.copy(this.home);
     this.model.position.copy(this.pos);
     this.model.visible = true;
@@ -326,6 +422,17 @@ export class Enemy {
     this.stateTime += dt;
 
     if (this.dead) {
+      // animowany szkielet odgrywa własną animację upadku (Death_A)
+      if (this.mixer) {
+        if (!this._deathClipPlayed) {
+          this._deathClipPlayed = true;
+          this.playClip?.('Death_A', { once: true, fade: 0.12 });
+        }
+        this.mixer.update(dt);
+        this.deathTime += dt;
+        this._fadeOutCorpse();
+        return;
+      }
       this.deathTime += dt;
       this.model.rotation.x = damp(this.model.rotation.x, -Math.PI / 2.1, 4, dt);
       this.model.position.y = damp(this.model.position.y, heightAt(this.pos.x, this.pos.z) + 0.1, 5, dt);
@@ -422,7 +529,55 @@ export class Enemy {
     this.model.rotation.y = this.yaw;
     if (!this.boss) this.model.rotation.x = damp(this.model.rotation.x, 0, 5, dt);
 
-    this._animate(dt, playerDist);
+    if (this.mixer) {
+      this._animateSkinned(dt);
+      this.mixer.update(dt);
+    } else {
+      this._animate(dt, playerDist);
+    }
+  }
+
+  /** Zwłoki znikają płynnie po 1,6 s od śmierci. */
+  _fadeOutCorpse() {
+    const t = clamp((this.deathTime - 1.2) / 0.6, 0, 1);
+    this.model.traverse((o) => {
+      if (!o.isMesh || !o.material) return;
+      o.material.transparent = t > 0;
+      o.material.opacity = 1 - t;
+    });
+    if (this.deathTime > 1.8) {
+      this.active = false;
+      this.model.visible = false;
+    }
+  }
+
+  /** Klipy KayKit: idle / walking / running / atak / blok / trafienie. */
+  _animateSkinned(dt) {
+    const spd = Math.hypot(this.vel.x, this.vel.z);
+    const moving = spd > 0.35;
+    const attacking = this.state === 'attack' || this.windupActive;
+    let clip = 'Idle';
+    if (this.state === 'stagger' || this.staggerTime > 0.15) clip = 'Hit_A';
+    else if (attacking) clip = '1H_Melee_Attack_Slice_Diagonal';
+    else if (moving) clip = spd > this.def.speed * 0.55 ? 'Running_A' : 'Walking_A';
+    else if (this.state === 'chase') clip = 'Walking_A';
+
+    if (clip !== this.clipNow) {
+      const once = attacking || clip === 'Hit_A';
+      this.playClip?.(clip, { once, fade: 0.16 });
+      this.clipNow = clip;
+      this.clipHold = once ? 0.85 : 0;
+    } else if (this.clipHold > 0) {
+      this.clipHold -= dt;
+      if (this.clipHold <= 0) {
+        this.clipNow = null;
+      }
+    }
+    if (this.parts?.skinned && this.clipNow === 'Running_A') {
+      this.mixer.timeScale = clamp(spd / Math.max(1, this.def.speed), 0.7, 1.4);
+    } else if (this.mixer) {
+      this.mixer.timeScale = 1;
+    }
   }
 
   _idle(dt) {

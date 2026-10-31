@@ -28,6 +28,7 @@ export class Game {
   constructor(canvas, options = {}) {
     this.canvas = canvas;
     this.options = options;
+    this.assets = options.assets ?? null;
     this.state = 'title';
     this.clock = new THREE.Clock();
     this.time = 0;
