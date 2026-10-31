@@ -228,7 +228,7 @@ export function injectFragmentShader(src, pathCount) {
  * Materiał terenu. Zwraca MeshStandardMaterial z wstrzykniętym splatem.
  * Gdy tekstur nie da się zbudować, zwraca zwykły materiał z kolorem wierzchołków.
  */
-export const MAX_PATH_SEGMENTS = 4;
+export const MAX_PATH_SEGMENTS = 6;
 
 let noiseTexture = null;
 
@@ -253,7 +253,7 @@ export function createGroundMaterial({ paths = [], edge = [2.4, 7.0] } = {}) {
     pathVectors.push(seg ? new THREE.Vector4(seg[0], seg[1], seg[2], seg[3]) : dummy.clone());
   }
   material.userData.groundTextures = tex;
-  material.customProgramCacheKey = () => 'ground-splat-4';
+  material.customProgramCacheKey = () => 'ground-splat-6';
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uPaths = { value: pathVectors };
     shader.uniforms.uGrassMap = { value: tex.grass.map };

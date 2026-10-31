@@ -1170,18 +1170,35 @@ export class TerrainManager {
    * Materiały są współdzielone przez kafle z tym samym zestawem odcinków.
    */
   materialForChunk(cx, cz) {
-    const x = cx * CHUNK_SIZE - WORLD_RADIUS + CHUNK_SIZE / 2;
-    const z = cz * CHUNK_SIZE - WORLD_RADIUS + CHUNK_SIZE / 2;
+    // Wybór odcinków drogi dla kafla: liczy się **odległość od kafla**, nie od
+    // jego środka. Przy odległości od środka trakt przecinający daleki róg
+    // (do 177 m) przegrywał z innym, bliższym środka, i droga urywała się
+    // w połowie kafla. Teraz odcinek, który w ogóle przechodzi przez kafel,
+    // ma odległość 0 i zawsze się załapuje.
+    const minX = cx * CHUNK_SIZE - WORLD_RADIUS;
+    const minZ = cz * CHUNK_SIZE - WORLD_RADIUS;
+    const maxX = minX + CHUNK_SIZE;
+    const maxZ = minZ + CHUNK_SIZE;
+    const boxDist = (px, pz) => {
+      const dx = px < minX ? minX - px : px > maxX ? px - maxX : 0;
+      const dz = pz < minZ ? minZ - pz : pz > maxZ ? pz - maxZ : 0;
+      return dx * dx + dz * dz;
+    };
     const scored = [];
     for (let i = 0; i < PATHS.length; i++) {
       const [ax, az, bx, bz] = PATHS[i];
       const dx = bx - ax;
       const dz = bz - az;
-      const len2 = Math.max(1e-3, dx * dx + dz * dz);
-      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / len2));
-      const px = ax + dx * t;
-      const pz = az + dz * t;
-      scored.push([(x - px) * (x - px) + (z - pz) * (z - pz), i]);
+      const len = Math.hypot(dx, dz);
+      const steps = Math.max(1, Math.min(48, Math.round(len / 24)));
+      let best = Infinity;
+      for (let k = 0; k <= steps; k++) {
+        const t = k / steps;
+        const d = boxDist(ax + dx * t, az + dz * t);
+        if (d < best) best = d;
+        if (best === 0) break;
+      }
+      scored.push([best, i]);
     }
     scored.sort((a, b) => a[0] - b[0]);
     const picked = scored.slice(0, MAX_PATH_SEGMENTS).sort((a, b) => a[1] - b[1]).map(([, i]) => i);
@@ -1203,12 +1220,17 @@ export class TerrainManager {
    * shadera): zostaje kolor z wierzchołków, mapa dalej jest grywalna.
    */
   disableGroundSplat() {
-    const mat = this.material;
-    if (!mat || mat.userData.splatDisabled) return;
-    mat.userData.splatDisabled = true;
-    mat.onBeforeCompile = () => {};
-    mat.customProgramCacheKey = () => 'ground-plain';
-    mat.needsUpdate = true;
+    // Awaryjne wyjście: jeśli sterownik nie przyjmie shadera gruntu, wracamy
+    // do zwykłego materiału z kolorami wierzchołków. Musimy wyłączyć splat we
+    // **wszystkich** materiałach kafli — inaczej połowa mapy zostałaby czarna.
+    const list = [this.material, ...(this.pathMaterials?.values?.() ?? [])];
+    for (const mat of list) {
+      if (!mat || mat.userData.splatDisabled) continue;
+      mat.userData.splatDisabled = true;
+      mat.onBeforeCompile = () => {};
+      mat.customProgramCacheKey = () => 'ground-plain';
+      mat.needsUpdate = true;
+    }
   }
 
   lodForDistance(d) {

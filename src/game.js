@@ -74,6 +74,14 @@ export class Game {
     this.renderer.shadowMap.autoUpdate = false;
     this.renderer.shadowMap.needsUpdate = true;
     this.shadowEvery = 2;
+    // Bezpiecznik: jeśli shader gruntu nie skompiluje się na czyimś sterowniku,
+    // three zgłasza błąd — wtedy wyłączamy splat i gra dalej wygląda poprawnie
+    // (kolory wierzchołków), zamiast pokazywać czarne płaty ziemi.
+    if (this.renderer.debug) this.renderer.debug.onShaderError = (gl, program) => {
+      console.error('Shader się nie skompilował — wyłączam splat gruntu', gl.getProgramInfoLog(program));
+      this.groundSplatFailed = true;
+      this.world?.terrain?.disableGroundSplat?.();
+    };
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.4;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -93,7 +101,7 @@ export class Game {
     // Sieć bezpieczeństwa: gdyby sterownik odrzucił wstrzyknięty shader gruntu
     // (splat tekstur), wracamy do prostego materiału z kolorem wierzchołków,
     // zamiast pokazywać czarną mapę.
-    this.renderer.debug.onShaderError = (gl, program, vs, fs) => {
+    if (this.renderer.debug) this.renderer.debug.onShaderError = (gl, program) => {
       try {
         console.error('Shader nie skompilował się — wyłączam splat gruntu');
         this.world?.terrain?.disableGroundSplat?.();
