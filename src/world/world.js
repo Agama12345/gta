@@ -190,6 +190,16 @@ export class World {
     return true;
   }
 
+  /** Tafla rzeki w danym punkcie (dla dźwięku nurtu i wody pod stopami). */
+  riverWaterAt(x, z) {
+    return riverSurfaceAt(x, z);
+  }
+
+  /** Lista jezior z poziomem tafli — potrzebna do dźwięku i minimapy. */
+  lakeSurfaces() {
+    return this._lakeSurfaces ?? (this._lakeSurfaces = LAKE_SURFACES);
+  }
+
   // =========================================================================
   // DZIKIE MIEJSCA — obozowiska, kapliczki, strażnice i jamy rozsiane po mapie
   // =========================================================================

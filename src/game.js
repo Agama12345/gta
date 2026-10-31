@@ -561,11 +561,23 @@ export class Game {
     }
     a._firePos = firePos;
 
+    // woda w pobliżu: rzeka (szum nurtu) i jezioro (ciemny plusk)
+    let river = 0;
+    let lake = 0;
+    const surf = this.world?.riverWaterAt?.(p.x, p.z);
+    if (surf) river = clamp(1 - (surf.d ?? 99) / 26, 0, 1);
+    for (const l of this.world?.lakeSurfaces?.() ?? []) {
+      const d = Math.hypot(p.x - l.x, p.z - l.z) - l.r;
+      if (d < 40) lake = Math.max(lake, clamp(1 - d / 40, 0, 1));
+    }
+
     a.update(dt, {
       night: this.dayNight.nightF ?? (this.dayNight.isNight ? 1 : 0),
       sea,
       forest,
       fire,
+      river,
+      lake,
       wind: 0.35 + altitude * 0.65,
       rain: this.weather?.rain ?? 0,
     });

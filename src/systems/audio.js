@@ -12,7 +12,7 @@ export class AudioSystem {
     this.musicOn = true;
     this.started = false;
     this.lastStep = 0;
-    this.env = { night: 0, sea: 0, forest: 0, fire: 0, rain: 0, wind: 0.5, underwater: 0 };
+    this.env = { night: 0, sea: 0, forest: 0, fire: 0, rain: 0, wind: 0.5, underwater: 0, river: 0, lake: 0 };
     this._timers = { bird: 2, owl: 9, wolf: 16, cricket: 1.5, fire: 0.6, wave: 3, drip: 5 };
     this._firePos = null;
     this.listener = { x: 0, z: 0, yaw: 0 };
@@ -121,6 +121,24 @@ export class AudioSystem {
     this.rain = this._loopNoise('highpass', 1800, 0.4, 0);
     this.rain2 = this._loopNoise('bandpass', 5200, 0.5, 0);
 
+    // ---- rzeka: szum nurtu, modulowany wolno (bulgotanie) ------------------
+    this.river = this._loopNoise('bandpass', 950, 1.4, 0);
+    const riverLfo = this.ctx.createOscillator();
+    riverLfo.frequency.value = 0.42;
+    const riverLfoGain = this.ctx.createGain();
+    riverLfoGain.gain.value = 260;
+    riverLfo.connect(riverLfoGain).connect(this.river.filter.frequency);
+    riverLfo.start();
+
+    // ---- jezioro: szeroki, ciemny szum z lekkim pluskiem ------------------
+    this.lake = this._loopNoise('lowpass', 480, 0.7, 0);
+    const lakeLfo = this.ctx.createOscillator();
+    lakeLfo.frequency.value = 0.09;
+    const lakeLfoGain = this.ctx.createGain();
+    lakeLfoGain.gain.value = 0.35;
+    lakeLfo.connect(lakeLfoGain).connect(this.lake.gain.gain);
+    lakeLfo.start();
+
     // ---- dron harmoniczny (muzyka tła) -----------------------------------
     const drone = this.ctx.createGain();
     drone.gain.value = 0.12;
@@ -195,6 +213,12 @@ export class AudioSystem {
 
     // płynne przejścia warstw
     this.sea.gain.gain.setTargetAtTime(0.02 + e.sea * 0.16, now, 0.6);
+    // rzeka i jezioro: im bliżej wody, tym głośniej — z delikatnym falowaniem
+    const riverWobble = 0.9 + Math.sin(t * 0.9) * 0.1;
+    this.river.gain.gain.setTargetAtTime(e.river * 0.2 * riverWobble, now, 0.5);
+    this.river.filter.frequency.setTargetAtTime(760 + e.river * 620, now, 0.6);
+    this.lake.gain.gain.setTargetAtTime(e.lake * 0.13, now, 0.9);
+    this.lake.filter.frequency.setTargetAtTime(360 + e.lake * 260, now, 1.1);
     this.sea.filter.frequency.setTargetAtTime(360 + e.sea * 420, now, 0.8);
     this.wind.gain.gain.setTargetAtTime(0.03 + e.wind * 0.06, now, 1.2);
     this.rain.gain.gain.setTargetAtTime(e.rain * 0.1, now, 1.5);
