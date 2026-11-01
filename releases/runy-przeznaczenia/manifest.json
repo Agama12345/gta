@@ -1,0 +1,1069 @@
+{
+  "game": "runy-przeznaczenia",
+  "title": "Runy Przeznaczenia",
+  "version": "1.3.0",
+  "commit": "7161ccaed8fd0242d2b5a2ba8b0cf308ab02a612",
+  "builtAt": "2026-10-31T14:29:50.453Z",
+  "files": [
+    {
+      "path": "ArcaneSpire.ico",
+      "size": 2699
+    },
+    {
+      "path": "assets/audio/LICENSE.txt",
+      "size": 875
+    },
+    {
+      "path": "assets/audio/ambience/birds_1.ogg",
+      "size": 45791
+    },
+    {
+      "path": "assets/audio/ambience/birds_2.ogg",
+      "size": 58995
+    },
+    {
+      "path": "assets/audio/ambience/birds_3.ogg",
+      "size": 28808
+    },
+    {
+      "path": "assets/audio/ambience/forest_loop.ogg",
+      "size": 454132
+    },
+    {
+      "path": "assets/audio/ambience/lake_loop.ogg",
+      "size": 357551
+    },
+    {
+      "path": "assets/audio/ambience/night_loop.ogg",
+      "size": 366616
+    },
+    {
+      "path": "assets/audio/ambience/rain_loop.ogg",
+      "size": 357584
+    },
+    {
+      "path": "assets/audio/ambience/sea_loop.ogg",
+      "size": 1464255
+    },
+    {
+      "path": "assets/audio/ambience/waterfall_loop.ogg",
+      "size": 835097
+    },
+    {
+      "path": "assets/audio/ambience/wind_loop.ogg",
+      "size": 744823
+    },
+    {
+      "path": "assets/audio/foley/bones.ogg",
+      "size": 20333
+    },
+    {
+      "path": "assets/audio/foley/chicken.ogg",
+      "size": 37708
+    },
+    {
+      "path": "assets/audio/foley/coins.ogg",
+      "size": 13055
+    },
+    {
+      "path": "assets/audio/foley/creature_1.ogg",
+      "size": 38313
+    },
+    {
+      "path": "assets/audio/foley/creature_2.ogg",
+      "size": 22559
+    },
+    {
+      "path": "assets/audio/foley/creature_3.ogg",
+      "size": 32212
+    },
+    {
+      "path": "assets/audio/foley/creature_reverb.ogg",
+      "size": 51784
+    },
+    {
+      "path": "assets/audio/foley/dog_bark_1.ogg",
+      "size": 8245
+    },
+    {
+      "path": "assets/audio/foley/dog_bark_2.ogg",
+      "size": 8626
+    },
+    {
+      "path": "assets/audio/foley/door_close.ogg",
+      "size": 9239
+    },
+    {
+      "path": "assets/audio/foley/door_open.ogg",
+      "size": 11371
+    },
+    {
+      "path": "assets/audio/foley/gear_1.ogg",
+      "size": 14003
+    },
+    {
+      "path": "assets/audio/foley/gear_2.ogg",
+      "size": 10575
+    },
+    {
+      "path": "assets/audio/foley/gear_3.ogg",
+      "size": 15789
+    },
+    {
+      "path": "assets/audio/foley/horse_neigh.ogg",
+      "size": 20231
+    },
+    {
+      "path": "assets/audio/foley/impact_1.ogg",
+      "size": 11465
+    },
+    {
+      "path": "assets/audio/foley/impact_2.ogg",
+      "size": 9753
+    },
+    {
+      "path": "assets/audio/foley/impact_3.ogg",
+      "size": 8911
+    },
+    {
+      "path": "assets/audio/foley/impact_4.ogg",
+      "size": 10796
+    },
+    {
+      "path": "assets/audio/foley/impact_5.ogg",
+      "size": 10023
+    },
+    {
+      "path": "assets/audio/foley/metal_hit_1.ogg",
+      "size": 14209
+    },
+    {
+      "path": "assets/audio/foley/metal_hit_2.ogg",
+      "size": 19779
+    },
+    {
+      "path": "assets/audio/foley/metal_hit_3.ogg",
+      "size": 16599
+    },
+    {
+      "path": "assets/audio/foley/ogre_death.ogg",
+      "size": 31353
+    },
+    {
+      "path": "assets/audio/foley/ogre_effort.ogg",
+      "size": 12736
+    },
+    {
+      "path": "assets/audio/foley/ogre_hurt_1.ogg",
+      "size": 12788
+    },
+    {
+      "path": "assets/audio/foley/ogre_hurt_2.ogg",
+      "size": 12742
+    },
+    {
+      "path": "assets/audio/foley/sword_clash.ogg",
+      "size": 18146
+    },
+    {
+      "path": "assets/audio/foley/sword_draw.ogg",
+      "size": 15278
+    },
+    {
+      "path": "assets/audio/foley/sword_scrape.ogg",
+      "size": 16361
+    },
+    {
+      "path": "assets/audio/foley/sword_sheath.ogg",
+      "size": 19235
+    },
+    {
+      "path": "assets/audio/foley/sword_swing_1.ogg",
+      "size": 6510
+    },
+    {
+      "path": "assets/audio/foley/sword_swing_2.ogg",
+      "size": 6587
+    },
+    {
+      "path": "assets/audio/foley/sword_swing_3.ogg",
+      "size": 6935
+    },
+    {
+      "path": "assets/audio/foley/sword_swing_4.ogg",
+      "size": 6221
+    },
+    {
+      "path": "assets/audio/foley/troll_death.ogg",
+      "size": 14932
+    },
+    {
+      "path": "assets/audio/foley/troll_hurt.ogg",
+      "size": 9709
+    },
+    {
+      "path": "assets/audio/music/chimes.ogg",
+      "size": 403433
+    },
+    {
+      "path": "assets/audio/music/levelup.ogg",
+      "size": 41285
+    },
+    {
+      "path": "assets/audio/music/loss.ogg",
+      "size": 58780
+    },
+    {
+      "path": "assets/audio/music/night_strings.ogg",
+      "size": 55200
+    },
+    {
+      "path": "assets/audio/music/organ.ogg",
+      "size": 486856
+    },
+    {
+      "path": "assets/audio/music/victory.ogg",
+      "size": 56522
+    },
+    {
+      "path": "assets/audio/steps/dirt_run_1.ogg",
+      "size": 8190
+    },
+    {
+      "path": "assets/audio/steps/dirt_run_2.ogg",
+      "size": 8261
+    },
+    {
+      "path": "assets/audio/steps/dirt_run_3.ogg",
+      "size": 8408
+    },
+    {
+      "path": "assets/audio/steps/dirt_run_4.ogg",
+      "size": 7777
+    },
+    {
+      "path": "assets/audio/steps/dirt_run_5.ogg",
+      "size": 7279
+    },
+    {
+      "path": "assets/audio/steps/dirt_walk_1.ogg",
+      "size": 9708
+    },
+    {
+      "path": "assets/audio/steps/dirt_walk_2.ogg",
+      "size": 11062
+    },
+    {
+      "path": "assets/audio/steps/dirt_walk_3.ogg",
+      "size": 10221
+    },
+    {
+      "path": "assets/audio/steps/dirt_walk_4.ogg",
+      "size": 10391
+    },
+    {
+      "path": "assets/audio/steps/dirt_walk_5.ogg",
+      "size": 10150
+    },
+    {
+      "path": "assets/audio/steps/grass_run_1.ogg",
+      "size": 7917
+    },
+    {
+      "path": "assets/audio/steps/grass_run_2.ogg",
+      "size": 7975
+    },
+    {
+      "path": "assets/audio/steps/grass_run_3.ogg",
+      "size": 8387
+    },
+    {
+      "path": "assets/audio/steps/grass_run_4.ogg",
+      "size": 6343
+    },
+    {
+      "path": "assets/audio/steps/grass_run_5.ogg",
+      "size": 8369
+    },
+    {
+      "path": "assets/audio/steps/grass_walk_1.ogg",
+      "size": 9935
+    },
+    {
+      "path": "assets/audio/steps/grass_walk_2.ogg",
+      "size": 9550
+    },
+    {
+      "path": "assets/audio/steps/grass_walk_3.ogg",
+      "size": 9995
+    },
+    {
+      "path": "assets/audio/steps/grass_walk_4.ogg",
+      "size": 10999
+    },
+    {
+      "path": "assets/audio/steps/grass_walk_5.ogg",
+      "size": 11716
+    },
+    {
+      "path": "assets/audio/steps/land_dirt_1.ogg",
+      "size": 19081
+    },
+    {
+      "path": "assets/audio/steps/land_dirt_2.ogg",
+      "size": 16191
+    },
+    {
+      "path": "assets/audio/steps/land_grass_1.ogg",
+      "size": 14304
+    },
+    {
+      "path": "assets/audio/steps/land_grass_2.ogg",
+      "size": 11514
+    },
+    {
+      "path": "assets/audio/steps/land_snow_1.ogg",
+      "size": 8713
+    },
+    {
+      "path": "assets/audio/steps/land_snow_2.ogg",
+      "size": 11608
+    },
+    {
+      "path": "assets/audio/steps/metal_run_1.ogg",
+      "size": 6716
+    },
+    {
+      "path": "assets/audio/steps/metal_run_2.ogg",
+      "size": 6463
+    },
+    {
+      "path": "assets/audio/steps/metal_run_3.ogg",
+      "size": 6593
+    },
+    {
+      "path": "assets/audio/steps/metal_run_4.ogg",
+      "size": 6602
+    },
+    {
+      "path": "assets/audio/steps/metal_run_5.ogg",
+      "size": 6474
+    },
+    {
+      "path": "assets/audio/steps/metal_walk_1.ogg",
+      "size": 10635
+    },
+    {
+      "path": "assets/audio/steps/metal_walk_2.ogg",
+      "size": 9374
+    },
+    {
+      "path": "assets/audio/steps/metal_walk_3.ogg",
+      "size": 7895
+    },
+    {
+      "path": "assets/audio/steps/metal_walk_4.ogg",
+      "size": 7605
+    },
+    {
+      "path": "assets/audio/steps/metal_walk_5.ogg",
+      "size": 7288
+    },
+    {
+      "path": "assets/audio/steps/snow_run_1.ogg",
+      "size": 7267
+    },
+    {
+      "path": "assets/audio/steps/snow_run_2.ogg",
+      "size": 7571
+    },
+    {
+      "path": "assets/audio/steps/snow_run_3.ogg",
+      "size": 7676
+    },
+    {
+      "path": "assets/audio/steps/snow_run_4.ogg",
+      "size": 7558
+    },
+    {
+      "path": "assets/audio/steps/snow_run_5.ogg",
+      "size": 7299
+    },
+    {
+      "path": "assets/audio/steps/snow_walk_1.ogg",
+      "size": 13468
+    },
+    {
+      "path": "assets/audio/steps/snow_walk_2.ogg",
+      "size": 17076
+    },
+    {
+      "path": "assets/audio/steps/snow_walk_3.ogg",
+      "size": 12511
+    },
+    {
+      "path": "assets/audio/steps/snow_walk_4.ogg",
+      "size": 12171
+    },
+    {
+      "path": "assets/audio/steps/snow_walk_5.ogg",
+      "size": 12380
+    },
+    {
+      "path": "assets/audio/steps/stone_run_1.ogg",
+      "size": 6603
+    },
+    {
+      "path": "assets/audio/steps/stone_run_2.ogg",
+      "size": 5789
+    },
+    {
+      "path": "assets/audio/steps/stone_run_3.ogg",
+      "size": 6039
+    },
+    {
+      "path": "assets/audio/steps/stone_run_4.ogg",
+      "size": 5676
+    },
+    {
+      "path": "assets/audio/steps/stone_run_5.ogg",
+      "size": 5826
+    },
+    {
+      "path": "assets/audio/steps/stone_walk_1.ogg",
+      "size": 5855
+    },
+    {
+      "path": "assets/audio/steps/stone_walk_2.ogg",
+      "size": 6153
+    },
+    {
+      "path": "assets/audio/steps/stone_walk_3.ogg",
+      "size": 7574
+    },
+    {
+      "path": "assets/audio/steps/stone_walk_4.ogg",
+      "size": 6493
+    },
+    {
+      "path": "assets/audio/steps/stone_walk_5.ogg",
+      "size": 5697
+    },
+    {
+      "path": "assets/audio/steps/wood_run_1.ogg",
+      "size": 5716
+    },
+    {
+      "path": "assets/audio/steps/wood_run_2.ogg",
+      "size": 5635
+    },
+    {
+      "path": "assets/audio/steps/wood_run_3.ogg",
+      "size": 5489
+    },
+    {
+      "path": "assets/audio/steps/wood_run_4.ogg",
+      "size": 5391
+    },
+    {
+      "path": "assets/audio/steps/wood_run_5.ogg",
+      "size": 5153
+    },
+    {
+      "path": "assets/audio/steps/wood_walk_1.ogg",
+      "size": 6563
+    },
+    {
+      "path": "assets/audio/steps/wood_walk_2.ogg",
+      "size": 6660
+    },
+    {
+      "path": "assets/audio/steps/wood_walk_3.ogg",
+      "size": 6162
+    },
+    {
+      "path": "assets/audio/steps/wood_walk_4.ogg",
+      "size": 6510
+    },
+    {
+      "path": "assets/audio/steps/wood_walk_5.ogg",
+      "size": 6693
+    },
+    {
+      "path": "assets/audio/ui/alert.ogg",
+      "size": 8070
+    },
+    {
+      "path": "assets/audio/ui/back.ogg",
+      "size": 7345
+    },
+    {
+      "path": "assets/audio/ui/bag_open.ogg",
+      "size": 20042
+    },
+    {
+      "path": "assets/audio/ui/book_close.ogg",
+      "size": 8972
+    },
+    {
+      "path": "assets/audio/ui/book_open.ogg",
+      "size": 14021
+    },
+    {
+      "path": "assets/audio/ui/click.ogg",
+      "size": 7037
+    },
+    {
+      "path": "assets/audio/ui/close.ogg",
+      "size": 9028
+    },
+    {
+      "path": "assets/audio/ui/notify_1.ogg",
+      "size": 5422
+    },
+    {
+      "path": "assets/audio/ui/notify_2.ogg",
+      "size": 14814
+    },
+    {
+      "path": "assets/audio/ui/notify_3.ogg",
+      "size": 9670
+    },
+    {
+      "path": "assets/audio/ui/open.ogg",
+      "size": 8873
+    },
+    {
+      "path": "assets/cinzel-L553gT7L.woff2",
+      "size": 41540
+    },
+    {
+      "path": "assets/index-BLpcrcZo.js",
+      "size": 977931
+    },
+    {
+      "path": "assets/index-CaYQmYZI.css",
+      "size": 38037
+    },
+    {
+      "path": "assets/inter-DIiUDa5s.woff2",
+      "size": 124128
+    },
+    {
+      "path": "assets/models/LICENSE.txt",
+      "size": 4988
+    },
+    {
+      "path": "assets/models/chars/Skeleton_Warrior.glb",
+      "size": 4863620
+    },
+    {
+      "path": "assets/models/city/bench.bin",
+      "size": 2824
+    },
+    {
+      "path": "assets/models/city/bench.gltf",
+      "size": 3024
+    },
+    {
+      "path": "assets/models/city/box_A.bin",
+      "size": 2240
+    },
+    {
+      "path": "assets/models/city/box_A.gltf",
+      "size": 3044
+    },
+    {
+      "path": "assets/models/city/bush.bin",
+      "size": 3056
+    },
+    {
+      "path": "assets/models/city/bush.gltf",
+      "size": 3022
+    },
+    {
+      "path": "assets/models/city/citybits_texture.png",
+      "size": 19885
+    },
+    {
+      "path": "assets/models/city/streetlight.bin",
+      "size": 7136
+    },
+    {
+      "path": "assets/models/city/streetlight.gltf",
+      "size": 3067
+    },
+    {
+      "path": "assets/models/city/watertower.bin",
+      "size": 8268
+    },
+    {
+      "path": "assets/models/city/watertower.gltf",
+      "size": 3065
+    },
+    {
+      "path": "assets/models/furniture/bed_double_A.bin",
+      "size": 24648
+    },
+    {
+      "path": "assets/models/furniture/bed_double_A.gltf",
+      "size": 3011
+    },
+    {
+      "path": "assets/models/furniture/bed_single_A.bin",
+      "size": 22044
+    },
+    {
+      "path": "assets/models/furniture/bed_single_A.gltf",
+      "size": 3009
+    },
+    {
+      "path": "assets/models/furniture/book_set.bin",
+      "size": 11576
+    },
+    {
+      "path": "assets/models/furniture/book_set.gltf",
+      "size": 3051
+    },
+    {
+      "path": "assets/models/furniture/cabinet_small.bin",
+      "size": 19468
+    },
+    {
+      "path": "assets/models/furniture/cabinet_small.gltf",
+      "size": 3001
+    },
+    {
+      "path": "assets/models/furniture/chair_A.bin",
+      "size": 16504
+    },
+    {
+      "path": "assets/models/furniture/chair_A.gltf",
+      "size": 3022
+    },
+    {
+      "path": "assets/models/furniture/chair_stool.bin",
+      "size": 10832
+    },
+    {
+      "path": "assets/models/furniture/chair_stool.gltf",
+      "size": 3042
+    },
+    {
+      "path": "assets/models/furniture/couch.bin",
+      "size": 21416
+    },
+    {
+      "path": "assets/models/furniture/couch.gltf",
+      "size": 3014
+    },
+    {
+      "path": "assets/models/furniture/furniturebits_texture.png",
+      "size": 15605
+    },
+    {
+      "path": "assets/models/furniture/lamp_table.bin",
+      "size": 12816
+    },
+    {
+      "path": "assets/models/furniture/lamp_table.gltf",
+      "size": 3029
+    },
+    {
+      "path": "assets/models/furniture/pictureframe_medium.bin",
+      "size": 3176
+    },
+    {
+      "path": "assets/models/furniture/pictureframe_medium.gltf",
+      "size": 3069
+    },
+    {
+      "path": "assets/models/furniture/rug_rectangle_A.bin",
+      "size": 1800
+    },
+    {
+      "path": "assets/models/furniture/rug_rectangle_A.gltf",
+      "size": 2971
+    },
+    {
+      "path": "assets/models/furniture/shelf_A_small.bin",
+      "size": 10104
+    },
+    {
+      "path": "assets/models/furniture/shelf_A_small.gltf",
+      "size": 3033
+    },
+    {
+      "path": "assets/models/furniture/table_medium.bin",
+      "size": 9328
+    },
+    {
+      "path": "assets/models/furniture/table_medium.gltf",
+      "size": 2973
+    },
+    {
+      "path": "assets/models/halloween/bone_A.bin",
+      "size": 7592
+    },
+    {
+      "path": "assets/models/halloween/bone_A.gltf",
+      "size": 3059
+    },
+    {
+      "path": "assets/models/halloween/coffin.bin",
+      "size": 18088
+    },
+    {
+      "path": "assets/models/halloween/coffin.gltf",
+      "size": 4828
+    },
+    {
+      "path": "assets/models/halloween/coffin_decorated.bin",
+      "size": 79264
+    },
+    {
+      "path": "assets/models/halloween/coffin_decorated.gltf",
+      "size": 3004
+    },
+    {
+      "path": "assets/models/halloween/crypt.bin",
+      "size": 58640
+    },
+    {
+      "path": "assets/models/halloween/crypt.gltf",
+      "size": 2960
+    },
+    {
+      "path": "assets/models/halloween/fence_broken.bin",
+      "size": 29076
+    },
+    {
+      "path": "assets/models/halloween/fence_broken.gltf",
+      "size": 2990
+    },
+    {
+      "path": "assets/models/halloween/grave_A.bin",
+      "size": 15700
+    },
+    {
+      "path": "assets/models/halloween/grave_A.gltf",
+      "size": 2990
+    },
+    {
+      "path": "assets/models/halloween/grave_B.bin",
+      "size": 13812
+    },
+    {
+      "path": "assets/models/halloween/grave_B.gltf",
+      "size": 2990
+    },
+    {
+      "path": "assets/models/halloween/gravemarker_A.bin",
+      "size": 4016
+    },
+    {
+      "path": "assets/models/halloween/gravemarker_A.gltf",
+      "size": 3050
+    },
+    {
+      "path": "assets/models/halloween/gravemarker_B.bin",
+      "size": 10640
+    },
+    {
+      "path": "assets/models/halloween/gravemarker_B.gltf",
+      "size": 3049
+    },
+    {
+      "path": "assets/models/halloween/halloweenbits_texture.png",
+      "size": 15093
+    },
+    {
+      "path": "assets/models/halloween/lantern_standing.bin",
+      "size": 12400
+    },
+    {
+      "path": "assets/models/halloween/lantern_standing.gltf",
+      "size": 3084
+    },
+    {
+      "path": "assets/models/halloween/post_lantern.bin",
+      "size": 25584
+    },
+    {
+      "path": "assets/models/halloween/post_lantern.gltf",
+      "size": 5135
+    },
+    {
+      "path": "assets/models/halloween/ribcage.bin",
+      "size": 52272
+    },
+    {
+      "path": "assets/models/halloween/ribcage.gltf",
+      "size": 3071
+    },
+    {
+      "path": "assets/models/halloween/shrine.bin",
+      "size": 6196
+    },
+    {
+      "path": "assets/models/halloween/shrine.gltf",
+      "size": 3035
+    },
+    {
+      "path": "assets/models/halloween/shrine_candles.bin",
+      "size": 19568
+    },
+    {
+      "path": "assets/models/halloween/shrine_candles.gltf",
+      "size": 3056
+    },
+    {
+      "path": "assets/models/halloween/skull.bin",
+      "size": 12560
+    },
+    {
+      "path": "assets/models/halloween/skull.gltf",
+      "size": 3058
+    },
+    {
+      "path": "assets/models/halloween/tree_dead_large.bin",
+      "size": 7200
+    },
+    {
+      "path": "assets/models/halloween/tree_dead_large.gltf",
+      "size": 3074
+    },
+    {
+      "path": "assets/models/halloween/tree_dead_medium.bin",
+      "size": 5584
+    },
+    {
+      "path": "assets/models/halloween/tree_dead_medium.gltf",
+      "size": 3080
+    },
+    {
+      "path": "assets/models/halloween/tree_pine_orange_large.bin",
+      "size": 17492
+    },
+    {
+      "path": "assets/models/halloween/tree_pine_orange_large.gltf",
+      "size": 3085
+    },
+    {
+      "path": "assets/models/halloween/tree_pine_yellow_large.bin",
+      "size": 17492
+    },
+    {
+      "path": "assets/models/halloween/tree_pine_yellow_large.gltf",
+      "size": 3085
+    },
+    {
+      "path": "assets/models/nature/hexagons_medieval.png",
+      "size": 15783
+    },
+    {
+      "path": "assets/models/nature/rock_single_A.bin",
+      "size": 1228
+    },
+    {
+      "path": "assets/models/nature/rock_single_A.gltf",
+      "size": 3031
+    },
+    {
+      "path": "assets/models/nature/rock_single_B.bin",
+      "size": 1628
+    },
+    {
+      "path": "assets/models/nature/rock_single_B.gltf",
+      "size": 3052
+    },
+    {
+      "path": "assets/models/nature/rock_single_C.bin",
+      "size": 2192
+    },
+    {
+      "path": "assets/models/nature/rock_single_C.gltf",
+      "size": 3052
+    },
+    {
+      "path": "assets/models/nature/rock_single_D.bin",
+      "size": 1348
+    },
+    {
+      "path": "assets/models/nature/rock_single_D.gltf",
+      "size": 3052
+    },
+    {
+      "path": "assets/models/nature/rock_single_E.bin",
+      "size": 4300
+    },
+    {
+      "path": "assets/models/nature/rock_single_E.gltf",
+      "size": 3057
+    },
+    {
+      "path": "assets/models/nature/tree_single_A.bin",
+      "size": 3340
+    },
+    {
+      "path": "assets/models/nature/tree_single_A.gltf",
+      "size": 3053
+    },
+    {
+      "path": "assets/models/nature/tree_single_B.bin",
+      "size": 7368
+    },
+    {
+      "path": "assets/models/nature/tree_single_B.gltf",
+      "size": 3056
+    },
+    {
+      "path": "assets/models/nature/trees_A_large.bin",
+      "size": 57024
+    },
+    {
+      "path": "assets/models/nature/trees_A_large.gltf",
+      "size": 3066
+    },
+    {
+      "path": "assets/models/nature/trees_A_small.bin",
+      "size": 28512
+    },
+    {
+      "path": "assets/models/nature/trees_A_small.gltf",
+      "size": 3058
+    },
+    {
+      "path": "assets/models/nature/trees_B_large.bin",
+      "size": 51960
+    },
+    {
+      "path": "assets/models/nature/trees_B_large.gltf",
+      "size": 3067
+    },
+    {
+      "path": "assets/models/nature/trees_B_medium.bin",
+      "size": 37096
+    },
+    {
+      "path": "assets/models/nature/trees_B_medium.gltf",
+      "size": 3066
+    },
+    {
+      "path": "assets/models/nature/waterlily_A.bin",
+      "size": 2616
+    },
+    {
+      "path": "assets/models/nature/waterlily_A.gltf",
+      "size": 3027
+    },
+    {
+      "path": "assets/models/nature/waterplant_A.bin",
+      "size": 2988
+    },
+    {
+      "path": "assets/models/nature/waterplant_A.gltf",
+      "size": 3049
+    },
+    {
+      "path": "assets/models/props/barrel_large.gltf.glb",
+      "size": 44292
+    },
+    {
+      "path": "assets/models/props/box_large.gltf.glb",
+      "size": 28740
+    },
+    {
+      "path": "assets/models/props/chair.gltf.glb",
+      "size": 36252
+    },
+    {
+      "path": "assets/models/props/chest.glb",
+      "size": 81412
+    },
+    {
+      "path": "assets/models/props/crates_stacked.gltf.glb",
+      "size": 103704
+    },
+    {
+      "path": "assets/models/props/keg.gltf.glb",
+      "size": 59912
+    },
+    {
+      "path": "assets/models/props/table_long.gltf.glb",
+      "size": 35128
+    },
+    {
+      "path": "assets/models/props/torch_lit.gltf.glb",
+      "size": 31244
+    },
+    {
+      "path": "favicon.png",
+      "size": 272
+    },
+    {
+      "path": "icon-128.png",
+      "size": 524
+    },
+    {
+      "path": "icon-16.png",
+      "size": 144
+    },
+    {
+      "path": "icon-256.png",
+      "size": 1200
+    },
+    {
+      "path": "icon-32.png",
+      "size": 272
+    },
+    {
+      "path": "icon-48.png",
+      "size": 318
+    },
+    {
+      "path": "icon-512.png",
+      "size": 3660
+    },
+    {
+      "path": "icon-64.png",
+      "size": 352
+    },
+    {
+      "path": "index.html",
+      "size": 2426
+    },
+    {
+      "path": "launcher-icon-128.png",
+      "size": 622
+    },
+    {
+      "path": "launcher-icon-16.png",
+      "size": 186
+    },
+    {
+      "path": "launcher-icon-256.png",
+      "size": 1313
+    },
+    {
+      "path": "launcher-icon-32.png",
+      "size": 343
+    },
+    {
+      "path": "launcher-icon-48.png",
+      "size": 409
+    },
+    {
+      "path": "launcher-icon-512.png",
+      "size": 3749
+    },
+    {
+      "path": "launcher-icon-64.png",
+      "size": 444
+    },
+    {
+      "path": "version.json",
+      "size": 186
+    }
+  ]
+}

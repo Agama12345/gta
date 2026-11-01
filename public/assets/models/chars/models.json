@@ -1,0 +1,19 @@
+{
+  "library": "animacje/ual.glb",
+  "hero": "q_adventurer.glb",
+  "npcs": {
+    "eryn": "q_king.glb",
+    "borys": "q_adventurer.glb",
+    "marena": "q_medieval_woman.glb",
+    "zorzan": "q_casual.glb",
+    "wilk": "q_worker.glb",
+    "iskra": "q_witch.glb",
+    "pustelnik": "q_witch.glb",
+    "kupiec": "q_casual.glb",
+    "rybak": "q_farmer.glb",
+    "duch": "postac_duch.glb"
+  },
+  "heroHide": [
+    "Backpack"
+  ]
+}

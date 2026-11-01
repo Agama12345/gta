@@ -1,0 +1,330 @@
+name: build-launcher
+
+on:
+  push:
+    branches:
+      - '**'
+    # tylko zmiany w kodzie launchera wywołują build (commit z plikiem exe nie zapętla CI)
+    paths:
+      - 'launcher/src/**'
+      - 'launcher/assets/**'
+      - 'tools/make_icons.py'
+      - 'tools/gamehost/**'
+      - 'src/**'
+      - 'games/**'
+      - 'releases/**'
+      - '.github/workflows/build-launcher.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-launcher
+  cancel-in-progress: true
+
+jobs:
+  windows-exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pobranie .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Znacznik kompilacji (SHA + data)
+        shell: pwsh
+        run: |
+          $sha = "${{ github.sha }}".Substring(0, 7)
+          $built = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+          $code = @"
+          namespace ArcaneSpire.Core
+          {
+              public static class BuildInfo
+              {
+                  public const string Sha = "$sha";
+                  public const string BuiltAt = "$built";
+                  public const string Channel = "launcher-latest";
+              }
+          }
+          "@
+          New-Item -ItemType Directory -Force -Path launcher/src/Core | Out-Null
+          Set-Content -Path launcher/src/Core/BuildInfo.cs -Value $code -Encoding UTF8
+          Write-Host "build=$sha ($built)"
+
+      - name: Kompilacja (net48, WinForms)
+        shell: pwsh
+        run: |
+          dotnet build launcher/src/ArcaneSpire.csproj -c Release -v minimal
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Publikacja
+        shell: pwsh
+        run: |
+          dotnet publish launcher/src/ArcaneSpire.csproj -c Release -o out -v minimal
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Get-ChildItem out | Format-Table Name, Length -AutoSize
+
+      - name: Weryfikacja pliku
+        shell: pwsh
+        run: |
+          $exe = "out/ArcaneSpire.exe"
+          if (-not (Test-Path $exe)) { throw "Brak pliku $exe" }
+          $size = (Get-Item $exe).Length
+          Write-Host "ArcaneSpire.exe = $size bajtów"
+          if ($size -lt 30000) { throw "Plik wygląda na niepoprawny" }
+          $info = [System.Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path $exe))
+          Write-Host ("Produkt: " + $info.ProductName + " " + $info.ProductVersion)
+
+          # nagłówek PE: MZ + podsystem GUI (2)
+          $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path $exe))
+          $magic = [System.Text.Encoding]::ASCII.GetString($bytes[0..1])
+          $peOffset = [BitConverter]::ToInt32($bytes, 0x3C)
+          $subsystem = [BitConverter]::ToUInt16($bytes, $peOffset + 0x5C)
+          Write-Host "Nagłówek: $magic, podsystem: $subsystem (2 = aplikacja okienkowa)"
+          if ($magic -ne 'MZ') { throw 'To nie jest plik wykonywalny Windows' }
+          if ($subsystem -ne 2) { throw "Zły podsystem: $subsystem" }
+
+          # ikona wbudowana w plik
+          Add-Type -AssemblyName System.Drawing
+          $icon = [System.Drawing.Icon]::ExtractAssociatedIcon((Resolve-Path $exe))
+          if ($null -eq $icon) { throw 'Brak ikony w pliku exe' }
+          Write-Host ("Ikona: " + $icon.Width + "x" + $icon.Height)
+          $icon.Dispose()
+
+      - name: Paczka ZIP (exe + skrypty pomocy)
+        shell: pwsh
+        run: |
+          $stage = "stage"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item out/ArcaneSpire.exe $stage/
+          if (Test-Path out/ArcaneSpire.exe.config) { Copy-Item out/ArcaneSpire.exe.config $stage/ }
+          Copy-Item launcher/uruchom.cmd $stage/
+          Copy-Item launcher/diagnostyka.cmd $stage/
+          Copy-Item launcher/diagnostyka.ps1 $stage/
+          @"
+          ARCANE SPIRE
+          ============
+          1. Kliknij dwa razy uruchom.cmd  (uruchamia launcher i pokazuje, co sie stalo, jesli okno sie nie pojawi)
+          2. Albo uruchom bezposrednio ArcaneSpire.exe
+          3. Jesli cos nie dziala: diagnostyka.cmd -> na pulpicie powstanie diagnostyka.txt
+
+          Wymagania: Windows 10 (1903+) lub Windows 11. .NET Framework 4.8 jest czescia systemu.
+          Podglad: https://github.com/Agama12345/gta
+          "@ | Set-Content -Path "$stage/CZYTAJ-NAJPIERW.txt" -Encoding UTF8
+          Compress-Archive -Path "$stage/*" -DestinationPath out/ArcaneSpire.zip -Force
+          Get-ChildItem out | Format-Table Name, Length -AutoSize
+
+      - name: Artefakt
+        uses: actions/upload-artifact@v4
+        with:
+          name: ArcaneSpire-exe
+          path: |
+            out/ArcaneSpire.exe
+            out/ArcaneSpire.zip
+          if-no-files-found: error
+
+      - name: Kopia do repozytorium (downloads/ArcaneSpire.exe)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path downloads | Out-Null
+          Copy-Item out/ArcaneSpire.exe downloads/ArcaneSpire.exe -Force
+          Copy-Item out/ArcaneSpire.zip downloads/ArcaneSpire.zip -Force
+
+      - name: Commit kopii (bez ponownego builda)
+        shell: pwsh
+        run: |
+          git config user.name "Arcane Spire Build"
+          git config user.email "build@users.noreply.github.com"
+          git add downloads/ArcaneSpire.exe downloads/ArcaneSpire.zip
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) { Write-Host "Bez zmian."; exit 0 }
+          git commit -m "build: launcher ${{ github.sha }} [skip ci]"
+          git push
+
+      - name: Wydanie launcher-latest (zawsze aktualny link do pobrania)
+        if: github.event_name == 'push'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $sha = "${{ github.sha }}".Substring(0, 7)
+          $built = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+          gh release view launcher-latest *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create launcher-latest --target "${{ github.ref_name }}" `
+              --title "Arcane Spire — najnowszy build" `
+              --notes "build=$sha`nZawsze najświeższy launcher (Windows 10/11, .NET Framework 4.8 wbudowany)."
+          }
+          gh release upload launcher-latest out/ArcaneSpire.exe --clobber
+          gh release upload launcher-latest out/ArcaneSpire.zip --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Nie udało się wgrać pliku do wydania" }
+          gh release edit launcher-latest --notes "build=$sha`nzbudowano: $built`npliki: ArcaneSpire.exe`n`nPobierz: https://github.com/Agama12345/gta/releases/download/launcher-latest/ArcaneSpire.exe"
+
+  game-exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Instalacja zależności gry
+        run: npm ci --no-audit --no-fund
+
+      - name: Budowa paczki gry
+        run: npm run release
+
+      - name: Kompilacja pliku exe z grą
+        shell: pwsh
+        run: |
+          dotnet publish tools/gamehost/GameHost.csproj -c Release -o out-game -v minimal
+          if ($LASTEXITCODE -ne 0) { throw "Kompilacja gry nie udała się" }
+
+
+      - name: Weryfikacja exe z grą
+        shell: pwsh
+        run: |
+          $exe = "out-game/RunyPrzeznaczenia.exe"
+          if (-not (Test-Path $exe)) { throw "Brak $exe" }
+          Write-Host ("RunyPrzeznaczenia.exe = " + (Get-Item $exe).Length + " bajtów")
+          Get-ChildItem out-game | Format-Table Name, Length -AutoSize
+          if (-not (Test-Path "out-game/WebView2Loader.dll")) { throw "Brak WebView2Loader.dll (natywne okno nie zadziała)" }
+          $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path $exe))
+          $peOffset = [BitConverter]::ToInt32($bytes, 0x3C)
+          $subsystem = [BitConverter]::ToUInt16($bytes, $peOffset + 0x5C)
+          if ($subsystem -ne 2) { throw "Zły podsystem: $subsystem" }
+          Add-Type -AssemblyName System.Drawing
+          $icon = [System.Drawing.Icon]::ExtractAssociatedIcon((Resolve-Path $exe))
+          if ($null -eq $icon) { throw "Brak ikony" }
+          Write-Host ("Ikona okna: " + $icon.Width + "x" + $icon.Height)
+          $icon.Dispose()
+
+      - name: Paczka gry (exe + WebView2 + Uruchom.cmd)
+        shell: pwsh
+        run: |
+          $stage = "stage-game"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item out-game/* $stage/ -Recurse -Force
+          $run = @"
+          @echo off
+          rem Uruchamia gre bez okna "Windows chronil Twoj komputer".
+          chcp 65001 >nul 2>nul
+          setlocal
+          set "HERE=%~dp0"
+          if not exist "%HERE%RunyPrzeznaczenia.exe" (
+            echo Nie znaleziono RunyPrzeznaczenia.exe obok tego pliku.
+            pause
+            exit /b 1
+          )
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Unblock-File -LiteralPath '%HERE%RunyPrzeznaczenia.exe'" >nul 2>nul
+          start "" "%HERE%RunyPrzeznaczenia.exe"
+          exit /b 0
+          "@
+          $run = $run -replace "`n", "`r`n"
+          Set-Content -Path "$stage/Uruchom.cmd" -Value $run -Encoding ASCII
+          $read = @"
+          RUNY PRZEZNACZENIA - wersja na PC
+          ================================
+          1. Kliknij dwa razy Uruchom.cmd  (odblokowuje plik i startuje gre)
+             albo od razu RunyPrzeznaczenia.exe
+          2. Gra otwiera sie we wlasnym oknie Windows - bez paska adresu,
+             bez kart przegladarki, z wlasna ikona na pasku zadan.
+          3. Sterowanie: WASD - ruch, LPM - atak, Spacja - unik, Shift - sprint,
+             F - interakcja, Tab - ekwipunek, M - mapa, V - glosy, Esc - menu.
+
+          Wymagania: Windows 10/11. Silnik okna (WebView2) jest czescia
+          systemu razem z Edge; jesli go brak, gra otworzy sie w przegladarce.
+          Log: %LOCALAPPDATA%\RunyPrzeznaczenia\game.log
+          Diagnostyka: RunyPrzeznaczenia.exe --selftest
+          "@
+          $read = $read -replace "`n", "`r`n"
+          Set-Content -Path "$stage/CZYTAJ.txt" -Value $read -Encoding UTF8
+          Compress-Archive -Path "$stage/*" -DestinationPath out-game/RunyPrzeznaczenia-PC.zip -Force
+          Write-Host ("Paczka: " + (Get-Item out-game/RunyPrzeznaczenia-PC.zip).Length + " bajtów")
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path "out-game/RunyPrzeznaczenia-PC.zip"))
+          $names = @($zip.Entries | ForEach-Object { $_.FullName })
+          $zip.Dispose()
+          Write-Host ("Zawartosc paczki:`n" + ($names -join "`n"))
+          $names -join "`n" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+          foreach ($need in @("RunyPrzeznaczenia.exe", "WebView2Loader.dll", "Microsoft.Web.WebView2.Core.dll", "Microsoft.Web.WebView2.WinForms.dll", "Uruchom.cmd", "CZYTAJ.txt")) {
+            if ($names -notcontains $need) { throw "W paczce brakuje: $need" }
+          }
+          Write-Host "Paczka kompletna (exe + WebView2 + instrukcja)."
+
+      - name: Artefakt gry
+        uses: actions/upload-artifact@v4
+        with:
+          name: RunyPrzeznaczenia-PC
+          path: out-game/RunyPrzeznaczenia-PC.zip
+          if-no-files-found: error
+
+      - name: Wydanie game-latest (link do pobrania gry)
+        if: github.event_name == 'push'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $sha = "${{ github.sha }}".Substring(0, 7)
+          gh release view game-latest *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create game-latest --target "${{ github.ref_name }}" `
+              --title "Runy Przeznaczenia — gra (exe)" `
+              --notes "Gra w jednym pliku exe. Pobierz i uruchom."
+          }
+          gh release upload game-latest out-game/RunyPrzeznaczenia-PC.zip --clobber
+          gh release upload game-latest out-game/RunyPrzeznaczenia.exe --clobber
+          $notes = @"
+          build=$sha
+          Gra "Runy Przeznaczenia" w jednym pliku exe.
+          Windows 10/11 - .NET Framework 4.8 jest czescia systemu.
+
+          Pobierz: https://github.com/Agama12345/gta/releases/download/game-latest/RunyPrzeznaczenia-PC.zip
+          (rozpakuj i kliknij Uruchom.cmd - gra dziala we wlasnym oknie Windows)
+          Pomoc: uruchom z parametrem --selftest, jesli cos nie dziala.
+
+          NOWE W TEJ WERSJI
+          - bron i drobnica: prawdziwe modele mieczy, toporow, sztyletow, kusz,
+            kosturow, tarcz, kufli i ksiegi czarow (KayKit, CC0) — w dłoniach
+            bohatera, u bandytow i jako wyposazenie kuźni, targu i gospody
+          - wydajnosc: grunt liczy 4 najblizsze odcinki drogi zamiast 20 i 5 probek
+            tekstury zamiast 7; swieci maks. 4-6 lamp zamiast wszystkich,
+            kafle terenu przebudowuja sie wolniej (mniej przycięć),
+            automatyka jakości reaguje już przy ~49 klatkach
+          - F3: licznik klatek, wywolan rysowania i trojkatow
+          - postac: przyspieszona optymalizacja (kazda postac to jedna siatka zamiast
+            kilkunastu), plecak schowany, faktura tkaniny na ubraniu
+          - silnik: dynamiczna rozdzielczosc (gra sama dokreca ostrosc, zeby nie ciac),
+            automatyczna zmiana poziomu jakosci, scalona statyka swiata
+            (materialy rozniace sie tylko kolorem trafiaja do jednej siatki),
+            LOD roslinnosci (blizej 60% trojkatow, dalej 28%),
+            mniej obiektow rysowalnych: 4,1 tys. -> 2,9 tys.
+          - plan rozwoju dopisany do repozytorium (ROADMAP.md)
+          - wydajnosc: poziomy jakosci (oszczedny/niski/sredni/wysoki) + automatyczne
+            dopasowanie do komputera, mniej wywolan rysowania (scalona statyka),
+            fale wody liczone na karcie graficznej, trawa bez zacinania
+          - realistyczny bohater i mieszkancy (proporcje ciala jak u czlowieka),
+            animacje z biblioteki Uniwersal Animation Library
+          - nowe tekstury gruntu: zdzbla trawy, zwir i kamyki, warstwy skalne, piasek
+            z grzbietami fal — droga ma koleiny i rozmyta, nierowna krawedz
+          - mapa 5 x 5 km (25 km2, okolo 5x wiecej terenu niz wczesniej)
+          - ocean dokola krainy: plaze, klify, fale, piana, wyspy, mielizna na Samotna Skale
+          - nowe miejsca: Latarnia na Cyplu, wrak "Zimnej Fali", Chaty Rybakow (rybak Tobiasz - handel i dialogi)
+          - modele natury w stylu Gothica: sosny, deby z korzeniami, brzozy, paprocie, trzciny, glazy z mchem
+          - animacje ze stawami (kolana, lokcie, kolysanie bioder), plynne przejscia
+          - dzwiek otoczenia w stereo: wiatr, fale, ptaki, swierszcze, ogien, kroki zalezne od podloza
+          - postacie mowia na glos (synteza mowy systemu); klawisz V wylacza i wlacza glosy
+          - pogoda: slonce, chmury, deszcz, burza, mgla - deszcz zmniejsza zasieg, z jakiego wrogowie cie widza
+          - sterowanie: WASD ruch, LPM atak, Spacja unik, Shift sprint, F interakcja, Tab ekwipunek, M mapa
+          "@
+          gh release edit game-latest --notes $notes

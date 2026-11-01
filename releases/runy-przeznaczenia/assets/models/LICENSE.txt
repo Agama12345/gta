@@ -1,0 +1,103 @@
+MODELE 3D W GRZE — LICENCJE I ŹRÓDŁA
+====================================
+
+Wszystkie modele w tym katalogu pochodzą z darmowych paczek CC0 1.0
+(„Creative Commons Zero”, public domain) autorstwa Kaya Lousberga (KayKit).
+CC0 pozwala używać ich bez ograniczeń — także komercyjnie i bez podawania
+autora. Podajemy źródła, bo tak wypada wobec autora.
+
+Licencja CC0 1.0: https://creativecommons.org/publicdomain/zero/1.0/
+
+--------------------------------------------------------------------------
+1. NATURE/  — drzewa, skały, rośliny wodne
+   Paczka: KayKit — Medieval Hexagon Pack 1.0
+   Autor:  Kay Lousberg
+   Strona: https://kaylousberg.itch.io/kaykit-medieval-hexagon
+   Repo:   https://github.com/KayKit-Game-Assets/KayKit-Medieval-Hexagon-Pack-1.0
+
+   tree_single_A.gltf (+.bin)      — drzewo iglaste A
+   tree_single_B.gltf (+.bin)      — drzewo iglaste B
+   trees_A_large.gltf (+.bin)      — duża korona / grupa drzew
+   trees_A_small.gltf (+.bin)      — młode drzewko (podszycie)
+   trees_B_large.gltf (+.bin)      — szeroka korona liściasta
+   trees_B_medium.gltf (+.bin)     — średnie drzewo liściaste
+   rock_single_A..E.gltf (+.bin)   — głazy i kamienie
+   waterlily_A.gltf (+.bin)        — grążel
+   waterplant_A.gltf (+.bin)       — roślina wodna
+   hexagons_medieval.png           — wspólny atlas tekstur (paleta kolorów)
+
+   Uwaga techniczna: pliki .gltf wskazują na towarzyszące .bin oraz na
+   hexagons_medieval.png — wszystkie trzy muszą leżeć obok siebie.
+
+--------------------------------------------------------------------------
+2. PROPS/ — wyposażenie osad, obozów i kuźni
+   Paczka: KayKit — Dungeon Remastered Pack 1.0
+   Autor:  Kay Lousberg
+   Strona: https://kaylousberg.itch.io/kaykit-dungeon-remastered
+   Repo:   https://github.com/KayKit-Game-Assets/KayKit-Dungeon-Remastered-1.0
+
+   barrel_large.gltf.glb   — beczka
+   box_large.gltf.glb      — skrzynia
+   chest.glb               — kufer (skrzynie z łupem)
+   keg.gltf.glb            — beczułka
+   torch_lit.gltf.glb      — pochodnia
+   table_long.gltf.glb     — stół
+   chair.gltf.glb          — krzesło
+   crates_stacked.gltf.glb — stos skrzyń
+
+   (rozszerzenie „.gltf.glb” to oryginalna nazwa pliku w paczce — to zwykły GLB)
+
+--------------------------------------------------------------------------
+3. CHARS/ — animowane postacie
+   Paczka: KayKit — Character Pack: Skeletons 1.0
+   Autor:  Kay Lousberg
+   Strona: https://kaylousberg.itch.io/kaykit-skeletons
+   Repo:   https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Skeletons-1.0
+
+   Skeleton_Warrior.glb — szkielet-wojownik, 10 siatek, 1 skin,
+                          97 klipów animacji (Idle, Walking_A, Running_A,
+                          1H_Melee_Attack_*, Hit_A, Death_A, Block, ...)
+
+   Gra używa klipów: Idle, Walking_A, Running_A,
+   1H_Melee_Attack_Slice_Diagonal, Hit_A, Death_A.
+
+--------------------------------------------------------------------------
+Jak to działa w kodzie
+----------------------
+src/core/assets.js  — loader (GLTFLoader), biblioteka modeli, instancjonowanie
+src/world/world.js  — rozsypywanie drzew/skał (InstancedMesh) i propsów w osadach
+src/entities/enemy.js — szkielet z AnimationMixerem (SkeletonUtils.clone)
+
+Jeśli któregoś pliku zabraknie, gra automatycznie wraca do modeli
+proceduralnych — nic się nie wysypuje.
+
+--------------------------------------------------------------------------
+6. HALLOWEEN/  — cmentarz, kurhan, kapliczki, martwe drzewa
+   Paczka: KayKit — Halloween Bits 1.0
+   Autor:  Kay Lousberg
+   Strona: https://kaylousberg.itch.io/kaykit-halloween-bits
+   Repo:   https://github.com/KayKit-Game-Assets/KayKit-Halloween-Bits-1.0
+
+   grave_A/B, gravemarker_A/B, crypt, coffin, coffin_decorated — cmentarz przy kurhanie
+   shrine, shrine_candles, lantern_standing, post_lantern, fence_broken — kapliczki i latarnie
+   skull, bone_A, ribcage — szczątki na bagnie i w ruinach
+   tree_dead_large/medium, tree_pine_orange/yellow_large — martwe drzewa i jesienne iglaki
+
+--------------------------------------------------------------------------
+7. FURNITURE/  — wnętrza chat, gospody i kuźni
+   Paczka: KayKit — Furniture Bits 1.0
+   Autor:  Kay Lousberg
+   Strona: https://kaylousberg.itch.io/kaykit-furniture-bits
+   Repo:   https://github.com/KayKit-Game-Assets/KayKit-Furniture-Bits-1.0
+
+   bed_single_A, bed_double_A, table_medium, chair_A, chair_stool, shelf_A_small,
+   cabinet_small, book_set, rug_rectangle_A, lamp_table, couch, pictureframe_medium
+
+--------------------------------------------------------------------------
+8. CITY/  — obejścia i drobna architektura
+   Paczka: KayKit — City Builder Bits 1.0
+   Autor:  Kay Lousberg
+   Strona: https://kaylousberg.itch.io/kaykit-city-builder-bits
+   Repo:   https://github.com/KayKit-Game-Assets/KayKit-City-Builder-Bits-1.0
+
+   bench, streetlight, watertower, box_A, bush

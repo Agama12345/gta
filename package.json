@@ -1,0 +1,39 @@
+{
+  "name": "runy-przeznaczenia",
+  "private": true,
+  "version": "1.3.0",
+  "type": "module",
+  "description": "Runy Przeznaczenia — trójwymiarowa gra RPG w przeglądarce",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 5173",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 4173",
+    "test": "node tests/smoke.mjs && node tests/integration.mjs && node tests/story.mjs && node tests/models.mjs && node tests/character.mjs && node tests/characters3d.mjs && node tests/menu.mjs && node tools/check-roads.mjs && node tools/check-browser.mjs",
+    "test:smoke": "node tests/smoke.mjs",
+    "check:roads": "node tools/check-roads.mjs",
+    "shots": "node scripts/shot.mjs",
+    "release": "node tools/release.mjs",
+    "icons": "python3 tools/make_icons.py",
+    "launcher": "powershell -NoProfile -ExecutionPolicy Bypass -File launcher/ArcaneSpire.ps1",
+    "launcher-pack": "python3 tools/pack_launcher.py",
+    "downloads": "python3 tools/pack_downloads.py",
+    "test:menu": "node tests/menu.mjs",
+    "test:character": "node tests/character.mjs",
+    "test:characters3d": "node tests/characters3d.mjs",
+    "check:shaders": "node tools/check-shaders.mjs",
+    "preview:ground": "node tools/ground-preview.mjs",
+    "dump:ground": "node tools/dump-ground.mjs",
+    "smoke:play": "node tools/smoke-play.mjs",
+    "diag:draws": "node tools/diag-draws.mjs",
+    "diag:head": "node tools/diag-head.mjs",
+    "diag:lod": "node tools/diag-lod.mjs"
+  },
+  "dependencies": {
+    "three": "^0.169.0"
+  },
+  "devDependencies": {
+    "@shaderfrog/glsl-parser": "^7.0.1",
+    "jsdom": "^25.0.1",
+    "vite": "^5.4.10"
+  }
+}
