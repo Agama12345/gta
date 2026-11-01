@@ -8,7 +8,7 @@
     "dev": "vite --host 0.0.0.0 --port 5173",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0 --port 4173",
-    "test": "node tests/smoke.mjs && node tests/integration.mjs && node tests/story.mjs && node tests/models.mjs && node tests/character.mjs && node tests/characters3d.mjs && node tests/menu.mjs && node tools/check-roads.mjs",
+    "test": "node tests/smoke.mjs && node tests/integration.mjs && node tests/story.mjs && node tests/models.mjs && node tests/character.mjs && node tests/characters3d.mjs && node tests/menu.mjs && node tools/check-roads.mjs && node tools/check-browser.mjs",
     "test:smoke": "node tests/smoke.mjs",
     "check:roads": "node tools/check-roads.mjs",
     "shots": "node scripts/shot.mjs",

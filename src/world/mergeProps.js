@@ -250,24 +250,7 @@ export function mergeStaticGroups(root, { protect = [], skipName = /chunk|water|
       for (const g of bucket.geometries) g.dispose();
       continue;
     }
-    if (process.env.DEBUG_MERGE) {
-      for (const g of bucket.geometries) {
-        if (!g.boundingBox) g.computeBoundingBox();
-        const b = g.boundingBox;
-        if (b.max.y > 120 || b.min.y < -20) {
-          const node = bucket.nodes[bucket.geometries.indexOf(g)];
-          console.log('[merge-podejrzane]', node?.name || node?.parent?.name || '?', 'y', b.min.y.toFixed(1), '..', b.max.y.toFixed(1), 'mat', node?.material?.type, 'rodzic', node?.parent?.name);
-        }
-      }
-    }
     const geo = mergeGeometries(bucket.geometries, false);
-    if (process.env.DEBUG_MERGE) {
-      const tris = (g) => Math.round((g.index ? g.index.count : g.attributes.position.count) / 3);
-      console.log('[merge]', key.slice(0, 60), 'szt', bucket.nodes.length,
-        'tris wej', bucket.geometries.reduce((a, g) => a + tris(g), 0),
-        'tris wyj', geo ? tris(geo) : 'NULL',
-        'atrybuty', Object.keys(bucket.geometries[0].attributes).join(','));
-    }
     for (const g of bucket.geometries) g.dispose();
     if (!geo) continue;
     let material = mergedMaterials.get(key);
